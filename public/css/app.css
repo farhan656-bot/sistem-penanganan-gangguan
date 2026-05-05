@@ -239,6 +239,11 @@ body {
   border-bottom: 1px solid var(--app-border);
 }
 
+/* In-page anchors: avoid being covered by topbar */
+.app-anchor-section {
+  scroll-margin-top: calc(var(--app-topbar-height) + 16px);
+}
+
 /* Responsive helpers */
 @media (max-width: 991.98px) {
   .app-sidebar {

@@ -35,7 +35,7 @@
           <% } %>
 
           <% if (success_msg && success_msg.length > 0) { %>
-            <div class="alert alert-success alert-dismissible fade show app-flash" role="alert">
+            <div class="alert alert-success alert-dismissible fade show app-flash" role="alert" data-auto-dismiss="true" data-auto-dismiss-delay="4000">
               <%= success_msg[0] %>
               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
@@ -69,6 +69,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/app.js?v=flash-auto-dismiss-20260505-2"></script>
   <script>
     (function () {
       var passwordInput = document.getElementById('passwordInput');

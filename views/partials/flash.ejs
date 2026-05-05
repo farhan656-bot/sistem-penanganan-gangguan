@@ -14,7 +14,11 @@
     if (!messages || messages.length === 0) return;
 %>
     <% messages.forEach((msg) => { %>
-      <div class="alert alert-<%= type %> alert-dismissible fade show app-flash" role="alert">
+      <div
+        class="alert alert-<%= type %> alert-dismissible fade show app-flash"
+        role="alert"
+        <% if (type === 'success') { %>data-auto-dismiss="true" data-auto-dismiss-delay="4000"<% } %>
+      >
         <%= msg %>
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>

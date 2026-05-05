@@ -34,6 +34,7 @@
             pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Hak akses: read-only (tanpa aksi operasional).`
           }) %>
 
+          <section id="dashboard-ringkasan" class="app-anchor-section">
           <div class="card app-card mb-3">
             <div class="card-body">
               <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
@@ -264,8 +265,10 @@
       </div>
     </div>
 
+          </section>
+
           <div class="row g-3">
-      <div class="col-lg-7">
+      <div class="col-lg-7 app-anchor-section" id="analisis-wilayah">
         <div class="card app-card">
           <div class="card-header"><strong>Rekap per Wilayah</strong></div>
           <div class="card-body">
@@ -307,7 +310,7 @@
         </div>
       </div>
 
-      <div class="col-lg-5">
+      <div class="col-lg-5 app-anchor-section" id="kinerja-eksekutor">
         <div class="card app-card">
           <div class="card-header"><strong>Rekap Kinerja Pegawai Eksekutor</strong></div>
           <div class="card-body">
@@ -351,7 +354,7 @@
           </div>
 
           <div class="row g-3 mt-1">
-      <div class="col-lg-7">
+      <div class="col-lg-7 app-anchor-section" id="tiket-perlu-perhatian">
         <div class="card app-card">
           <div class="card-header">
             <strong>Tiket Perlu Perhatian</strong>
@@ -404,7 +407,7 @@
         </div>
       </div>
 
-      <div class="col-lg-5">
+      <div class="col-lg-5 app-anchor-section" id="riwayat-region-switch">
         <div class="card app-card">
           <div class="card-header">
             <strong>Riwayat Region Switch F007</strong>
@@ -468,6 +471,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/app.js?v=flash-auto-dismiss-20260505-2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script>
     window.SUPERVISOR_DASHBOARD_DATA = <%- JSON.stringify({ charts: charts || {} }) %>;
