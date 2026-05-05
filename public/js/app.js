@@ -1,6 +1,8 @@
 (function () {
   'use strict';
 
+  var activeSupervisorSectionHash = null;
+
   function getDelayMs(element) {
     var raw = element.getAttribute('data-auto-dismiss-delay');
     var delay = parseInt(raw, 10);
@@ -55,6 +57,7 @@
 
   function initAppUi() {
     try { setupAutoDismissAlerts(); } catch (e) {}
+    try { setupSupervisorSectionSwitcher(); } catch (e1) {}
     try { updateSidebarHashActive(); } catch (e2) {}
   }
 
@@ -74,7 +77,7 @@
     if (hashLinks.length === 0) return;
 
     var currentPath = normalizePathname(window.location.pathname);
-    var currentHash = window.location.hash || '#dashboard-ringkasan';
+    var currentHash = activeSupervisorSectionHash || window.location.hash || '#dashboard-ringkasan';
 
     // Only manage active state for links that point to the current page
     var relevant = hashLinks.filter(function (a) {
@@ -103,6 +106,47 @@
     }
   }
 
+  function resizeChartsInSection(section) {
+    if (!section || !window.Chart || typeof window.Chart.getChart !== 'function') return;
+
+    window.setTimeout(function () {
+      var canvases = section.querySelectorAll('canvas');
+      for (var i = 0; i < canvases.length; i += 1) {
+        var chart = window.Chart.getChart(canvases[i]);
+        if (chart && typeof chart.resize === 'function') {
+          chart.resize();
+        }
+      }
+    }, 0);
+  }
+
+  function setupSupervisorSectionSwitcher() {
+    var sections = Array.prototype.slice.call(document.querySelectorAll('.supervisor-section[id]'));
+    if (sections.length === 0) {
+      activeSupervisorSectionHash = null;
+      return;
+    }
+
+    var sectionIds = sections.map(function (section) {
+      return section.id;
+    });
+    var defaultId = sectionIds.indexOf('dashboard-ringkasan') >= 0
+      ? 'dashboard-ringkasan'
+      : sectionIds[0];
+    var hashId = (window.location.hash || '').replace(/^#/, '');
+    var targetId = sectionIds.indexOf(hashId) >= 0 ? hashId : defaultId;
+
+    for (var i = 0; i < sections.length; i += 1) {
+      var section = sections[i];
+      var isActive = section.id === targetId;
+      section.classList.toggle('d-none', !isActive);
+      section.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+    }
+
+    activeSupervisorSectionHash = '#' + targetId;
+    resizeChartsInSection(document.getElementById(targetId));
+  }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initAppUi);
   } else {
@@ -114,6 +158,7 @@
   });
 
   window.addEventListener('hashchange', function () {
+    try { setupSupervisorSectionSwitcher(); } catch (e0) {}
     try { updateSidebarHashActive(); } catch (e) {}
   });
 })();
