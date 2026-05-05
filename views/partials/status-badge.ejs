@@ -1,0 +1,12 @@
+<%
+  const resolvedType = (typeof type !== 'undefined' && type) ? String(type) : 'ticket';
+  const resolvedValue = (typeof value !== 'undefined') ? value : null;
+
+  let meta;
+  if (resolvedType === 'ticket') meta = ticketStatusMeta(resolvedValue);
+  else if (resolvedType === 'region_switch') meta = regionSwitchStatusMeta(resolvedValue);
+  else if (resolvedType === 'user_status') meta = userStatusMeta(resolvedValue);
+  else if (resolvedType === 'role') meta = roleMeta(resolvedValue);
+  else meta = { cls: 'text-bg-secondary', label: resolvedValue ? String(resolvedValue) : '-' };
+%>
+<span class="badge <%= meta.cls %>"><%= meta.label %></span>

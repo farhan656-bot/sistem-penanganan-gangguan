@@ -1,155 +1,231 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><%= title %></title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
-<body class="bg-light">
-  <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div>
-        <h3 class="mb-1">Detail Laporan</h3>
-        <p class="mb-0 text-muted">
-          Ticket ID: <strong><%= report.ticket_id %></strong>
-        </p>
-      </div>
+<body>
+  <div class="app-layout">
+    <%- include('../partials/sidebar', { activePath: '/reports' }) %>
 
-      <div class="d-flex gap-2">
-        <a href="/reports" class="btn btn-outline-secondary">Kembali</a>
-        <form action="/auth/logout" method="POST">
-          <button type="submit" class="btn btn-outline-danger">Logout</button>
-        </form>
-      </div>
-    </div>
+    <div class="app-main">
+      <%- include('../partials/topbar', { pageTitle: 'Detail Laporan' }) %>
 
-    <% if (error_msg && error_msg.length > 0) { %>
-      <div class="alert alert-danger"><%= error_msg[0] %></div>
-    <% } %>
+      <main class="app-page">
+        <div class="app-page-content">
+          <%- include('../partials/flash') %>
 
-    <% if (success_msg && success_msg.length > 0) { %>
-      <div class="alert alert-success"><%= success_msg[0] %></div>
-    <% } %>
+          <%- include('../partials/page-header', {
+            pageTitle: 'Detail Laporan',
+            pageSubtitle: `Ticket ID: ${report && report.ticket_id ? report.ticket_id : '-'}`,
+            pageActions: `
+              <a href="/reports" class="btn btn-outline-secondary">Kembali</a>
+            `
+          }) %>
 
-    <div class="card shadow-sm mb-4">
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Ticket ID</label>
-            <div><%= report.ticket_id %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Order ID</label>
-            <div><%= report.order_id || '-' %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Jenis Layanan</label>
-            <div><%= report.service_type || '-' %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Provider</label>
-            <div><%= report.provider || '-' %></div>
+          <div class="card app-card mb-3">
+            <div class="card-body">
+              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
+                <div>
+                  <div class="text-muted small">Status Internal</div>
+                  <div class="mt-1">
+                    <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                    <% if (report.status_internal === 'didelegasikan') { %>
+                      <span class="badge text-bg-info ms-1">Delegasi Aktif</span>
+                    <% } %>
+                  </div>
+                </div>
+
+                <div class="text-end">
+                  <div class="text-muted small">Wilayah Laporan</div>
+                  <div class="fw-semibold"><%= report.current_region_code || '-' %></div>
+                </div>
+              </div>
+
+              <hr class="my-3">
+
+              <div class="row g-3">
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Ticket ID</div>
+                  <div class="fw-semibold"><%= report.ticket_id %></div>
+                </div>
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Order ID</div>
+                  <div><%= report.order_id || '-' %></div>
+                </div>
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Jenis Layanan</div>
+                  <div><%= report.service_type || '-' %></div>
+                </div>
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Provider</div>
+                  <div><%= report.provider || '-' %></div>
+                </div>
+
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Branch</div>
+                  <div><%= report.branch_name || '-' %></div>
+                </div>
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Cluster</div>
+                  <div><%= report.cluster_name || '-' %></div>
+                </div>
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">STO</div>
+                  <div><%= report.sto || '-' %></div>
+                </div>
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Assigned To</div>
+                  <div class="fw-semibold"><%= report.assigned_user_name || '-' %></div>
+                </div>
+
+                <div class="col-12">
+                  <div class="text-muted small">Ringkasan</div>
+                  <div class="mt-1"><%= report.summary || '-' %></div>
+                </div>
+
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Waktu Ambil</div>
+                  <div><%= formatDateTime(report.taken_at) %></div>
+                </div>
+                <div class="col-12 col-md-3">
+                  <div class="text-muted small">Waktu Selesai</div>
+                  <div><%= formatDateTime(report.resolved_at) %></div>
+                </div>
+                <div class="col-12 col-md-6">
+                  <div class="text-muted small">Status Akhir</div>
+                  <div><%= report.completion_status || '-' %></div>
+                </div>
+
+                <div class="col-12">
+                  <div class="text-muted small">Catatan Penyelesaian</div>
+                  <div class="mt-1"><%= report.completion_notes || '-' %></div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Branch</label>
-            <div><%= report.branch_name || '-' %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Cluster</label>
-            <div><%= report.cluster_name || '-' %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">STO</label>
-            <div><%= report.sto || '-' %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Wilayah Laporan</label>
-            <div><%= report.current_region_code || '-' %></div>
-          </div>
+          <div class="row g-3">
+            <div class="col-12 col-xl-6">
+              <div class="card app-card h-100">
+                <div class="card-header fw-semibold">Bukti Penyelesaian</div>
+                <div class="card-body">
+                  <% if (!attachments || attachments.length === 0) { %>
+                    <div class="text-muted">Belum ada file bukti.</div>
+                  <% } else { %>
+                    <div class="list-group list-group-flush">
+                      <% attachments.forEach(file => { %>
+                        <div class="list-group-item px-0">
+                          <div class="d-flex align-items-start justify-content-between gap-3">
+                            <div class="min-w-0">
+                              <div class="fw-semibold">
+                                <a href="<%= file.file_path %>" target="_blank" class="text-decoration-none"><%= file.file_name %></a>
+                              </div>
+                              <div class="small text-muted">Diunggah oleh <%= file.uploaded_by_name %></div>
+                            </div>
+                            <a href="<%= file.file_path %>" target="_blank" class="btn btn-sm btn-outline-secondary">Buka</a>
+                          </div>
+                        </div>
+                      <% }) %>
+                    </div>
+                  <% } %>
+                </div>
+              </div>
+            </div>
 
-          <div class="col-md-12">
-            <label class="form-label fw-bold">Ringkasan</label>
-            <div><%= report.summary || '-' %></div>
-          </div>
+            <div class="col-12 col-xl-6">
+              <div class="card app-card h-100">
+                <div class="card-header fw-semibold">Media Tambahan dari Telegram</div>
+                <div class="card-body">
+                  <% const telegramOnly = (telegramAttachments || []).filter(item => item.source === 'telegram'); %>
 
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Status Internal</label>
-            <div><%= report.status_internal %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Assigned To</label>
-            <div><%= report.assigned_user_name || '-' %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Waktu Ambil</label>
-            <div><%= report.taken_at || '-' %></div>
-          </div>
-          <div class="col-md-3">
-            <label class="form-label fw-bold">Waktu Selesai</label>
-            <div><%= report.resolved_at || '-' %></div>
-          </div>
+                  <% if (telegramOnly.length === 0) { %>
+                    <div class="text-muted">Belum ada media tambahan Telegram yang terhubung ke tiket ini.</div>
+                  <% } else { %>
+                    <div class="row g-3">
+                      <% telegramOnly.forEach(item => { %>
+                        <% const isImage = item.mime_type && item.mime_type.startsWith('image/'); %>
+                        <div class="col-12">
+                          <div class="border rounded p-3 bg-white">
+                            <div class="d-flex align-items-start justify-content-between gap-2">
+                              <div class="min-w-0">
+                                <div class="fw-semibold"><%= item.original_name || item.stored_name || 'Media Telegram' %></div>
+                                <div class="small text-muted">Waktu: <%= formatDateTime(item.created_at) %></div>
+                              </div>
+                              <a href="<%= item.file_path %>" target="_blank" class="btn btn-sm btn-outline-primary">Buka</a>
+                            </div>
 
-          <div class="col-md-12">
-            <label class="form-label fw-bold">Catatan Penyelesaian</label>
-            <div><%= report.completion_notes || '-' %></div>
-          </div>
+                            <% if (isImage) { %>
+                              <a href="<%= item.file_path %>" target="_blank" class="text-decoration-none">
+                                <img
+                                  src="<%= item.file_path %>"
+                                  alt="Telegram media <%= item.id %>"
+                                  class="img-fluid rounded border mt-2"
+                                  style="max-height: 280px; object-fit: cover; width: 100%;"
+                                >
+                              </a>
+                            <% } %>
 
-          <div class="col-md-6">
-            <label class="form-label fw-bold">Status Akhir</label>
-            <div><%= report.completion_status || '-' %></div>
-          </div>
-        </div>
-      </div>
-    </div>
+                            <div class="row g-2 mt-2 small text-muted">
+                              <div class="col-12 col-md-6">Tipe: <%= item.file_type || '-' %></div>
+                              <div class="col-12 col-md-6">MIME: <%= item.mime_type || '-' %></div>
+                            </div>
 
-    <div class="card shadow-sm mb-4">
-      <div class="card-header">
-        <strong>Bukti Penyelesaian</strong>
-      </div>
-      <div class="card-body">
-        <% if (attachments.length === 0) { %>
-          <p class="text-muted mb-0">Belum ada file bukti.</p>
-        <% } %>
-
-        <% attachments.forEach(file => { %>
-          <div class="mb-2">
-            <a href="<%= file.file_path %>" target="_blank"><%= file.file_name %></a>
-            <span class="text-muted small">- diunggah oleh <%= file.uploaded_by_name %></span>
+                            <% if (item.caption) { %>
+                              <div class="small mt-2"><strong>Caption:</strong> <%= item.caption %></div>
+                            <% } %>
+                          </div>
+                        </div>
+                      <% }) %>
+                    </div>
+                  <% } %>
+                </div>
+              </div>
+            </div>
           </div>
-        <% }) %>
-      </div>
-    </div>
 
     <% if (
       currentUser.role === 'eksekutor' &&
       ['diambil', 'didelegasikan'].includes(report.status_internal) &&
       Number(report.current_assigned_user_id) === Number(currentUser.id)
     ) { %>
-      <div class="card shadow-sm mb-4">
-        <div class="card-header">
-          <strong>Konfirmasi Penyelesaian</strong>
+      <div class="card app-card mb-3">
+        <div class="card-header fw-semibold">Update Pengerjaan</div>
+        <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <p class="mb-0 text-muted">Gunakan tombol ini saat tiket sudah mulai dikerjakan agar pelapor menerima update status.</p>
+          <form action="/reports/<%= report.id %>/in-progress" method="POST" class="m-0">
+            <button type="submit" class="btn btn-warning" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
+              Tandai In Progress
+            </button>
+          </form>
         </div>
+      </div>
+
+      <div class="card app-card mb-3">
+        <div class="card-header fw-semibold">Konfirmasi Penyelesaian</div>
         <div class="card-body">
           <form action="/reports/<%= report.id %>/complete" method="POST" enctype="multipart/form-data">
             <div class="mb-3">
-              <label class="form-label">Catatan Penyelesaian</label>
+              <label class="form-label">Catatan Penyelesaian <span class="app-required">*</span></label>
               <textarea name="completion_notes" class="form-control" rows="4" required></textarea>
+              <div class="form-text">Tulis ringkasan tindakan/perbaikan yang sudah dilakukan.</div>
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Status Akhir</label>
+              <label class="form-label">Status Akhir <span class="app-required">*</span></label>
               <select name="completion_status" class="form-select" required>
                 <option value="">Pilih status akhir</option>
-                <option value="Selesai">Selesai</option>
-                <option value="Selesai Sebagian">Selesai Sebagian</option>
-                <option value="Perlu Tindak Lanjut">Perlu Tindak Lanjut</option>
+                <option value="selesai">Selesai</option>
+                <option value="perlu_tindak_lanjut">Perlu Tindak Lanjut</option>
+                <option value="eskalasi">Eskalasi</option>
               </select>
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Upload Bukti</label>
+              <label class="form-label">Upload Bukti <span class="app-required">*</span></label>
               <input type="file" name="proof_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
               <div class="form-text">Format: JPG, PNG, WEBP, atau PDF. Maksimal 5 MB.</div>
             </div>
@@ -166,14 +242,12 @@
       currentUser.role === 'koordinator' &&
       ['tersedia', 'diambil', 'didelegasikan'].includes(report.status_internal)
     ) { %>
-      <div class="card shadow-sm mb-4">
-        <div class="card-header">
-          <strong>Delegasi Penanggung Jawab Lintas Wilayah</strong>
-        </div>
+      <div class="card app-card mb-3">
+        <div class="card-header fw-semibold">Delegasi Penanggung Jawab Lintas Wilayah</div>
         <div class="card-body">
           <form action="/reports/<%= report.id %>/delegate" method="POST">
             <div class="mb-3">
-              <label class="form-label">Pilih Pegawai Tujuan</label>
+              <label class="form-label">Pilih Pegawai Tujuan <span class="app-required">*</span></label>
               <select name="target_user_id" class="form-select" required>
                 <option value="">Pilih pegawai eksekutor</option>
                 <% eksekutorUsers.forEach(user => { %>
@@ -185,12 +259,18 @@
                 <% }) %>
               </select>
               <div class="form-text">
-                Pilihan pegawai hanya ditampilkan dari wilayah lawan.
+                Aturan delegasi: tiket PDG hanya ke eksekutor BKT, tiket BKT hanya ke eksekutor PDG.
               </div>
+
+              <% if (eksekutorUsers.length === 0) { %>
+                <div class="text-danger small mt-2">
+                  Tidak ada eksekutor aktif pada wilayah lawan untuk tiket ini.
+                </div>
+              <% } %>
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Alasan Delegasi</label>
+              <label class="form-label">Alasan Delegasi <span class="app-required">*</span></label>
               <textarea name="delegation_notes" class="form-control" rows="3" required></textarea>
             </div>
 
@@ -207,14 +287,12 @@
       ['diambil', 'didelegasikan'].includes(report.status_internal) &&
       report.current_assigned_user_id
     ) { %>
-      <div class="card shadow-sm">
-        <div class="card-header">
-          <strong>Batalkan Penugasan</strong>
-        </div>
+      <div class="card app-card">
+        <div class="card-header fw-semibold">Batalkan Penugasan</div>
         <div class="card-body">
           <form action="/reports/<%= report.id %>/cancel-assignment" method="POST">
             <div class="mb-3">
-              <label class="form-label">Alasan Pembatalan</label>
+              <label class="form-label">Alasan Pembatalan <span class="app-required">*</span></label>
               <textarea name="cancel_notes" class="form-control" rows="3" required></textarea>
             </div>
 
@@ -225,6 +303,11 @@
         </div>
       </div>
     <% } %>
+        </div>
+      </main>
+    </div>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

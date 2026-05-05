@@ -8,14 +8,28 @@ const upload = require('../middlewares/uploadMiddleware');
 router.get(
   '/',
   ensureAuthenticated,
-  ensureRole('eksekutor', 'koordinator'),
+  ensureRole('eksekutor', 'koordinator', 'super_admin'),
   reportController.listReports
+);
+
+router.get(
+  '/create',
+  ensureAuthenticated,
+  ensureRole('koordinator', 'super_admin'),
+  reportController.showCreateReportForm
+);
+
+router.post(
+  '/',
+  ensureAuthenticated,
+  ensureRole('koordinator', 'super_admin'),
+  reportController.createManualReport
 );
 
 router.get(
   '/:id',
   ensureAuthenticated,
-  ensureRole('eksekutor', 'koordinator'),
+  ensureRole('eksekutor', 'koordinator', 'super_admin'),
   reportController.showReportDetail
 );
 
@@ -24,6 +38,13 @@ router.post(
   ensureAuthenticated,
   ensureRole('eksekutor'),
   reportController.takeReport
+);
+
+router.post(
+  '/:id/in-progress',
+  ensureAuthenticated,
+  ensureRole('eksekutor'),
+  reportController.markReportInProgress
 );
 
 router.post(

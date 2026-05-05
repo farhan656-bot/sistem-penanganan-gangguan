@@ -1,0 +1,26 @@
+<%
+  const resolvedTitle =
+    (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle :
+    (typeof title !== 'undefined' && title) ? title :
+    '';
+
+  const resolvedSubtitle = (typeof pageSubtitle !== 'undefined') ? pageSubtitle : null;
+  const resolvedActions = (typeof pageActions !== 'undefined') ? pageActions : null;
+%>
+
+<% if (resolvedTitle) { %>
+  <div class="app-page-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div>
+      <h2 class="h5 mb-0"><%= resolvedTitle %></h2>
+      <% if (resolvedSubtitle) { %>
+        <div class="text-muted small mt-1"><%= resolvedSubtitle %></div>
+      <% } %>
+    </div>
+
+    <% if (resolvedActions) { %>
+      <div class="app-page-actions">
+        <%- resolvedActions %>
+      </div>
+    <% } %>
+  </div>
+<% } %>

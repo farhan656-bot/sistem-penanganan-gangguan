@@ -1,0 +1,29 @@
+<%
+  function normalizeFlash(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value.filter(Boolean);
+    return [value].filter(Boolean);
+  }
+
+  const successMessages = normalizeFlash(typeof success_msg !== 'undefined' ? success_msg : null);
+  const errorMessages = normalizeFlash(typeof error_msg !== 'undefined' ? error_msg : null);
+  const warningMessages = normalizeFlash(typeof warning_msg !== 'undefined' ? warning_msg : null);
+  const infoMessages = normalizeFlash(typeof info_msg !== 'undefined' ? info_msg : null);
+
+  function renderAlerts(type, messages) {
+    if (!messages || messages.length === 0) return;
+%>
+    <% messages.forEach((msg) => { %>
+      <div class="alert alert-<%= type %> alert-dismissible fade show app-flash" role="alert">
+        <%= msg %>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    <% }) %>
+<%
+  }
+%>
+
+<% renderAlerts('success', successMessages); %>
+<% renderAlerts('danger', errorMessages); %>
+<% renderAlerts('warning', warningMessages); %>
+<% renderAlerts('info', infoMessages); %>

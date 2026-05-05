@@ -1,0 +1,253 @@
+/* Global UI foundation (F008 tahap 1)
+   - Works alongside Bootstrap 5 (no build step)
+   - Telkom-like enterprise: light surfaces + red primary accent
+*/
+
+:root {
+  --app-bg: #f6f7f9;
+  --app-surface: #ffffff;
+  --app-border: rgba(0, 0, 0, 0.10);
+  --app-muted: #6c757d;
+
+  /* Telkom-ish red (kept close to Bootstrap "danger" family) */
+  --app-primary: #e11d2a;
+  --app-primary-hover: #c81824;
+  --app-primary-active: #ad1520;
+
+  --app-radius: 0.75rem;
+  --app-radius-sm: 0.5rem;
+  --app-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+  --app-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.06);
+
+  --app-sidebar-width: 264px;
+  --app-topbar-height: 60px;
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--app-bg);
+}
+
+/* Bootstrap mapping: make "primary" align with the system accent */
+.text-primary { color: var(--app-primary) !important; }
+.bg-primary { background-color: var(--app-primary) !important; }
+.btn-primary {
+  --bs-btn-bg: var(--app-primary);
+  --bs-btn-border-color: var(--app-primary);
+  --bs-btn-hover-bg: var(--app-primary-hover);
+  --bs-btn-hover-border-color: var(--app-primary-hover);
+  --bs-btn-active-bg: var(--app-primary-active);
+  --bs-btn-active-border-color: var(--app-primary-active);
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--app-primary);
+  --bs-btn-border-color: var(--app-primary);
+  --bs-btn-hover-bg: var(--app-primary);
+  --bs-btn-hover-border-color: var(--app-primary);
+  --bs-btn-active-bg: var(--app-primary-active);
+  --bs-btn-active-border-color: var(--app-primary-active);
+}
+
+/* Page spacing helpers */
+.app-page {
+  min-height: 100vh;
+}
+.app-page-content {
+  padding: 1.25rem;
+}
+@media (min-width: 992px) {
+  .app-page-content {
+    padding: 1.5rem;
+  }
+}
+
+/* Surface/card style */
+.app-card,
+.card {
+  border-radius: var(--app-radius);
+}
+.app-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-sm);
+}
+
+/* Soft, consistent card header */
+.card .card-header {
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+}
+
+/* Table standardization */
+.table {
+  margin-bottom: 0;
+}
+.table thead th {
+  font-weight: 600;
+  color: #343a40;
+  background: rgba(0, 0, 0, 0.02);
+  border-bottom: 1px solid var(--app-border);
+}
+.table td, .table th {
+  vertical-align: middle;
+}
+.table-hover > tbody > tr:hover > * {
+  --bs-table-bg-state: rgba(0, 0, 0, 0.02);
+}
+
+/* Truncate helper for table cells */
+.app-truncate {
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-truncate-sm { max-width: 220px; }
+.app-truncate-lg { max-width: 480px; }
+
+/* Form standardization */
+.form-control,
+.form-select {
+  border-radius: var(--app-radius-sm);
+}
+.form-control:focus,
+.form-select:focus {
+  border-color: rgba(225, 29, 42, 0.45);
+  box-shadow: 0 0 0 0.25rem rgba(225, 29, 42, 0.15);
+}
+
+/* Buttons */
+.btn {
+  border-radius: var(--app-radius-sm);
+}
+
+/* Badges */
+.badge {
+  border-radius: 999px;
+  font-weight: 600;
+}
+.badge.text-bg-primary {
+  background-color: var(--app-primary) !important;
+}
+
+/* Alerts / flash messages */
+.app-flash {
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow-sm);
+  border: 1px solid var(--app-border);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Required mark (forms) */
+.app-required {
+  color: var(--app-primary);
+  font-weight: 700;
+  margin-left: 0.125rem;
+}
+
+/* Table helpers */
+.app-table-actions {
+  white-space: nowrap;
+}
+
+.app-table-empty {
+  padding: 1.25rem 0;
+}
+
+/* Layout primitives: sidebar + topbar */
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-sidebar {
+  width: var(--app-sidebar-width);
+  background: var(--app-surface);
+  border-right: 1px solid var(--app-border);
+}
+
+.app-sidebar .app-sidebar-inner {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.25rem 0.75rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-brand .app-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(225, 29, 42, 0.10);
+  display: grid;
+  place-items: center;
+  color: var(--app-primary);
+  font-weight: 700;
+}
+
+.app-sidebar .nav-link {
+  border-radius: var(--app-radius-sm);
+  color: #212529;
+}
+.app-sidebar .nav-link:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+.app-sidebar .nav-link.active {
+  background: rgba(225, 29, 42, 0.10);
+  color: #212529;
+  font-weight: 600;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-topbar {
+  height: var(--app-topbar-height);
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-topbar .app-topbar-inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.25rem;
+}
+
+/* Page header block inside content */
+.app-page-header {
+  padding-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+/* Responsive helpers */
+@media (max-width: 991.98px) {
+  .app-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--app-border);
+  }
+  .app-sidebar .app-sidebar-inner {
+    height: auto;
+    position: static;
+  }
+}

@@ -59,6 +59,10 @@ async function login(req, res) {
       return res.redirect('/dashboard/supervisor');
     }
 
+    if (user.role_name === 'super_admin') {
+      return res.redirect('/dashboard/super-admin');
+    }
+
     return res.redirect('/');
   } catch (error) {
     console.error(error);

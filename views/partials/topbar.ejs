@@ -1,0 +1,34 @@
+<%
+  const user = (typeof currentUser !== 'undefined') ? currentUser : null;
+  const role = user && user.role ? String(user.role) : null;
+
+  const resolvedTitle =
+    (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle :
+    (typeof title !== 'undefined' && title) ? title :
+    'Dashboard';
+
+  const roleBadge = roleMeta(role);
+%>
+
+<header class="app-topbar">
+  <div class="app-topbar-inner">
+    <div class="d-flex align-items-center gap-2">
+      <h1 class="h6 mb-0"><%= resolvedTitle %></h1>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <% if (user) { %>
+        <div class="text-end me-1">
+          <div class="fw-semibold" style="line-height: 1.1"><%= user.full_name || user.username || 'User' %></div>
+          <div class="small text-muted" style="line-height: 1.1">
+            <span class="badge <%= roleBadge.cls %>"><%= roleBadge.label %></span>
+          </div>
+        </div>
+      <% } %>
+
+      <form action="/auth/logout" method="POST" class="m-0">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Logout</button>
+      </form>
+    </div>
+  </div>
+</header>

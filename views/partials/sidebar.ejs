@@ -1,0 +1,57 @@
+<% 
+  const user = (typeof currentUser !== 'undefined') ? currentUser : null;
+  const role = user && user.role ? String(user.role) : null;
+  const currentPath = (typeof activePath !== 'undefined' && activePath) ? String(activePath) : '';
+
+  function isActive(href) {
+    if (!currentPath) return false;
+    if (currentPath === href) return true;
+    return currentPath.startsWith(href + '/');
+  }
+%>
+
+<% if (user && role) { %>
+  <aside class="app-sidebar">
+    <div class="app-sidebar-inner">
+      <div class="app-brand">
+        <div class="app-brand-mark">TG</div>
+        <div>
+          <div class="fw-semibold">Sistem Tiket Gangguan</div>
+          <div class="text-muted small">Dashboard Operasional</div>
+        </div>
+      </div>
+
+      <nav class="nav nav-pills flex-column gap-1">
+        <% if (role === 'super_admin') { %>
+          <a class="nav-link <%= isActive('/dashboard/super-admin') ? 'active' : '' %>" href="/dashboard/super-admin">Dashboard</a>
+          <a class="nav-link <%= isActive('/users') ? 'active' : '' %>" href="/users">Kelola User</a>
+          <a class="nav-link <%= isActive('/reports/create') ? 'active' : '' %>" href="/reports/create">Tambah Laporan Manual</a>
+          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Antrean Laporan</a>
+        <% } %>
+
+        <% if (role === 'supervisor') { %>
+          <a class="nav-link <%= isActive('/dashboard/supervisor') ? 'active' : '' %>" href="/dashboard/supervisor">Dashboard KPI</a>
+        <% } %>
+
+        <% if (role === 'eksekutor') { %>
+          <a class="nav-link <%= isActive('/dashboard/eksekutor') ? 'active' : '' %>" href="/dashboard/eksekutor">Dashboard</a>
+          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
+          <a class="nav-link <%= isActive('/region-switch/my') ? 'active' : '' %>" href="/region-switch/my">Pengajuan Switch Region</a>
+        <% } %>
+
+        <% if (role === 'koordinator') { %>
+          <a class="nav-link <%= isActive('/dashboard/koordinator') ? 'active' : '' %>" href="/dashboard/koordinator">Dashboard</a>
+          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
+          <a class="nav-link <%= isActive('/region-switch/pending') ? 'active' : '' %>" href="/region-switch/pending">Approval Switch Region</a>
+          <a class="nav-link <%= isActive('/reports/create') ? 'active' : '' %>" href="/reports/create">Tambah Laporan Manual</a>
+        <% } %>
+      </nav>
+
+      <div class="mt-3 pt-3 border-top">
+        <div class="small text-muted">Login sebagai</div>
+        <div class="fw-semibold"><%= user.full_name || user.username || 'User' %></div>
+        <div class="small text-muted"><%= role %><% if (user.region_name) { %> • <%= user.region_name %><% } %></div>
+      </div>
+    </div>
+  </aside>
+<% } %>

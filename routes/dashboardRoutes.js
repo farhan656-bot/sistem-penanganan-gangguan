@@ -25,4 +25,11 @@ router.get(
   dashboardController.supervisorDashboard
 );
 
+router.get(
+  '/super-admin',
+  ensureAuthenticated,
+  ensureRole('super_admin'),
+  dashboardController.superAdminDashboard
+);
+
 module.exports = router;
