@@ -25,7 +25,6 @@
         <% if (role === 'super_admin') { %>
           <a class="nav-link <%= isActive('/dashboard/super-admin') ? 'active' : '' %>" href="/dashboard/super-admin">Dashboard</a>
           <a class="nav-link <%= isActive('/users') ? 'active' : '' %>" href="/users">Kelola User</a>
-          <a class="nav-link <%= isActive('/reports/create') ? 'active' : '' %>" href="/reports/create">Tambah Laporan Manual</a>
           <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Antrean Laporan</a>
         <% } %>
 
@@ -47,7 +46,6 @@
           <a class="nav-link <%= isActive('/dashboard/koordinator') ? 'active' : '' %>" href="/dashboard/koordinator">Dashboard</a>
           <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
           <a class="nav-link <%= isActive('/region-switch/pending') ? 'active' : '' %>" href="/region-switch/pending">Approval Switch Region</a>
-          <a class="nav-link <%= isActive('/reports/create') ? 'active' : '' %>" href="/reports/create">Tambah Laporan Manual</a>
         <% } %>
       </nav>
 

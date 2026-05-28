@@ -20,7 +20,7 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Dashboard Koordinator',
-            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Fokus utama: monitoring antrean kerja, approval F007, dan input laporan manual saat dibutuhkan.`
+            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Fokus utama: monitoring antrean kerja, delegasi, dan approval F007.`
           }) %>
 
           <% if (typeof summary !== 'undefined' && summary) { %>
@@ -74,7 +74,6 @@
 
                   <div class="mt-3 d-flex gap-2 flex-wrap">
                     <a href="/reports" class="btn btn-primary">Buka Antrean</a>
-                    <a href="/reports/create" class="btn btn-outline-primary">Tambah Laporan Manual</a>
                   </div>
                 </div>
               </div>
@@ -86,7 +85,7 @@
                   <div class="d-flex align-items-start justify-content-between gap-3">
                     <div>
                       <h5 class="card-title mb-1">Approval Switch Region</h5>
-                      <div class="text-muted">Setujui atau tolak pengajuan switch region (F007). Pastikan alasan penolakan dicatat untuk audit.</div>
+                      <div class="text-muted">Akses region sementara digunakan untuk mendukung kebutuhan operasional lintas region berdasarkan persetujuan Koordinator.</div>
                     </div>
                     <span class="badge text-bg-primary">F007</span>
                   </div>

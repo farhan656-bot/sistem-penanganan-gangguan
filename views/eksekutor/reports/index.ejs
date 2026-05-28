@@ -24,7 +24,7 @@
 
           <%- include('../../partials/page-header', {
             pageTitle: 'Daftar Antrean Kerja',
-            pageSubtitle: `Pantau dan ambil tiket yang tersedia. Wilayah: ${currentUser && currentUser.region_name ? currentUser.region_name : '-'} (hanya tiket sesuai rule yang akan tampil).`
+            pageSubtitle: `Wilayah: ${currentUser && currentUser.region_name ? currentUser.region_name : '-'}. Eksekutor secara default hanya dapat melihat tiket sesuai region utama. Tiket dari region lain akan tampil jika temporary region switch telah disetujui Koordinator dan masih aktif.`
           }) %>
 
           <div class="card app-card mb-3">
@@ -130,7 +130,11 @@
                         </td>
                         <td class="app-table-actions">
                           <div class="d-flex gap-2">
-                            <a href="/reports/<%= report.id %>" class="btn btn-sm btn-outline-secondary">Detail</a>
+                            <a
+                              href="/reports/<%= report.id %>"
+                              class="btn btn-sm btn-outline-secondary"
+                              data-report-detail-url="/reports/<%= report.id %>/detail-json"
+                            >Detail</a>
 
                             <% if (currentUser.role === 'eksekutor' && report.status_internal === 'tersedia') { %>
                               <form action="/reports/<%= report.id %>/take" method="POST" class="m-0" onsubmit="return confirm('Ambil laporan ini?');">
@@ -152,7 +156,9 @@
     </div>
   </div>
 
+  <%- include('../../partials/report-detail-modal') %>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/app.js?v=flash-auto-dismiss-20260505-2"></script>
+  <script src="/js/app.js?v=report-detail-modal-diit-20260525"></script>
 </body>
 </html>

@@ -27,6 +27,13 @@ router.post(
 );
 
 router.get(
+  '/:id/detail-json',
+  ensureAuthenticated,
+  ensureRole('eksekutor', 'koordinator', 'super_admin'),
+  reportController.showReportDetailJson
+);
+
+router.get(
   '/:id',
   ensureAuthenticated,
   ensureRole('eksekutor', 'koordinator', 'super_admin'),

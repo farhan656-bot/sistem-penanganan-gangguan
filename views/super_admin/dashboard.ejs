@@ -24,14 +24,13 @@
             pageActions: `
               <div class="d-flex gap-2 flex-wrap">
                 <a href="/users" class="btn btn-primary">Kelola User</a>
-                <a href="/reports/create" class="btn btn-outline-primary">Tambah Laporan Manual</a>
                 <a href="/reports" class="btn btn-outline-secondary">Antrean Laporan</a>
               </div>
             `
           }) %>
 
           <div class="row g-3">
-            <div class="col-12 col-xl-6">
+            <div class="col-12">
               <div class="card app-card h-100">
                 <div class="card-body">
                   <div class="d-flex align-items-start justify-content-between gap-3">
@@ -50,25 +49,6 @@
               </div>
             </div>
 
-            <div class="col-12 col-xl-6">
-              <div class="card app-card h-100">
-                <div class="card-body">
-                  <div class="d-flex align-items-start justify-content-between gap-3">
-                    <div>
-                      <h5 class="card-title mb-1">Laporan Manual</h5>
-                      <div class="text-muted">Input laporan manual sebagai fallback operasional dan pantau antrean laporan.</div>
-                    </div>
-                    <span class="badge text-bg-primary">Operasional</span>
-                  </div>
-
-                  <div class="mt-3 d-flex gap-2 flex-wrap">
-                    <a href="/reports/create" class="btn btn-primary">Tambah Laporan Manual</a>
-                    <a href="/reports" class="btn btn-outline-secondary">Lihat Antrean</a>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <div class="col-12">
               <div class="card app-card">
                 <div class="card-body">
@@ -81,7 +61,7 @@
                     <div class="col-12 col-md-6 col-xl-3">
                       <div class="d-flex align-items-start gap-2">
                         <%- include('../partials/status-badge', { type: 'role', value: 'super_admin' }) %>
-                        <div class="text-muted">Manajemen user dan input laporan manual.</div>
+                        <div class="text-muted">Manajemen user dan administrasi akun sistem.</div>
                       </div>
                     </div>
                     <div class="col-12 col-md-6 col-xl-3">

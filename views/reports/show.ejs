@@ -100,6 +100,13 @@
                   <div><%= report.completion_status || '-' %></div>
                 </div>
 
+                <% if (report.diit_code) { %>
+                  <div class="col-12 col-md-6">
+                    <div class="text-muted small">Kode DIIT</div>
+                    <div class="fw-semibold"><%= report.diit_code %></div>
+                  </div>
+                <% } %>
+
                 <div class="col-12">
                   <div class="text-muted small">Catatan Penyelesaian</div>
                   <div class="mt-1"><%= report.completion_notes || '-' %></div>
@@ -207,21 +214,35 @@
       <div class="card app-card mb-3">
         <div class="card-header fw-semibold">Konfirmasi Penyelesaian</div>
         <div class="card-body">
-          <form action="/reports/<%= report.id %>/complete" method="POST" enctype="multipart/form-data">
+          <form action="/reports/<%= report.id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
             <div class="mb-3">
-              <label class="form-label">Catatan Penyelesaian <span class="app-required">*</span></label>
-              <textarea name="completion_notes" class="form-control" rows="4" required></textarea>
-              <div class="form-text">Tulis ringkasan tindakan/perbaikan yang sudah dilakukan.</div>
+              <label class="form-label" for="completion_notes">Catatan Penyelesaian (Opsional)</label>
+              <textarea id="completion_notes" name="completion_notes" class="form-control" rows="4" data-completion-notes></textarea>
+              <div class="form-text">Isi catatan hanya jika diperlukan. Untuk tiket yang selesai tanpa kendala, catatan dapat dikosongkan.</div>
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Status Akhir <span class="app-required">*</span></label>
-              <select name="completion_status" class="form-select" required>
+              <label class="form-label" for="completion_status">Status Akhir <span class="app-required">*</span></label>
+              <select id="completion_status" name="completion_status" class="form-select" required data-completion-status>
                 <option value="">Pilih status akhir</option>
                 <option value="selesai">Selesai</option>
                 <option value="perlu_tindak_lanjut">Perlu Tindak Lanjut</option>
                 <option value="eskalasi">Eskalasi</option>
               </select>
+            </div>
+
+            <div class="mb-3 d-none" data-diit-code-group>
+              <label class="form-label" for="diit_code">Kode DIIT <span class="app-required">*</span></label>
+              <input
+                type="text"
+                id="diit_code"
+                name="diit_code"
+                class="form-control"
+                maxlength="100"
+                autocomplete="off"
+                data-diit-code
+              >
+              <div class="form-text">Masukkan kode rujukan DIIT dari proses eksternal.</div>
             </div>
 
             <div class="mb-3">
@@ -310,5 +331,37 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/app.js?v=flash-auto-dismiss-20260505-2"></script>
+  <script>
+    (function () {
+      var form = document.querySelector('[data-completion-form]');
+      if (!form) return;
+
+      var statusField = form.querySelector('[data-completion-status]');
+      var notesField = form.querySelector('[data-completion-notes]');
+      var diitCodeGroup = form.querySelector('[data-diit-code-group]');
+      var diitCodeField = form.querySelector('[data-diit-code]');
+      if (!statusField || !notesField) return;
+
+      function syncCompletionRequirements() {
+        var requiresNotes = statusField.value && statusField.value !== 'selesai';
+        var requiresDiitCode = statusField.value === 'eskalasi';
+
+        notesField.required = Boolean(requiresNotes);
+
+        if (diitCodeGroup && diitCodeField) {
+          diitCodeGroup.classList.toggle('d-none', !requiresDiitCode);
+          diitCodeField.required = requiresDiitCode;
+          diitCodeField.disabled = !requiresDiitCode;
+
+          if (!requiresDiitCode) {
+            diitCodeField.value = '';
+          }
+        }
+      }
+
+      statusField.addEventListener('change', syncCompletionRequirements);
+      syncCompletionRequirements();
+    })();
+  </script>
 </body>
 </html>

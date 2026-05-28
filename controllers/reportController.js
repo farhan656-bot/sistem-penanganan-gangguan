@@ -4,7 +4,9 @@ const attachmentModel = require('../models/attachmentModel');
 const {
   sendAssignedFeedback,
   sendInProgressFeedback,
-  sendCompletedFeedback
+  sendCompletedFeedback,
+  sendReturnEvidenceFeedback,
+  sendEscalationFeedback
 } = require('../services/telegramFeedbackService');
 
 const ALLOWED_FINAL_STATUSES = ['selesai', 'perlu_tindak_lanjut', 'eskalasi'];
@@ -34,7 +36,82 @@ function buildManualReportFormData(body = {}) {
   };
 }
 
-async function triggerTelegramFeedback(reportId, currentUser, feedbackType) {
+function normalizeJsonValue(value) {
+  return value === undefined ? null : value;
+}
+
+function buildReportDetailPayload(report) {
+  return {
+    id: normalizeJsonValue(report.id),
+    source_channel: normalizeJsonValue(report.source_channel),
+    fallout_type: normalizeJsonValue(report.fallout_type),
+    ticket_id: normalizeJsonValue(report.ticket_id),
+    order_id: normalizeJsonValue(report.order_id),
+    wo_number: normalizeJsonValue(report.wo_number),
+    service_type: normalizeJsonValue(report.service_type),
+    segment: normalizeJsonValue(report.segment),
+    provider: normalizeJsonValue(report.provider),
+    telkom_area: normalizeJsonValue(report.telkom_area),
+    branch_name: normalizeJsonValue(report.branch_name),
+    cluster_name: normalizeJsonValue(report.cluster_name),
+    sto: normalizeJsonValue(report.sto),
+    summary: normalizeJsonValue(report.summary),
+    service_id: normalizeJsonValue(report.service_id),
+    status_internal: normalizeJsonValue(report.status_internal),
+    status_wfm: normalizeJsonValue(report.status_wfm),
+    status_andalas: normalizeJsonValue(report.status_andalas),
+    completion_status: normalizeJsonValue(report.completion_status),
+    completion_notes: normalizeJsonValue(report.completion_notes),
+    diit_code: normalizeJsonValue(report.diit_code),
+    reported_region_code: normalizeJsonValue(report.reported_region_code),
+    reported_region_name: normalizeJsonValue(report.reported_region_name),
+    current_region_code: normalizeJsonValue(report.current_region_code),
+    current_region_name: normalizeJsonValue(report.current_region_name),
+    assigned_user_name: normalizeJsonValue(report.assigned_user_name),
+    received_at: normalizeJsonValue(report.received_at),
+    taken_at: normalizeJsonValue(report.taken_at),
+    resolved_at: normalizeJsonValue(report.resolved_at),
+    closed_at: normalizeJsonValue(report.closed_at),
+    created_at: normalizeJsonValue(report.created_at),
+    updated_at: normalizeJsonValue(report.updated_at)
+  };
+}
+
+function buildAttachmentPayload(file) {
+  return {
+    id: normalizeJsonValue(file.id),
+    source: normalizeJsonValue(file.source),
+    file_name: normalizeJsonValue(file.file_name || file.original_name || file.stored_name),
+    file_path: normalizeJsonValue(file.file_path),
+    mime_type: normalizeJsonValue(file.mime_type),
+    file_type: normalizeJsonValue(file.file_type),
+    file_size: normalizeJsonValue(file.file_size),
+    caption: normalizeJsonValue(file.caption),
+    uploaded_by_name: normalizeJsonValue(file.uploaded_by_name),
+    created_at: normalizeJsonValue(file.created_at)
+  };
+}
+
+function buildTelegramLogMediaPayload(item) {
+  const media = item && item.media ? item.media : {};
+
+  return {
+    log_id: normalizeJsonValue(item.log_id),
+    created_at: normalizeJsonValue(item.created_at),
+    file_name: normalizeJsonValue(media.file_name || media.original_name || media.stored_name),
+    file_path: normalizeJsonValue(media.file_path || media.url),
+    mime_type: normalizeJsonValue(media.mime_type || media.mimeType),
+    file_type: normalizeJsonValue(media.file_type || media.type),
+    file_size: normalizeJsonValue(media.file_size || media.size),
+    caption: normalizeJsonValue(media.caption)
+  };
+}
+
+function isTelegramAttachment(file) {
+  return String(file && file.source ? file.source : '').toLowerCase() === 'telegram';
+}
+
+async function triggerTelegramFeedback(reportId, currentUser, feedbackType, options = {}) {
   const payload = await reportModel.getTelegramFeedbackPayloadByReportId(reportId);
 
   if (!payload) {
@@ -97,6 +174,38 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType) {
         reportId,
         'telegram_feedback_completed',
         `Feedback completed terkirim ke chat ${payload.telegram_chat_id}.`,
+        currentUser.id
+      );
+    }
+
+    if (feedbackType === 'return_evidence') {
+      await sendReturnEvidenceFeedback({
+        chatId: payload.telegram_chat_id,
+        ticketId: payload.ticket_id,
+        orderId: payload.order_id || '-',
+        notes: options.notes
+      });
+
+      await reportModel.logTelegramFeedback(
+        reportId,
+        'telegram_feedback_return_evidence',
+        `Feedback return evidence terkirim ke chat ${payload.telegram_chat_id}.`,
+        currentUser.id
+      );
+    }
+
+    if (feedbackType === 'escalation') {
+      await sendEscalationFeedback({
+        chatId: payload.telegram_chat_id,
+        ticketId: payload.ticket_id,
+        orderId: payload.order_id || '-',
+        diitCode: options.diitCode || payload.diit_code
+      });
+
+      await reportModel.logTelegramFeedback(
+        reportId,
+        'telegram_feedback_escalation',
+        `Feedback escalation DIIT terkirim ke chat ${payload.telegram_chat_id}.`,
         currentUser.id
       );
     }
@@ -237,6 +346,43 @@ async function showReportDetail(req, res) {
   }
 }
 
+async function showReportDetailJson(req, res) {
+  try {
+    const reportId = req.params.id;
+    const report = await reportModel.getReportById(reportId, req.session.user);
+
+    if (!report) {
+      return res.status(404).json({
+        success: false,
+        message: 'Laporan tidak ditemukan atau tidak dapat diakses.'
+      });
+    }
+
+    const attachments = await reportModel.getAttachmentsByReportId(reportId);
+    const telegramAttachments = await attachmentModel.getAttachmentsByReportId(reportId);
+    const telegramLogMedia = await reportModel.getTelegramAdditionalMediaByReportId(reportId);
+
+    return res.json({
+      success: true,
+      fallbackUrl: `/reports/${report.id}`,
+      report: buildReportDetailPayload(report),
+      attachments: (attachments || [])
+        .filter((file) => !isTelegramAttachment(file))
+        .map(buildAttachmentPayload),
+      telegramMedia: (telegramAttachments || [])
+        .filter(isTelegramAttachment)
+        .map(buildAttachmentPayload),
+      telegramLogMedia: (telegramLogMedia || []).map(buildTelegramLogMediaPayload)
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: 'Gagal memuat detail laporan.'
+    });
+  }
+}
+
 async function takeReport(req, res) {
   try {
     const reportId = req.params.id;
@@ -287,13 +433,41 @@ async function completeReport(req, res) {
 
     req.body.completion_status = completionStatus;
 
+    const diitCode =
+      typeof req.body.diit_code === 'string'
+        ? req.body.diit_code.trim()
+        : '';
+
+    if (completionStatus === 'eskalasi' && !diitCode) {
+      req.flash('error_msg', 'Kode DIIT wajib diisi untuk status eskalasi.');
+      return res.redirect(`/reports/${reportId}`);
+    }
+
+    if (completionStatus === 'eskalasi' && diitCode.length > 100) {
+      req.flash('error_msg', 'Kode DIIT maksimal 100 karakter.');
+      return res.redirect(`/reports/${reportId}`);
+    }
+
+    req.body.diit_code = completionStatus === 'eskalasi' ? diitCode : '';
+
     const result = await reportModel.completeReport(
       reportId,
       req.session.user,
       req.body,
       req.file
     );
-    await triggerTelegramFeedback(reportId, req.session.user, 'completed');
+
+    if (completionStatus === 'perlu_tindak_lanjut') {
+      await triggerTelegramFeedback(reportId, req.session.user, 'return_evidence', {
+        notes: req.body.completion_notes
+      });
+    } else if (completionStatus === 'eskalasi') {
+      await triggerTelegramFeedback(reportId, req.session.user, 'escalation', {
+        diitCode
+      });
+    } else {
+      await triggerTelegramFeedback(reportId, req.session.user, 'completed');
+    }
 
     req.flash('success_msg', result.message);
     return res.redirect(`/reports/${reportId}`);
@@ -372,6 +546,7 @@ module.exports = {
   createManualReport,
   listReports,
   showReportDetail,
+  showReportDetailJson,
   takeReport,
   markReportInProgress,
   completeReport,

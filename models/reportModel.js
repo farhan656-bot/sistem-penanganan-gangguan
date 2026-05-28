@@ -498,6 +498,7 @@ async function getTelegramFeedbackPayloadByReportId(reportId) {
       reports.id,
       reports.ticket_id,
       reports.order_id,
+      reports.diit_code,
       reports.telegram_chat_id,
       reports.telegram_message_id
     FROM reports
@@ -881,8 +882,12 @@ async function completeReport(reportId, currentUser, formData, fileData) {
         ? formData.completion_notes.trim()
         : '';
     const finalStatus = normalizeFinalStatus(formData.completion_status);
+    const diitCode =
+      typeof formData.diit_code === 'string'
+        ? formData.diit_code.trim()
+        : '';
 
-    if (!completionNotes || !finalStatus) {
+    if (!finalStatus || (finalStatus !== 'selesai' && !completionNotes)) {
       throw new Error('Catatan penyelesaian dan status akhir wajib diisi.');
     }
 
@@ -890,11 +895,23 @@ async function completeReport(reportId, currentUser, formData, fileData) {
       throw new Error('Status akhir tidak valid.');
     }
 
+    if (finalStatus === 'eskalasi' && !diitCode) {
+      throw new Error('Kode DIIT wajib diisi untuk status eskalasi.');
+    }
+
+    if (finalStatus === 'eskalasi' && diitCode.length > 100) {
+      throw new Error('Kode DIIT maksimal 100 karakter.');
+    }
+
     if (!fileData) {
       throw new Error('Bukti penyelesaian wajib diunggah.');
     }
 
     const logMeta = getCompletionLogMeta(finalStatus);
+    const storedDiitCode = finalStatus === 'eskalasi' ? diitCode : null;
+    const logDescription =
+      `Laporan diproses oleh ${currentUser.full_name} dengan hasil akhir: ${logMeta.label}.` +
+      (storedDiitCode ? ` Kode DIIT: ${storedDiitCode}.` : '');
 
     await connection.query(
       `
@@ -903,6 +920,7 @@ async function completeReport(reportId, currentUser, formData, fileData) {
         status_internal = ?,
         completion_notes = ?,
         completion_status = ?,
+        diit_code = ?,
         resolved_at = NOW(),
         closed_at = NOW(),
         updated_at = NOW()
@@ -912,6 +930,7 @@ async function completeReport(reportId, currentUser, formData, fileData) {
         finalStatus,
         completionNotes,
         finalStatus,
+        storedDiitCode,
         reportId
       ]
     );
@@ -949,7 +968,7 @@ async function completeReport(reportId, currentUser, formData, fileData) {
         reportId,
         currentUser.id,
         logMeta.action,
-        `Laporan diproses oleh ${currentUser.full_name} dengan hasil akhir: ${logMeta.label}.`
+        logDescription
       ]
     );
 

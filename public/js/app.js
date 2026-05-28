@@ -55,10 +55,351 @@
     }
   }
 
+  function escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function displayValue(value) {
+    if (value === null || value === undefined) return '-';
+    var text = String(value).trim();
+    return text ? text : '-';
+  }
+
+  function titleCase(value) {
+    var text = displayValue(value);
+    if (text === '-') return text;
+
+    return text
+      .replace(/_/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(function (part) {
+        return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      })
+      .join(' ');
+  }
+
+  function formatDateTime(value) {
+    if (!value) return '-';
+
+    var date = new Date(value);
+    if (Number.isNaN(date.getTime())) return displayValue(value);
+
+    try {
+      return date.toLocaleString('id-ID', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return displayValue(value);
+    }
+  }
+
+  function formatFileSize(value) {
+    var size = Number(value);
+    if (!isFinite(size) || size <= 0) return '-';
+    if (size < 1024) return size + ' B';
+    if (size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB';
+    return (size / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function safeFileUrl(value) {
+    var url = displayValue(value);
+    if (url === '-') return '';
+    if (/^(\/|https?:\/\/)/i.test(url)) return url;
+    return '';
+  }
+
+  function ticketStatusBadge(value) {
+    var key = displayValue(value).toLowerCase();
+    var map = {
+      tersedia: { cls: 'text-bg-primary', label: 'Tersedia' },
+      diambil: { cls: 'text-bg-warning', label: 'Diambil' },
+      didelegasikan: { cls: 'text-bg-info', label: 'Didelegasikan' },
+      selesai: { cls: 'text-bg-success', label: 'Selesai' },
+      perlu_tindak_lanjut: { cls: 'text-bg-warning', label: 'Perlu Tindak Lanjut' },
+      eskalasi: { cls: 'text-bg-danger', label: 'Eskalasi' }
+    };
+    var meta = map[key] || { cls: 'text-bg-secondary', label: titleCase(key) };
+
+    return '<span class="badge ' + meta.cls + '">' + escapeHtml(meta.label) + '</span>';
+  }
+
+  function formatRegion(code, name) {
+    var regionCode = displayValue(code);
+    var regionName = displayValue(name);
+
+    if (regionCode === '-' && regionName === '-') return '-';
+    if (regionCode === '-') return regionName;
+    if (regionName === '-') return regionCode;
+    return regionCode + ' - ' + regionName;
+  }
+
+  function renderDetailField(label, value, options) {
+    var config = options || {};
+    var colClass = config.col || 'col-12 col-md-6 col-xl-3';
+    var valueClass = config.strong ? 'fw-semibold' : '';
+    var body = config.html ? value : escapeHtml(displayValue(value));
+
+    if (config.prewrap) {
+      valueClass += (valueClass ? ' ' : '') + 'app-modal-prewrap';
+    }
+
+    return [
+      '<div class="' + colClass + '">',
+      '<div class="text-muted small">' + escapeHtml(label) + '</div>',
+      '<div class="' + valueClass + '">' + body + '</div>',
+      '</div>'
+    ].join('');
+  }
+
+  function renderDetailSection(title, fieldsHtml) {
+    return [
+      '<section class="report-detail-section">',
+      '<h2 class="report-detail-section-title">' + escapeHtml(title) + '</h2>',
+      '<div class="row g-3">',
+      fieldsHtml.join(''),
+      '</div>',
+      '</section>'
+    ].join('');
+  }
+
+  function renderMediaItem(item, defaultName) {
+    var fileUrl = safeFileUrl(item.file_path);
+    var fileName = displayValue(item.file_name);
+    var mimeType = displayValue(item.mime_type);
+    var fileType = displayValue(item.file_type);
+    var caption = displayValue(item.caption);
+    var isImage = fileUrl && mimeType.toLowerCase().indexOf('image/') === 0;
+    var title = fileName === '-' ? defaultName : fileName;
+    var openButton = fileUrl
+      ? '<a href="' + escapeHtml(fileUrl) + '" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">Buka</a>'
+      : '';
+    var titleHtml = fileUrl
+      ? '<a href="' + escapeHtml(fileUrl) + '" target="_blank" rel="noopener" class="text-decoration-none">' + escapeHtml(title) + '</a>'
+      : escapeHtml(title);
+
+    return [
+      '<div class="report-detail-media-item">',
+      '<div class="d-flex align-items-start justify-content-between gap-3">',
+      '<div class="min-w-0">',
+      '<div class="fw-semibold">' + titleHtml + '</div>',
+      '<div class="small text-muted">',
+      'Waktu: ' + escapeHtml(formatDateTime(item.created_at)),
+      item.uploaded_by_name ? ' | Oleh: ' + escapeHtml(displayValue(item.uploaded_by_name)) : '',
+      '</div>',
+      '</div>',
+      openButton,
+      '</div>',
+      isImage ? '<a href="' + escapeHtml(fileUrl) + '" target="_blank" rel="noopener"><img src="' + escapeHtml(fileUrl) + '" alt="' + escapeHtml(title) + '" class="report-detail-media-preview"></a>' : '',
+      '<div class="row g-2 mt-2 small text-muted">',
+      '<div class="col-12 col-md-4">Tipe: ' + escapeHtml(fileType) + '</div>',
+      '<div class="col-12 col-md-4">MIME: ' + escapeHtml(mimeType) + '</div>',
+      '<div class="col-12 col-md-4">Ukuran: ' + escapeHtml(formatFileSize(item.file_size)) + '</div>',
+      '</div>',
+      caption !== '-' ? '<div class="small mt-2"><strong>Caption:</strong> ' + escapeHtml(caption) + '</div>' : '',
+      '</div>'
+    ].join('');
+  }
+
+  function renderMediaList(items, emptyText, defaultName) {
+    if (!items || items.length === 0) {
+      return '<div class="text-muted">' + escapeHtml(emptyText) + '</div>';
+    }
+
+    return items.map(function (item) {
+      return renderMediaItem(item, defaultName);
+    }).join('');
+  }
+
+  function renderReportDetail(payload) {
+    var report = payload.report || {};
+    var proofAttachments = payload.attachments || [];
+    var telegramMedia = (payload.telegramMedia || []).concat(payload.telegramLogMedia || []);
+
+    var overview = [
+      '<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 report-detail-overview">',
+      '<div>',
+      '<div class="text-muted small">Status Internal</div>',
+      '<div class="mt-1">',
+      ticketStatusBadge(report.status_internal),
+      displayValue(report.status_internal) === 'didelegasikan' ? '<span class="badge text-bg-info ms-1">Delegasi Aktif</span>' : '',
+      '</div>',
+      '</div>',
+      '<div class="text-md-end">',
+      '<div class="text-muted small">Wilayah Aktif</div>',
+      '<div class="fw-semibold">' + escapeHtml(formatRegion(report.current_region_code, report.current_region_name)) + '</div>',
+      '</div>',
+      '</div>'
+    ].join('');
+
+    var mainFields = [
+      renderDetailField('Ticket ID', report.ticket_id, { strong: true }),
+      renderDetailField('Order ID', report.order_id),
+      renderDetailField('WO Number', report.wo_number),
+      renderDetailField('Source Channel', titleCase(report.source_channel)),
+      renderDetailField('Jenis Layanan', report.service_type),
+      renderDetailField('Segment', report.segment),
+      renderDetailField('Provider', report.provider),
+      renderDetailField('Telkom Area', report.telkom_area),
+      renderDetailField('Service ID', report.service_id)
+    ];
+
+    var regionFields = [
+      renderDetailField('Wilayah Awal', formatRegion(report.reported_region_code, report.reported_region_name), { col: 'col-12 col-md-6' }),
+      renderDetailField('Wilayah Aktif', formatRegion(report.current_region_code, report.current_region_name), { col: 'col-12 col-md-6' }),
+      renderDetailField('Branch', report.branch_name),
+      renderDetailField('Cluster', report.cluster_name),
+      renderDetailField('STO', report.sto)
+    ];
+
+    var statusFields = [
+      renderDetailField('Assigned To', report.assigned_user_name, { strong: true }),
+      renderDetailField('Status Internal', ticketStatusBadge(report.status_internal), { html: true }),
+      renderDetailField('Status WFM', report.status_wfm),
+      renderDetailField('Status Andalas', report.status_andalas),
+      renderDetailField('Status Akhir', report.completion_status ? ticketStatusBadge(report.completion_status) : '-', { html: true })
+    ];
+
+    if (displayValue(report.diit_code) !== '-') {
+      statusFields.push(renderDetailField('Kode DIIT', report.diit_code, { strong: true }));
+    }
+
+    statusFields.push(renderDetailField('Catatan Penyelesaian', report.completion_notes, { col: 'col-12', prewrap: true }));
+
+    var timeFields = [
+      renderDetailField('Received At', formatDateTime(report.received_at)),
+      renderDetailField('Taken At', formatDateTime(report.taken_at)),
+      renderDetailField('Resolved At', formatDateTime(report.resolved_at)),
+      renderDetailField('Closed At', formatDateTime(report.closed_at)),
+      renderDetailField('Created At', formatDateTime(report.created_at)),
+      renderDetailField('Updated At', formatDateTime(report.updated_at))
+    ];
+
+    return [
+      overview,
+      renderDetailSection('Informasi Utama', mainFields),
+      renderDetailSection('Wilayah dan Lokasi', regionFields),
+      renderDetailSection('Status dan Penugasan', statusFields),
+      renderDetailSection('Waktu', timeFields),
+      renderDetailSection('Ringkasan', [
+        renderDetailField('Summary', report.summary, { col: 'col-12', prewrap: true })
+      ]),
+      renderDetailSection('Bukti Penyelesaian', [
+        '<div class="col-12">' + renderMediaList(proofAttachments, 'Belum ada file bukti penyelesaian.', 'Bukti Penyelesaian') + '</div>'
+      ]),
+      renderDetailSection('Media Telegram', [
+        '<div class="col-12">' + renderMediaList(telegramMedia, 'Belum ada media tambahan Telegram yang terhubung ke tiket ini.', 'Media Telegram') + '</div>'
+      ])
+    ].join('');
+  }
+
+  function setupReportDetailModal() {
+    var modalEl = document.getElementById('reportDetailModal');
+    if (!modalEl || modalEl.dataset.reportDetailBound === '1') return;
+
+    var buttons = document.querySelectorAll('[data-report-detail-url]');
+    if (buttons.length === 0) return;
+
+    var loadingEl = modalEl.querySelector('[data-report-detail-loading]');
+    var errorEl = modalEl.querySelector('[data-report-detail-error]');
+    var contentEl = modalEl.querySelector('[data-report-detail-content]');
+    var subtitleEl = modalEl.querySelector('[data-report-detail-subtitle]');
+    var fallbackEl = modalEl.querySelector('[data-report-detail-fallback]');
+
+    if (!loadingEl || !errorEl || !contentEl || !subtitleEl || !fallbackEl) return;
+
+    modalEl.dataset.reportDetailBound = '1';
+
+    function resetModal(fallbackUrl) {
+      loadingEl.classList.remove('d-none');
+      errorEl.classList.add('d-none');
+      contentEl.classList.add('d-none');
+      contentEl.innerHTML = '';
+      subtitleEl.textContent = 'Memuat data laporan...';
+      fallbackEl.href = fallbackUrl || '#';
+      fallbackEl.classList.toggle('d-none', !fallbackUrl);
+    }
+
+    function showError(message) {
+      loadingEl.classList.add('d-none');
+      contentEl.classList.add('d-none');
+      errorEl.textContent = message || 'Gagal memuat detail laporan.';
+      errorEl.classList.remove('d-none');
+    }
+
+    function showContent(payload) {
+      var report = payload.report || {};
+      loadingEl.classList.add('d-none');
+      errorEl.classList.add('d-none');
+      contentEl.innerHTML = renderReportDetail(payload);
+      contentEl.classList.remove('d-none');
+      subtitleEl.textContent = 'Ticket ID: ' + displayValue(report.ticket_id);
+
+      if (payload.fallbackUrl) {
+        fallbackEl.href = payload.fallbackUrl;
+        fallbackEl.classList.remove('d-none');
+      }
+    }
+
+    for (var i = 0; i < buttons.length; i += 1) {
+      buttons[i].addEventListener('click', function (event) {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        if (!window.bootstrap || !window.bootstrap.Modal || !window.fetch) return;
+
+        var button = event.currentTarget;
+        var detailUrl = button.getAttribute('data-report-detail-url');
+        var fallbackUrl = button.getAttribute('href') || '';
+
+        if (!detailUrl) return;
+
+        event.preventDefault();
+        resetModal(fallbackUrl);
+
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+        window.fetch(detailUrl, {
+          headers: {
+            Accept: 'application/json'
+          }
+        })
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error(response.status === 404
+                ? 'Laporan tidak ditemukan atau tidak dapat diakses.'
+                : 'Gagal memuat detail laporan.');
+            }
+            if ((response.headers.get('content-type') || '').indexOf('application/json') === -1) {
+              throw new Error('Sesi login tidak valid atau akses ditolak.');
+            }
+            return response.json();
+          })
+          .then(function (payload) {
+            if (!payload || payload.success === false) {
+              throw new Error(payload && payload.message ? payload.message : 'Gagal memuat detail laporan.');
+            }
+            showContent(payload);
+          })
+          .catch(function (error) {
+            showError(error && error.message ? error.message : 'Gagal memuat detail laporan.');
+          });
+      });
+    }
+  }
+
   function initAppUi() {
     try { setupAutoDismissAlerts(); } catch (e) {}
     try { setupSupervisorSectionSwitcher(); } catch (e1) {}
     try { updateSidebarHashActive(); } catch (e2) {}
+    try { setupReportDetailModal(); } catch (e3) {}
   }
 
   function normalizePathname(pathname) {

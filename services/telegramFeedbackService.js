@@ -22,6 +22,37 @@ function buildCompletedMessage(ticketId, orderId) {
   return `Pengerjaan Tiket ${ticketId} Order ID: ${orderId} telah SELESAI dikerjakan, Silahkan cek kembali.`;
 }
 
+function buildReturnEvidenceMessage(ticketId, orderId, notes) {
+  const returnNotes = typeof notes === 'string' ? notes.trim() : '';
+  const messageLines = [
+    `Tiket ${ticketId} dikembalikan.`,
+    `Order ID: ${orderId}`,
+    '',
+    'Mohon lengkapi evidence agar tiket dapat diproses kembali.'
+  ];
+
+  if (returnNotes) {
+    messageLines.push('', 'Catatan return:', returnNotes);
+  }
+
+  return messageLines.join('\n');
+}
+
+function buildEscalationMessage(ticketId, orderId, diitCode) {
+  const code = typeof diitCode === 'string' ? diitCode.trim() : '';
+  const messageLines = [
+    `Tiket ${ticketId} sedang dieskalasikan ke DIIT.`,
+    `Order ID: ${orderId}`,
+    '',
+    'Kode DIIT:',
+    code || '-',
+    '',
+    'Mohon menunggu proses tindak lanjut berikutnya.'
+  ];
+
+  return messageLines.join('\n');
+}
+
 async function sendMessageToChat(chatId, messageText) {
   const bot = getTelegramBotInstance();
 
@@ -54,8 +85,22 @@ async function sendCompletedFeedback({ chatId, ticketId, orderId }) {
   return message;
 }
 
+async function sendReturnEvidenceFeedback({ chatId, ticketId, orderId, notes }) {
+  const message = buildReturnEvidenceMessage(ticketId, orderId, notes);
+  await sendMessageToChat(chatId, message);
+  return message;
+}
+
+async function sendEscalationFeedback({ chatId, ticketId, orderId, diitCode }) {
+  const message = buildEscalationMessage(ticketId, orderId, diitCode);
+  await sendMessageToChat(chatId, message);
+  return message;
+}
+
 module.exports = {
   sendAssignedFeedback,
   sendInProgressFeedback,
-  sendCompletedFeedback
+  sendCompletedFeedback,
+  sendReturnEvidenceFeedback,
+  sendEscalationFeedback
 };

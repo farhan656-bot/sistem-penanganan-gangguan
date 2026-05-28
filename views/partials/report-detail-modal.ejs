@@ -1,0 +1,31 @@
+<div class="modal fade" id="reportDetailModal" tabindex="-1" aria-labelledby="reportDetailModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h1 class="modal-title fs-5" id="reportDetailModalTitle">Detail Laporan</h1>
+          <div class="small text-muted" data-report-detail-subtitle>Memuat data laporan...</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="d-flex align-items-center gap-2 text-muted" data-report-detail-loading>
+          <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+          <span>Memuat detail laporan...</span>
+        </div>
+
+        <div class="alert alert-danger d-none mb-0" data-report-detail-error>
+          Gagal memuat detail laporan.
+        </div>
+
+        <div class="d-none" data-report-detail-content></div>
+      </div>
+
+      <div class="modal-footer">
+        <a href="#" class="btn btn-outline-secondary d-none" data-report-detail-fallback>Buka Halaman Detail</a>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>

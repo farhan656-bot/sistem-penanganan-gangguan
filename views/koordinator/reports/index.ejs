@@ -24,10 +24,7 @@
 
           <%- include('../../partials/page-header', {
             pageTitle: 'Daftar Antrean Kerja',
-            pageSubtitle: 'Pantau status tiket dan penanggung jawab aktif. Aksi delegasi/pembatalan penugasan tersedia di halaman detail (F007 tetap menjadi pendekatan utama overload-handling).',
-            pageActions: `
-              <a href="/reports/create" class="btn btn-primary">Tambah Laporan Manual</a>
-            `
+            pageSubtitle: 'Pantau status tiket dan penanggung jawab aktif. Pembagian region digunakan untuk membantu manajemen pelaporan dan monitoring wilayah.'
           }) %>
 
           <div class="card app-card mb-3">
@@ -132,7 +129,11 @@
                           <% } %>
                         </td>
                         <td class="app-table-actions">
-                          <a href="/reports/<%= report.id %>" class="btn btn-sm btn-outline-secondary">Detail</a>
+                          <a
+                            href="/reports/<%= report.id %>"
+                            class="btn btn-sm btn-outline-secondary"
+                            data-report-detail-url="/reports/<%= report.id %>/detail-json"
+                          >Detail</a>
                         </td>
                       </tr>
                     <% }) %>
@@ -147,7 +148,9 @@
     </div>
   </div>
 
+  <%- include('../../partials/report-detail-modal') %>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/app.js?v=flash-auto-dismiss-20260505-2"></script>
+  <script src="/js/app.js?v=report-detail-modal-diit-20260525"></script>
 </body>
 </html>

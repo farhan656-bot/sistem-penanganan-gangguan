@@ -100,6 +100,13 @@
                   <div><%= report.completion_status || '-' %></div>
                 </div>
 
+                <% if (report.diit_code) { %>
+                  <div class="col-12 col-md-6">
+                    <div class="text-muted small">Kode DIIT</div>
+                    <div class="fw-semibold"><%= report.diit_code %></div>
+                  </div>
+                <% } %>
+
                 <div class="col-12">
                   <div class="text-muted small">Catatan Penyelesaian</div>
                   <div class="mt-1"><%= report.completion_notes || '-' %></div>
@@ -198,7 +205,7 @@
               </div>
               <div class="card-body">
                 <div class="text-muted mb-3">
-                  Gunakan delegasi hanya jika memang dibutuhkan untuk penanganan lintas wilayah. Untuk overload-handling, pendekatan utama tetap F007 (switch region).
+                  Gunakan delegasi hanya jika memang dibutuhkan untuk penanganan lintas wilayah. Akses region sementara digunakan untuk mendukung kebutuhan operasional lintas region berdasarkan persetujuan Koordinator.
                 </div>
 
                 <form action="/reports/<%= report.id %>/delegate" method="POST">
