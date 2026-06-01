@@ -107,8 +107,56 @@ function buildTelegramLogMediaPayload(item) {
   };
 }
 
+function hasAttachmentValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+function getAttachmentSource(file) {
+  return String(file && file.source ? file.source : '').trim().toLowerCase();
+}
+
+function hasTelegramMetadata(file) {
+  return Boolean(file) && (
+    hasAttachmentValue(file.telegram_file_id) ||
+    hasAttachmentValue(file.telegram_file_unique_id)
+  );
+}
+
+function isCompletionEvidenceAttachment(file) {
+  if (!file) {
+    return false;
+  }
+
+  if (hasTelegramMetadata(file)) {
+    return false;
+  }
+
+  return hasAttachmentValue(file.uploaded_by_user_id) || hasAttachmentValue(file.file_name);
+}
+
 function isTelegramAttachment(file) {
-  return String(file && file.source ? file.source : '').toLowerCase() === 'telegram';
+  if (!file) {
+    return false;
+  }
+
+  if (hasTelegramMetadata(file)) {
+    return true;
+  }
+
+  if (isCompletionEvidenceAttachment(file)) {
+    return false;
+  }
+
+  return getAttachmentSource(file) === 'telegram';
+}
+
+function splitReportAttachments(attachments) {
+  const sourceAttachments = Array.isArray(attachments) ? attachments : [];
+
+  return {
+    completionAttachments: sourceAttachments.filter((file) => !isTelegramAttachment(file)),
+    telegramAttachments: sourceAttachments.filter(isTelegramAttachment)
+  };
 }
 
 async function triggerTelegramFeedback(reportId, currentUser, feedbackType, options = {}) {
@@ -316,7 +364,10 @@ async function showReportDetail(req, res) {
     }
 
     const attachments = await reportModel.getAttachmentsByReportId(reportId);
-    const telegramAttachments = await attachmentModel.getAttachmentsByReportId(reportId);
+    const {
+      completionAttachments,
+      telegramAttachments
+    } = splitReportAttachments(attachments);
 
     let eksekutorUsers = [];
 
@@ -335,7 +386,8 @@ async function showReportDetail(req, res) {
     res.render(viewName, {
       title: 'Detail Laporan',
       report,
-      attachments,
+      attachments: completionAttachments,
+      completionAttachments,
       telegramAttachments,
       eksekutorUsers
     });

@@ -120,18 +120,21 @@
               <div class="card app-card h-100">
                 <div class="card-header fw-semibold">Bukti Penyelesaian</div>
                 <div class="card-body">
-                  <% if (!attachments || attachments.length === 0) { %>
-                    <div class="text-muted">Belum ada file bukti.</div>
+                  <% const completionOnly = typeof completionAttachments !== 'undefined' ? completionAttachments : (attachments || []); %>
+
+                  <% if (completionOnly.length === 0) { %>
+                    <div class="text-muted">Belum ada bukti penyelesaian yang diunggah oleh Eksekutor.</div>
                   <% } else { %>
                     <div class="list-group list-group-flush">
-                      <% attachments.forEach(file => { %>
+                      <% completionOnly.forEach(file => { %>
+                        <% const completionFileName = file.file_name || file.original_name || file.stored_name || 'Bukti Penyelesaian'; %>
                         <div class="list-group-item px-0">
                           <div class="d-flex align-items-start justify-content-between gap-3">
                             <div class="min-w-0">
                               <div class="fw-semibold">
-                                <a href="<%= file.file_path %>" target="_blank" class="text-decoration-none"><%= file.file_name %></a>
+                                <a href="<%= file.file_path %>" target="_blank" class="text-decoration-none"><%= completionFileName %></a>
                               </div>
-                              <div class="small text-muted">Diunggah oleh <%= file.uploaded_by_name %></div>
+                              <div class="small text-muted">Diunggah oleh <%= file.uploaded_by_name || '-' %></div>
                             </div>
                             <a href="<%= file.file_path %>" target="_blank" class="btn btn-sm btn-outline-secondary">Buka</a>
                           </div>
@@ -147,7 +150,7 @@
               <div class="card app-card h-100">
                 <div class="card-header fw-semibold">Media Tambahan dari Telegram</div>
                 <div class="card-body">
-                  <% const telegramOnly = (telegramAttachments || []).filter(item => item.source === 'telegram'); %>
+                  <% const telegramOnly = typeof telegramAttachments !== 'undefined' ? telegramAttachments : []; %>
 
                   <% if (telegramOnly.length === 0) { %>
                     <div class="text-muted">Belum ada media tambahan Telegram yang terhubung ke tiket ini.</div>

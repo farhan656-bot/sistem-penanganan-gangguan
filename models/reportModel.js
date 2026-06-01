@@ -940,6 +940,7 @@ async function completeReport(reportId, currentUser, formData, fileData) {
       INSERT INTO report_attachments
       (
         report_id,
+        source,
         uploaded_by_user_id,
         file_name,
         file_path,
@@ -947,10 +948,11 @@ async function completeReport(reportId, currentUser, formData, fileData) {
         file_size,
         created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, NOW())
+      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
       `,
       [
         reportId,
+        'completion',
         currentUser.id,
         fileData.originalname,
         '/uploads/' + fileData.filename,
