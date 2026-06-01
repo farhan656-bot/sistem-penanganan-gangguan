@@ -395,11 +395,221 @@
     }
   }
 
+  function getScreenshotFileName(mimeType) {
+    var type = String(mimeType || '').toLowerCase();
+    if (type === 'image/jpeg') return 'screenshot-evidence.jpg';
+    if (type === 'image/webp') return 'screenshot-evidence.webp';
+    return 'screenshot-evidence.png';
+  }
+
+  function isAllowedEvidenceImage(file) {
+    var type = String(file && file.type ? file.type : '').toLowerCase();
+    return ['image/jpeg', 'image/png', 'image/webp'].indexOf(type) >= 0;
+  }
+
+  function setEvidenceStatus(statusEl, message, tone) {
+    if (!statusEl) return;
+
+    statusEl.textContent = message;
+    statusEl.classList.remove('text-muted', 'text-success', 'text-danger');
+
+    if (tone === 'success') {
+      statusEl.classList.add('text-success');
+    } else if (tone === 'danger') {
+      statusEl.classList.add('text-danger');
+    } else {
+      statusEl.classList.add('text-muted');
+    }
+  }
+
+  function buildClipboardImageFile(item) {
+    var blob = item && typeof item.getAsFile === 'function' ? item.getAsFile() : null;
+    if (!blob) return null;
+
+    var mimeType = blob.type || item.type || 'image/png';
+    var fileName = getScreenshotFileName(mimeType);
+
+    try {
+      return new File([blob], fileName, {
+        type: mimeType,
+        lastModified: Date.now()
+      });
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function getClipboardImageFile(clipboardData) {
+    var items = clipboardData && clipboardData.items ? clipboardData.items : [];
+
+    for (var i = 0; i < items.length; i += 1) {
+      var item = items[i];
+      var type = String(item && item.type ? item.type : '').toLowerCase();
+
+      if (type.indexOf('image/') === 0) {
+        return buildClipboardImageFile(item);
+      }
+    }
+
+    return null;
+  }
+
+  function setSingleFileInput(fileInput, file) {
+    if (!window.DataTransfer) return false;
+
+    try {
+      var dataTransfer = new window.DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+      return fileInput.files && fileInput.files.length === 1;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function bindCompletionEvidencePasteUpload(form) {
+    if (!form || form.dataset.evidencePasteBound === '1') return;
+
+    var fileInput = form.querySelector('[data-proof-file-input]');
+    var pasteArea = form.querySelector('[data-evidence-paste-area]');
+    var previewEl = form.querySelector('[data-evidence-preview]');
+    var previewImageEl = form.querySelector('[data-evidence-preview-image]');
+    var fileNameEl = form.querySelector('[data-evidence-file-name]');
+    var fileSizeEl = form.querySelector('[data-evidence-file-size]');
+    var fileNoteEl = form.querySelector('[data-evidence-file-note]');
+    var statusEl = form.querySelector('[data-evidence-paste-status]');
+    var clearButton = form.querySelector('[data-evidence-clear]');
+    var previewUrl = '';
+    var maxFileSize = 5 * 1024 * 1024;
+
+    if (!fileInput || !pasteArea) return;
+
+    form.dataset.evidencePasteBound = '1';
+
+    function clearPreview() {
+      if (previewUrl && window.URL && typeof window.URL.revokeObjectURL === 'function') {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+
+      previewUrl = '';
+
+      if (previewImageEl) {
+        previewImageEl.removeAttribute('src');
+        previewImageEl.classList.add('d-none');
+      }
+
+      if (previewEl) previewEl.classList.add('d-none');
+      if (fileNameEl) fileNameEl.textContent = '';
+      if (fileSizeEl) fileSizeEl.textContent = '';
+      if (fileNoteEl) fileNoteEl.textContent = '';
+    }
+
+    function showPreview(file, source) {
+      clearPreview();
+
+      if (!file || !previewEl) return;
+
+      previewEl.classList.remove('d-none');
+      if (fileNameEl) fileNameEl.textContent = file.name || 'Bukti penyelesaian';
+      if (fileSizeEl) fileSizeEl.textContent = 'Ukuran: ' + formatFileSize(file.size);
+
+      if (file.type && file.type.indexOf('image/') === 0 && previewImageEl && window.URL && typeof window.URL.createObjectURL === 'function') {
+        previewUrl = window.URL.createObjectURL(file);
+        previewImageEl.src = previewUrl;
+        previewImageEl.classList.remove('d-none');
+        if (fileNoteEl) {
+          fileNoteEl.textContent = source === 'paste'
+            ? 'Screenshot siap dikirim sebagai bukti penyelesaian.'
+            : 'File gambar siap dikirim sebagai bukti penyelesaian.';
+        }
+        return;
+      }
+
+      if (fileNoteEl) {
+        fileNoteEl.textContent = 'Preview gambar tidak tersedia untuk file ini, tetapi file tetap akan dikirim sebagai bukti.';
+      }
+    }
+
+    function syncManualFilePreview() {
+      var file = fileInput.files && fileInput.files.length > 0 ? fileInput.files[0] : null;
+
+      if (!file) {
+        clearPreview();
+        setEvidenceStatus(statusEl, 'Belum ada screenshot yang ditempel.', 'muted');
+        return;
+      }
+
+      showPreview(file, 'manual');
+
+      if (file.size > maxFileSize) {
+        setEvidenceStatus(statusEl, 'File lebih dari 5 MB dan akan ditolak oleh sistem.', 'danger');
+      } else {
+        setEvidenceStatus(statusEl, 'File bukti siap diunggah.', 'success');
+      }
+    }
+
+    pasteArea.addEventListener('click', function (event) {
+      if (event.target && event.target.closest && event.target.closest('[data-evidence-clear]')) return;
+      pasteArea.focus();
+    });
+
+    pasteArea.addEventListener('paste', function (event) {
+      var clipboardData = event.clipboardData || window.clipboardData;
+      var file = getClipboardImageFile(clipboardData);
+
+      if (!file) {
+        setEvidenceStatus(statusEl, 'Clipboard tidak berisi gambar. Upload manual tetap dapat digunakan.', 'muted');
+        return;
+      }
+
+      event.preventDefault();
+
+      if (!isAllowedEvidenceImage(file)) {
+        setEvidenceStatus(statusEl, 'Format screenshot tidak didukung. Gunakan JPG, PNG, atau WEBP.', 'danger');
+        return;
+      }
+
+      if (file.size > maxFileSize) {
+        setEvidenceStatus(statusEl, 'Screenshot lebih dari 5 MB dan tidak dapat ditempel sebagai bukti.', 'danger');
+        return;
+      }
+
+      if (!setSingleFileInput(fileInput, file)) {
+        setEvidenceStatus(statusEl, 'Browser tidak mendukung paste file otomatis. Gunakan upload manual.', 'danger');
+        return;
+      }
+
+      showPreview(file, 'paste');
+      setEvidenceStatus(statusEl, 'Screenshot berhasil ditambahkan sebagai bukti penyelesaian.', 'success');
+    });
+
+    fileInput.addEventListener('change', syncManualFilePreview);
+
+    if (clearButton) {
+      clearButton.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        fileInput.value = '';
+        clearPreview();
+        setEvidenceStatus(statusEl, 'Bukti upload dikosongkan.', 'muted');
+        fileInput.focus();
+      });
+    }
+  }
+
+  function setupCompletionEvidencePasteUpload() {
+    var forms = document.querySelectorAll('[data-completion-form]');
+    for (var i = 0; i < forms.length; i += 1) {
+      bindCompletionEvidencePasteUpload(forms[i]);
+    }
+  }
+
   function initAppUi() {
     try { setupAutoDismissAlerts(); } catch (e) {}
     try { setupSupervisorSectionSwitcher(); } catch (e1) {}
     try { updateSidebarHashActive(); } catch (e2) {}
     try { setupReportDetailModal(); } catch (e3) {}
+    try { setupCompletionEvidencePasteUpload(); } catch (e4) {}
   }
 
   function normalizePathname(pathname) {
