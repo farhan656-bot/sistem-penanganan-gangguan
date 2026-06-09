@@ -20,6 +20,63 @@ const TELEGRAM_TEXT_ENRICHMENT_FIELDS = [
   'wo_number',
   'fallout_type'
 ];
+const COORDINATOR_ALLOWED_REGION_CODES = ['PDG', 'BKT'];
+
+function getCurrentUserRole(currentUser = {}) {
+  return String(currentUser.role || currentUser.role_name || '').trim().toLowerCase();
+}
+
+function normalizeRegionCode(value) {
+  return typeof value === 'string' ? value.trim().toUpperCase() : '';
+}
+
+function buildPlaceholders(values) {
+  return values.map(() => '?').join(', ');
+}
+
+async function getCoordinatorAllowedRegions(db = pool) {
+  const placeholders = buildPlaceholders(COORDINATOR_ALLOWED_REGION_CODES);
+  const [rows] = await db.query(
+    `
+    SELECT id, code
+    FROM regions
+    WHERE code IN (${placeholders})
+    `,
+    COORDINATOR_ALLOWED_REGION_CODES
+  );
+
+  return rows
+    .map((row) => ({
+      id: Number(row.id),
+      code: normalizeRegionCode(row.code)
+    }))
+    .filter((row) => row.id && row.code);
+}
+
+async function getCoordinatorAllowedRegionIds(db = pool) {
+  const allowedRegions = await getCoordinatorAllowedRegions(db);
+  return allowedRegions.map((region) => region.id);
+}
+
+function appendRegionIdAccessCondition(sql, regionIds) {
+  if (regionIds.length === 0) {
+    return `${sql} AND 1=0 `;
+  }
+
+  const placeholders = buildPlaceholders(regionIds);
+  return `${sql} AND reports.current_region_id IN (${placeholders}) `;
+}
+
+async function ensureCoordinatorCanAccessReportRegion(regionId, db = pool) {
+  const allowedRegionIds = await getCoordinatorAllowedRegionIds(db);
+  const hasAccess = allowedRegionIds.some(
+    (allowedRegionId) => Number(allowedRegionId) === Number(regionId)
+  );
+
+  if (!hasAccess) {
+    throw new Error('Laporan berada di luar akses Koordinator PDG/BKT.');
+  }
+}
 
 function normalizeFinalStatus(value) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -107,6 +164,8 @@ function getCompletionLogMeta(finalStatus) {
 }
 
 async function getReports({ search = '', status = '', region = '' }, currentUser) {
+  const currentUserRole = getCurrentUserRole(currentUser);
+  const selectedRegionCode = normalizeRegionCode(region);
   let sql = `
     SELECT
       reports.id,
@@ -136,7 +195,23 @@ async function getReports({ search = '', status = '', region = '' }, currentUser
 
   const params = [];
 
-  if (currentUser.role === 'eksekutor') {
+  if (currentUserRole === 'koordinator') {
+    const allowedRegions = await getCoordinatorAllowedRegions();
+    const selectedRegion = selectedRegionCode
+      ? allowedRegions.find((allowedRegion) => allowedRegion.code === selectedRegionCode)
+      : null;
+    const allowedRegionIds = selectedRegion
+      ? [selectedRegion.id]
+      : allowedRegions.map((allowedRegion) => allowedRegion.id);
+    const effectiveAllowedRegionIds = selectedRegionCode && !selectedRegion
+      ? []
+      : allowedRegionIds;
+
+    sql = appendRegionIdAccessCondition(sql, effectiveAllowedRegionIds);
+    params.push(...effectiveAllowedRegionIds);
+  }
+
+  if (currentUserRole === 'eksekutor') {
     const extraRegionIds = await regionSwitchModel.getActiveExtraRegionsByUserId(currentUser.id);
     const regionIds = [currentUser.region_id, ...extraRegionIds].filter(Boolean);
 
@@ -170,9 +245,9 @@ async function getReports({ search = '', status = '', region = '' }, currentUser
     params.push(status);
   }
 
-  if (region) {
+  if (currentUserRole !== 'koordinator' && selectedRegionCode) {
     sql += ` AND regions.code = ? `;
-    params.push(region);
+    params.push(selectedRegionCode);
   }
 
   sql += ` ORDER BY reports.received_at DESC `;
@@ -710,6 +785,7 @@ async function applyTelegramTextEnrichment(reportId, payload) {
 }
 
 async function getReportById(reportId, currentUser) {
+  const currentUserRole = getCurrentUserRole(currentUser);
   let sql = `
     SELECT
       reports.*,
@@ -727,7 +803,14 @@ async function getReportById(reportId, currentUser) {
 
   const params = [reportId];
 
-  if (currentUser.role === 'eksekutor') {
+  if (currentUserRole === 'koordinator') {
+    const allowedRegionIds = await getCoordinatorAllowedRegionIds();
+
+    sql = appendRegionIdAccessCondition(sql, allowedRegionIds);
+    params.push(...allowedRegionIds);
+  }
+
+  if (currentUserRole === 'eksekutor') {
     if (currentUser.region_id) {
       sql += ` AND (
         reports.current_region_id = ?
@@ -749,6 +832,7 @@ async function takeReport(reportId, currentUser) {
 
   try {
     await connection.beginTransaction();
+    const currentUserRole = getCurrentUserRole(currentUser);
 
     const [rows] = await connection.query(
       `
@@ -774,13 +858,24 @@ async function takeReport(reportId, currentUser) {
       throw new Error('Laporan sudah memiliki penanggung jawab.');
     }
 
+    if (currentUserRole === 'koordinator') {
+      await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
+    }
+
     if (
-      currentUser.role === 'eksekutor' &&
+      currentUserRole === 'eksekutor' &&
       currentUser.region_id &&
       Number(report.current_region_id) !== Number(currentUser.region_id)
     ) {
       throw new Error('Anda tidak dapat mengambil laporan di luar wilayah Anda.');
     }
+
+    const assignmentRegionId = currentUserRole === 'koordinator'
+      ? report.current_region_id
+      : currentUser.region_id;
+    const assignmentNotes = currentUserRole === 'koordinator'
+      ? 'Laporan diambil oleh koordinator untuk membantu penanganan.'
+      : 'Laporan diambil sendiri oleh eksekutor.';
 
     await connection.query(
       `
@@ -815,9 +910,9 @@ async function takeReport(reportId, currentUser) {
         reportId,
         currentUser.id,
         currentUser.id,
-        currentUser.region_id,
-        currentUser.region_id,
-        'Laporan diambil sendiri oleh eksekutor.'
+        assignmentRegionId,
+        assignmentRegionId,
+        assignmentNotes
       ]
     );
 
@@ -855,7 +950,7 @@ async function completeReport(reportId, currentUser, formData, fileData) {
 
     const [rows] = await connection.query(
       `
-      SELECT id, ticket_id, status_internal, current_assigned_user_id
+      SELECT id, ticket_id, status_internal, current_region_id, current_assigned_user_id
       FROM reports
       WHERE id = ?
       FOR UPDATE
@@ -873,7 +968,9 @@ async function completeReport(reportId, currentUser, formData, fileData) {
       throw new Error('Laporan belum berada pada status yang dapat diselesaikan.');
     }
 
-    if (Number(report.current_assigned_user_id) !== Number(currentUser.id)) {
+    if (getCurrentUserRole(currentUser) === 'koordinator') {
+      await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
+    } else if (Number(report.current_assigned_user_id) !== Number(currentUser.id)) {
       throw new Error('Anda bukan penanggung jawab laporan ini.');
     }
 
@@ -996,7 +1093,7 @@ async function markReportInProgress(reportId, currentUser) {
 
     const [rows] = await connection.query(
       `
-      SELECT id, ticket_id, status_internal, current_assigned_user_id
+      SELECT id, ticket_id, status_internal, current_region_id, current_assigned_user_id
       FROM reports
       WHERE id = ?
       FOR UPDATE
@@ -1014,7 +1111,9 @@ async function markReportInProgress(reportId, currentUser) {
       throw new Error('Laporan belum pada status penanganan aktif.');
     }
 
-    if (Number(report.current_assigned_user_id) !== Number(currentUser.id)) {
+    if (getCurrentUserRole(currentUser) === 'koordinator') {
+      await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
+    } else if (Number(report.current_assigned_user_id) !== Number(currentUser.id)) {
       throw new Error('Anda bukan penanggung jawab aktif laporan ini.');
     }
 
@@ -1081,6 +1180,8 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
     }
 
     const report = reportRows[0];
+
+    await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
 
     if (!['tersedia', 'diambil', 'didelegasikan'].includes(report.status_internal)) {
       throw new Error('Delegasi hanya dapat dilakukan pada laporan yang tersedia atau sedang ditangani.');
@@ -1242,6 +1343,7 @@ async function cancelAssignment(reportId, currentUser, notes) {
         reports.id,
         reports.ticket_id,
         reports.status_internal,
+        reports.current_region_id,
         reports.current_assigned_user_id
       FROM reports
       WHERE reports.id = ?
@@ -1255,6 +1357,8 @@ async function cancelAssignment(reportId, currentUser, notes) {
     }
 
     const report = reportRows[0];
+
+    await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
 
     if (!['diambil', 'didelegasikan'].includes(report.status_internal)) {
       throw new Error('Laporan tidak berada pada status yang bisa dibatalkan.');

@@ -43,21 +43,21 @@ router.get(
 router.post(
   '/:id/take',
   ensureAuthenticated,
-  ensureRole('eksekutor'),
+  ensureRole('eksekutor', 'koordinator'),
   reportController.takeReport
 );
 
 router.post(
   '/:id/in-progress',
   ensureAuthenticated,
-  ensureRole('eksekutor'),
+  ensureRole('eksekutor', 'koordinator'),
   reportController.markReportInProgress
 );
 
 router.post(
   '/:id/complete',
   ensureAuthenticated,
-  ensureRole('eksekutor'),
+  ensureRole('eksekutor', 'koordinator'),
   upload.single('proof_file'),
   reportController.completeReport
 );
