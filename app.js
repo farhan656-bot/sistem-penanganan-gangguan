@@ -20,6 +20,7 @@ try {
 const authRoutes = require('./routes/authRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const manualReportRoutes = require('./routes/manualReportRoutes');
 const userRoutes = require('./routes/userRoutes');
 const regionSwitchRoutes = require('./routes/regionSwitchRoutes');
 // view engine
@@ -77,6 +78,7 @@ app.get('/', (req, res) => {
 app.use('/auth', authRoutes);
 app.use('/dashboard', dashboardRoutes);
 app.use('/reports', reportRoutes);
+app.use('/manual-reports', manualReportRoutes);
 app.use('/users', userRoutes);
 app.use('/region-switch', regionSwitchRoutes);
 

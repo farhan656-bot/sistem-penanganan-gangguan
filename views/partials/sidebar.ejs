@@ -26,6 +26,7 @@
           <a class="nav-link <%= isActive('/dashboard/super-admin') ? 'active' : '' %>" href="/dashboard/super-admin">Dashboard</a>
           <a class="nav-link <%= isActive('/users') ? 'active' : '' %>" href="/users">Kelola User</a>
           <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Antrean Laporan</a>
+          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">Laporan Manual</a>
         <% } %>
 
         <% if (role === 'supervisor') { %>
@@ -39,12 +40,14 @@
         <% if (role === 'eksekutor') { %>
           <a class="nav-link <%= isActive('/dashboard/eksekutor') ? 'active' : '' %>" href="/dashboard/eksekutor">Dashboard</a>
           <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
+          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">Laporan Manual</a>
           <a class="nav-link <%= isActive('/region-switch/my') ? 'active' : '' %>" href="/region-switch/my">Pengajuan Switch Region</a>
         <% } %>
 
         <% if (role === 'koordinator') { %>
           <a class="nav-link <%= isActive('/dashboard/koordinator') ? 'active' : '' %>" href="/dashboard/koordinator">Dashboard</a>
           <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
+          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">Laporan Manual</a>
           <a class="nav-link <%= isActive('/region-switch/pending') ? 'active' : '' %>" href="/region-switch/pending">Approval Switch Region</a>
         <% } %>
       </nav>
