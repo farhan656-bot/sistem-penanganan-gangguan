@@ -1435,6 +1435,37 @@ async function getAttachmentsByReportId(reportId) {
   return rows;
 }
 
+async function getReportLogsByReportId(reportId) {
+  const [rows] = await pool.query(
+    `
+    SELECT
+      report_logs.id,
+      report_logs.report_id,
+      report_logs.user_id,
+      report_logs.action,
+      report_logs.description,
+      report_logs.created_at,
+      users.full_name AS user_name,
+      CASE
+        WHEN users.full_name IS NOT NULL THEN users.full_name
+        WHEN report_logs.action LIKE 'telegram_%'
+          OR report_logs.action = 'create_telegram_report'
+          OR report_logs.action = 'telegram_additional_data_received'
+        THEN 'Telegram Bot'
+        ELSE 'Sistem'
+      END AS actor_name
+    FROM report_logs
+    JOIN reports ON reports.id = report_logs.report_id
+    LEFT JOIN users ON report_logs.user_id = users.id
+    WHERE reports.id = ?
+    ORDER BY report_logs.created_at ASC, report_logs.id ASC
+    `,
+    [reportId]
+  );
+
+  return rows;
+}
+
 function parseTelegramAdditionalLogDescription(description) {
   const raw = typeof description === 'string' ? description : '';
 
@@ -1510,5 +1541,6 @@ module.exports = {
   delegateReport,
   cancelAssignment,
   getAttachmentsByReportId,
+  getReportLogsByReportId,
   getTelegramAdditionalMediaByReportId
 };

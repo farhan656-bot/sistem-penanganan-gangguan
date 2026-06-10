@@ -19,7 +19,94 @@
           Gagal memuat detail laporan.
         </div>
 
-        <div class="d-none" data-report-detail-content></div>
+        <div class="d-none" data-report-detail-content>
+          <ul class="nav nav-tabs report-detail-tabs flex-nowrap overflow-auto" id="reportDetailTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link active"
+                id="report-detail-info-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#report-detail-info-pane"
+                type="button"
+                role="tab"
+                aria-controls="report-detail-info-pane"
+                aria-selected="true"
+                data-report-detail-info-tab
+              >Informasi Tiket</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="report-detail-proof-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#report-detail-proof-pane"
+                type="button"
+                role="tab"
+                aria-controls="report-detail-proof-pane"
+                aria-selected="false"
+              >Bukti Penyelesaian</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="report-detail-telegram-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#report-detail-telegram-pane"
+                type="button"
+                role="tab"
+                aria-controls="report-detail-telegram-pane"
+                aria-selected="false"
+              >Media Telegram</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button
+                class="nav-link"
+                id="report-detail-activity-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#report-detail-activity-pane"
+                type="button"
+                role="tab"
+                aria-controls="report-detail-activity-pane"
+                aria-selected="false"
+              >Riwayat Aktivitas</button>
+            </li>
+          </ul>
+
+          <div class="tab-content pt-3" id="reportDetailTabContent">
+            <div
+              class="tab-pane fade show active"
+              id="report-detail-info-pane"
+              role="tabpanel"
+              aria-labelledby="report-detail-info-tab"
+              tabindex="0"
+              data-report-detail-info-pane
+            ></div>
+            <div
+              class="tab-pane fade"
+              id="report-detail-proof-pane"
+              role="tabpanel"
+              aria-labelledby="report-detail-proof-tab"
+              tabindex="0"
+              data-report-detail-proof-pane
+            ></div>
+            <div
+              class="tab-pane fade"
+              id="report-detail-telegram-pane"
+              role="tabpanel"
+              aria-labelledby="report-detail-telegram-tab"
+              tabindex="0"
+              data-report-detail-telegram-pane
+            ></div>
+            <div
+              class="tab-pane fade"
+              id="report-detail-activity-pane"
+              role="tabpanel"
+              aria-labelledby="report-detail-activity-tab"
+              tabindex="0"
+              data-report-detail-activity-pane
+            ></div>
+          </div>
+        </div>
       </div>
 
       <div class="modal-footer">

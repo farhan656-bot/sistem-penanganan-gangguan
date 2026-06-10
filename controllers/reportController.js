@@ -107,6 +107,19 @@ function buildTelegramLogMediaPayload(item) {
   };
 }
 
+function buildReportLogPayload(log) {
+  return {
+    id: normalizeJsonValue(log.id),
+    report_id: normalizeJsonValue(log.report_id),
+    user_id: normalizeJsonValue(log.user_id),
+    user_name: normalizeJsonValue(log.user_name),
+    actor_name: normalizeJsonValue(log.actor_name),
+    action: normalizeJsonValue(log.action),
+    description: normalizeJsonValue(log.description),
+    created_at: normalizeJsonValue(log.created_at)
+  };
+}
+
 function hasAttachmentValue(value) {
   return value !== null && value !== undefined && String(value).trim() !== '';
 }
@@ -413,6 +426,7 @@ async function showReportDetailJson(req, res) {
     const attachments = await reportModel.getAttachmentsByReportId(reportId);
     const telegramAttachments = await attachmentModel.getAttachmentsByReportId(reportId);
     const telegramLogMedia = await reportModel.getTelegramAdditionalMediaByReportId(reportId);
+    const reportLogs = await reportModel.getReportLogsByReportId(reportId);
 
     return res.json({
       success: true,
@@ -424,7 +438,8 @@ async function showReportDetailJson(req, res) {
       telegramMedia: (telegramAttachments || [])
         .filter(isTelegramAttachment)
         .map(buildAttachmentPayload),
-      telegramLogMedia: (telegramLogMedia || []).map(buildTelegramLogMediaPayload)
+      telegramLogMedia: (telegramLogMedia || []).map(buildTelegramLogMediaPayload),
+      reportLogs: (reportLogs || []).map(buildReportLogPayload)
     });
   } catch (error) {
     console.error(error);

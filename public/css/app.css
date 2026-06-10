@@ -207,6 +207,14 @@ body {
 }
 
 /* Report detail modal */
+.report-detail-tabs {
+  scrollbar-width: thin;
+}
+
+.report-detail-tabs .nav-link {
+  white-space: nowrap;
+}
+
 .report-detail-overview {
   padding-bottom: 1rem;
   margin-bottom: 1rem;
@@ -235,6 +243,13 @@ body {
   overflow-wrap: anywhere;
 }
 
+.report-detail-empty-state {
+  padding: 1rem;
+  border: 1px dashed var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.02);
+}
+
 .report-detail-media-item {
   padding: 0.875rem 0;
   border-bottom: 1px solid var(--app-border);
@@ -256,6 +271,20 @@ body {
   margin-top: 0.75rem;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-sm);
+}
+
+.report-detail-log-item {
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.report-detail-log-item:first-child {
+  padding-top: 0;
+}
+
+.report-detail-log-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 /* Layout primitives: sidebar + topbar */

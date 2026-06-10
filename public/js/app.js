@@ -210,20 +210,87 @@
     ].join('');
   }
 
+  function renderEmptyState(message) {
+    return '<div class="report-detail-empty-state text-muted">' + escapeHtml(message) + '</div>';
+  }
+
+  function asArray(value) {
+    return Array.isArray(value) ? value : [];
+  }
+
+  function isTelegramMediaItem(item) {
+    var source = String(item && item.source ? item.source : '').trim().toLowerCase();
+    return source === 'telegram' || source === 'bot_telegram';
+  }
+
+  function getCompletionAttachments(payload) {
+    return asArray(payload.attachments).filter(function (item) {
+      return !isTelegramMediaItem(item);
+    });
+  }
+
+  function getTelegramMediaItems(payload) {
+    return asArray(payload.telegramMedia).concat(asArray(payload.telegramLogMedia));
+  }
+
+  function getActivityLogs(payload) {
+    if (Array.isArray(payload.reportLogs)) return payload.reportLogs;
+    if (Array.isArray(payload.logs)) return payload.logs;
+    if (Array.isArray(payload.activityLogs)) return payload.activityLogs;
+    return [];
+  }
+
   function renderMediaList(items, emptyText, defaultName) {
-    if (!items || items.length === 0) {
-      return '<div class="text-muted">' + escapeHtml(emptyText) + '</div>';
+    var safeItems = asArray(items);
+
+    if (safeItems.length === 0) {
+      return renderEmptyState(emptyText);
     }
 
-    return items.map(function (item) {
+    return safeItems.map(function (item) {
       return renderMediaItem(item, defaultName);
     }).join('');
   }
 
+  function renderActivityLogItem(log) {
+    var item = typeof log === 'string' ? { description: log } : (log || {});
+    var action = displayValue(item.action || item.event || item.type || 'Aktivitas');
+    var actor = displayValue(item.actor_name || item.user_name || item.full_name || item.created_by_name);
+    var description = displayValue(item.description || item.message || item.notes);
+    var createdAt = item.created_at || item.timestamp || item.time;
+    var actorHtml = actor !== '-' ? '<div class="small text-muted">Pelaku: ' + escapeHtml(actor) + '</div>' : '';
+    var descriptionHtml = description !== '-'
+      ? '<div class="app-modal-prewrap mt-1">' + escapeHtml(description) + '</div>'
+      : '<div class="text-muted mt-1">Tidak ada catatan aktivitas.</div>';
+
+    return [
+      '<div class="report-detail-log-item">',
+      '<div class="small text-muted">' + escapeHtml(formatDateTime(createdAt)) + '</div>',
+      actorHtml,
+      descriptionHtml,
+      '</div>'
+    ].join('');
+  }
+
+  function renderActivityLogList(logs) {
+    var safeLogs = asArray(logs);
+
+    if (safeLogs.length === 0) {
+      return renderEmptyState('Belum ada riwayat aktivitas yang tersedia untuk detail modal ini.');
+    }
+
+    return [
+      '<div class="report-detail-log-list">',
+      safeLogs.map(renderActivityLogItem).join(''),
+      '</div>'
+    ].join('');
+  }
+
   function renderReportDetail(payload) {
     var report = payload.report || {};
-    var proofAttachments = payload.attachments || [];
-    var telegramMedia = (payload.telegramMedia || []).concat(payload.telegramLogMedia || []);
+    var proofAttachments = getCompletionAttachments(payload);
+    var telegramMedia = getTelegramMediaItems(payload);
+    var activityLogs = getActivityLogs(payload);
 
     var overview = [
       '<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 report-detail-overview">',
@@ -284,7 +351,7 @@
       renderDetailField('Updated At', formatDateTime(report.updated_at))
     ];
 
-    return [
+    var infoHtml = [
       overview,
       renderDetailSection('Informasi Utama', mainFields),
       renderDetailSection('Wilayah dan Lokasi', regionFields),
@@ -292,14 +359,21 @@
       renderDetailSection('Waktu', timeFields),
       renderDetailSection('Ringkasan', [
         renderDetailField('Summary', report.summary, { col: 'col-12', prewrap: true })
-      ]),
-      renderDetailSection('Bukti Penyelesaian', [
-        '<div class="col-12">' + renderMediaList(proofAttachments, 'Belum ada file bukti penyelesaian.', 'Bukti Penyelesaian') + '</div>'
-      ]),
-      renderDetailSection('Media Telegram', [
-        '<div class="col-12">' + renderMediaList(telegramMedia, 'Belum ada media tambahan Telegram yang terhubung ke tiket ini.', 'Media Telegram') + '</div>'
       ])
     ].join('');
+
+    return {
+      info: infoHtml,
+      proof: renderDetailSection('Bukti Penyelesaian', [
+        '<div class="col-12">' + renderMediaList(proofAttachments, 'Belum ada file bukti penyelesaian.', 'Bukti Penyelesaian') + '</div>'
+      ]),
+      telegram: renderDetailSection('Media Telegram', [
+        '<div class="col-12">' + renderMediaList(telegramMedia, 'Belum ada media tambahan Telegram yang terhubung ke tiket ini.', 'Media Telegram') + '</div>'
+      ]),
+      activity: renderDetailSection('Riwayat Aktivitas', [
+        '<div class="col-12">' + renderActivityLogList(activityLogs) + '</div>'
+      ])
+    };
   }
 
   function setupReportDetailModal() {
@@ -314,16 +388,35 @@
     var contentEl = modalEl.querySelector('[data-report-detail-content]');
     var subtitleEl = modalEl.querySelector('[data-report-detail-subtitle]');
     var fallbackEl = modalEl.querySelector('[data-report-detail-fallback]');
+    var infoTabEl = modalEl.querySelector('[data-report-detail-info-tab]');
+    var infoPaneEl = modalEl.querySelector('[data-report-detail-info-pane]');
+    var proofPaneEl = modalEl.querySelector('[data-report-detail-proof-pane]');
+    var telegramPaneEl = modalEl.querySelector('[data-report-detail-telegram-pane]');
+    var activityPaneEl = modalEl.querySelector('[data-report-detail-activity-pane]');
 
-    if (!loadingEl || !errorEl || !contentEl || !subtitleEl || !fallbackEl) return;
+    if (!loadingEl || !errorEl || !contentEl || !subtitleEl || !fallbackEl || !infoTabEl || !infoPaneEl || !proofPaneEl || !telegramPaneEl || !activityPaneEl) return;
 
     modalEl.dataset.reportDetailBound = '1';
+    var activeDetailRequestId = 0;
+
+    function clearDetailPanes() {
+      infoPaneEl.innerHTML = '';
+      proofPaneEl.innerHTML = '';
+      telegramPaneEl.innerHTML = '';
+      activityPaneEl.innerHTML = '';
+    }
+
+    function resetActiveTab() {
+      if (!window.bootstrap || !window.bootstrap.Tab) return;
+      window.bootstrap.Tab.getOrCreateInstance(infoTabEl).show();
+    }
 
     function resetModal(fallbackUrl) {
       loadingEl.classList.remove('d-none');
       errorEl.classList.add('d-none');
       contentEl.classList.add('d-none');
-      contentEl.innerHTML = '';
+      clearDetailPanes();
+      resetActiveTab();
       subtitleEl.textContent = 'Memuat data laporan...';
       fallbackEl.href = fallbackUrl || '#';
       fallbackEl.classList.toggle('d-none', !fallbackUrl);
@@ -338,9 +431,14 @@
 
     function showContent(payload) {
       var report = payload.report || {};
+      var detailHtml = renderReportDetail(payload);
       loadingEl.classList.add('d-none');
       errorEl.classList.add('d-none');
-      contentEl.innerHTML = renderReportDetail(payload);
+      infoPaneEl.innerHTML = detailHtml.info;
+      proofPaneEl.innerHTML = detailHtml.proof;
+      telegramPaneEl.innerHTML = detailHtml.telegram;
+      activityPaneEl.innerHTML = detailHtml.activity;
+      resetActiveTab();
       contentEl.classList.remove('d-none');
       subtitleEl.textContent = 'Ticket ID: ' + displayValue(report.ticket_id);
 
@@ -349,6 +447,11 @@
         fallbackEl.classList.remove('d-none');
       }
     }
+
+    modalEl.addEventListener('hidden.bs.modal', function () {
+      activeDetailRequestId += 1;
+      resetModal('');
+    });
 
     for (var i = 0; i < buttons.length; i += 1) {
       buttons[i].addEventListener('click', function (event) {
@@ -362,6 +465,8 @@
         if (!detailUrl) return;
 
         event.preventDefault();
+        activeDetailRequestId += 1;
+        var requestId = activeDetailRequestId;
         resetModal(fallbackUrl);
 
         window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
@@ -383,12 +488,14 @@
             return response.json();
           })
           .then(function (payload) {
+            if (requestId !== activeDetailRequestId) return;
             if (!payload || payload.success === false) {
               throw new Error(payload && payload.message ? payload.message : 'Gagal memuat detail laporan.');
             }
             showContent(payload);
           })
           .catch(function (error) {
+            if (requestId !== activeDetailRequestId) return;
             showError(error && error.message ? error.message : 'Gagal memuat detail laporan.');
           });
       });
