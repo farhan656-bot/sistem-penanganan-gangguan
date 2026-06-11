@@ -118,19 +118,7 @@
                           <% } %>
                         </td>
                         <td class="text-center app-table-actions">
-                          <div class="d-flex gap-1 justify-content-center">
-                            <a
-                              href="/reports/<%= report.id %>"
-                              class="btn btn-sm btn-outline-secondary"
-                              data-report-detail-url="/reports/<%= report.id %>/detail-json"
-                            >Detail</a>
-
-                            <% if (currentUser.role === 'eksekutor' && report.status_internal === 'tersedia') { %>
-                              <form action="/reports/<%= report.id %>/take" method="POST" class="m-0" onsubmit="return confirm('Ambil laporan ini?');">
-                                <button type="submit" class="btn btn-sm btn-primary">Ambil</button>
-                              </form>
-                            <% } %>
-                          </div>
+                          <%- include('../partials/report-action-buttons', { report }) %>
                         </td>
                       </tr>
                     <% }) %>

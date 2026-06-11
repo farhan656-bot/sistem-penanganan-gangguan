@@ -8,6 +8,14 @@
   <link rel="stylesheet" href="/css/app.css?v=f016-evidence-paste">
 </head>
 <body>
+  <%
+    const backToReportsUrl = currentUser && currentUser.role === 'supervisor'
+      ? '/dashboard/supervisor#tiket-perlu-perhatian'
+      : '/reports';
+    const backToReportsLabel = currentUser && currentUser.role === 'supervisor'
+      ? 'Kembali ke Dashboard'
+      : 'Kembali';
+  %>
   <div class="app-layout">
     <%- include('../partials/sidebar', { activePath: '/reports' }) %>
 
@@ -22,7 +30,7 @@
             pageTitle: 'Detail Laporan',
             pageSubtitle: `Ticket ID: ${report && report.ticket_id ? report.ticket_id : '-'}`,
             pageActions: `
-              <a href="/reports" class="btn btn-outline-secondary">Kembali</a>
+              <a href="${backToReportsUrl}" class="btn btn-outline-secondary">${backToReportsLabel}</a>
             `
           }) %>
 

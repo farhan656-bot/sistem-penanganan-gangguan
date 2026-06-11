@@ -381,12 +381,13 @@
                     <th>Status</th>
                     <th>Eksekutor</th>
                     <th>Diterima</th>
+                    <th class="app-table-actions">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
                   <% if (!attentionTickets || attentionTickets.length === 0) { %>
                     <tr>
-                      <td colspan="8" class="text-center text-muted py-4">Tidak ada tiket perlu perhatian pada filter ini.</td>
+                      <td colspan="9" class="text-center text-muted py-4">Tidak ada tiket perlu perhatian pada filter ini.</td>
                     </tr>
                   <% } %>
 
@@ -406,6 +407,13 @@
                       </td>
                       <td><%= ticket.assigned_user_name || '-' %></td>
                       <td><span class="text-muted"><%= formatDateTime(ticket.received_at) %></span></td>
+                      <td class="app-table-actions">
+                        <a
+                          href="/reports/<%= ticket.id %>"
+                          class="btn btn-sm btn-outline-secondary"
+                          data-report-detail-url="/reports/<%= ticket.id %>/detail-json"
+                        >Detail</a>
+                      </td>
                     </tr>
                   <% }) %>
                 </tbody>
@@ -483,6 +491,8 @@
       </main>
     </div>
   </div>
+
+  <%- include('../partials/report-detail-modal') %>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/app.js?v=flash-auto-dismiss-20260505-3"></script>

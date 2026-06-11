@@ -181,6 +181,7 @@ async function getReports({ search = '', status = '', region = '' }, currentUser
       reports.status_wfm,
       reports.status_andalas,
       reports.status_internal,
+      reports.current_assigned_user_id,
       reports.received_at,
       reports.taken_at,
       reports.resolved_at,

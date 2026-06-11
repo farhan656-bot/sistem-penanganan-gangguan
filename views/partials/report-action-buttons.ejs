@@ -1,0 +1,86 @@
+<%
+  const actionUser = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : {};
+  const actionRole = String(actionUser.role || '').trim().toLowerCase();
+  const ticketStatus = String(report && report.status_internal ? report.status_internal : '').trim().toLowerCase();
+  const rawAssignedUserId = report ? report.current_assigned_user_id : null;
+  const assignedUserId = rawAssignedUserId === null || rawAssignedUserId === undefined || rawAssignedUserId === ''
+    ? null
+    : Number(rawAssignedUserId);
+  const currentUserId = actionUser.id === null || actionUser.id === undefined || actionUser.id === ''
+    ? null
+    : Number(actionUser.id);
+  const hasAssignedUser = Number.isFinite(assignedUserId) && assignedUserId > 0;
+  const isAssignedToCurrentUser = hasAssignedUser && Number.isFinite(currentUserId) && assignedUserId === currentUserId;
+  const canTakeTicket = ['eksekutor', 'koordinator'].includes(actionRole) && ticketStatus === 'tersedia' && !hasAssignedUser;
+  const canContinueTicket =
+    (actionRole === 'eksekutor' && ['diambil', 'didelegasikan'].includes(ticketStatus) && isAssignedToCurrentUser) ||
+    (actionRole === 'koordinator' && ['diambil', 'didelegasikan'].includes(ticketStatus));
+  const canDelegateTicket = actionRole === 'koordinator' && ['tersedia', 'diambil', 'didelegasikan'].includes(ticketStatus);
+  const canCancelAssignment = actionRole === 'koordinator' && ['diambil', 'didelegasikan'].includes(ticketStatus) && hasAssignedUser;
+  const actionCount = [
+    canTakeTicket,
+    canContinueTicket,
+    canDelegateTicket,
+    canCancelAssignment
+  ].filter(Boolean).length;
+%>
+
+<div class="d-inline-flex align-items-center justify-content-end gap-1 flex-wrap">
+  <a
+    href="/reports/<%= report.id %>"
+    class="btn btn-sm btn-outline-secondary"
+    data-report-detail-url="/reports/<%= report.id %>/detail-json"
+  >Detail</a>
+
+  <% if (actionCount === 1) { %>
+    <% if (canTakeTicket) { %>
+      <form action="/reports/<%= report.id %>/take" method="POST" class="m-0" onsubmit="return confirm('Ambil laporan ini?');">
+        <button type="submit" class="btn btn-sm btn-primary">Ambil</button>
+      </form>
+    <% } %>
+
+    <% if (canContinueTicket) { %>
+      <a href="/reports/<%= report.id %>" class="btn btn-sm btn-primary">Kerjakan</a>
+    <% } %>
+
+    <% if (canDelegateTicket) { %>
+      <a href="/reports/<%= report.id %>" class="btn btn-sm btn-outline-primary">Delegasi</a>
+    <% } %>
+
+    <% if (canCancelAssignment) { %>
+      <a href="/reports/<%= report.id %>" class="btn btn-sm btn-outline-danger">Batalkan</a>
+    <% } %>
+  <% } else if (actionCount > 1) { %>
+    <div class="dropdown">
+      <button
+        class="btn btn-sm btn-outline-primary dropdown-toggle"
+        type="button"
+        data-bs-toggle="dropdown"
+        aria-expanded="false"
+      >
+        Aksi
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <% if (canTakeTicket) { %>
+          <li>
+            <form action="/reports/<%= report.id %>/take" method="POST" class="m-0" onsubmit="return confirm('Ambil laporan ini?');">
+              <button type="submit" class="dropdown-item">Ambil</button>
+            </form>
+          </li>
+        <% } %>
+
+        <% if (canContinueTicket) { %>
+          <li><a class="dropdown-item" href="/reports/<%= report.id %>">Kerjakan</a></li>
+        <% } %>
+
+        <% if (canDelegateTicket) { %>
+          <li><a class="dropdown-item" href="/reports/<%= report.id %>">Delegasi</a></li>
+        <% } %>
+
+        <% if (canCancelAssignment) { %>
+          <li><a class="dropdown-item text-danger" href="/reports/<%= report.id %>">Batalkan Penugasan</a></li>
+        <% } %>
+      </ul>
+    </div>
+  <% } %>
+</div>

@@ -29,14 +29,14 @@ router.post(
 router.get(
   '/:id/detail-json',
   ensureAuthenticated,
-  ensureRole('eksekutor', 'koordinator', 'super_admin'),
+  ensureRole('eksekutor', 'koordinator', 'supervisor', 'super_admin'),
   reportController.showReportDetailJson
 );
 
 router.get(
   '/:id',
   ensureAuthenticated,
-  ensureRole('eksekutor', 'koordinator', 'super_admin'),
+  ensureRole('eksekutor', 'koordinator', 'supervisor', 'super_admin'),
   reportController.showReportDetail
 );
 
