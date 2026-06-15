@@ -500,6 +500,18 @@ async function completeReport(req, res) {
 
     req.body.completion_status = completionStatus;
 
+    const completionNotes =
+      typeof req.body.completion_notes === 'string'
+        ? req.body.completion_notes.trim()
+        : '';
+
+    if (completionStatus === 'perlu_tindak_lanjut' && !completionNotes) {
+      req.flash('error_msg', 'Catatan return wajib diisi untuk status perlu tindak lanjut.');
+      return res.redirect(`/reports/${reportId}`);
+    }
+
+    req.body.completion_notes = completionNotes;
+
     const diitCode =
       typeof req.body.diit_code === 'string'
         ? req.body.diit_code.trim()

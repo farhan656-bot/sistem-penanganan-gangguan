@@ -235,9 +235,12 @@
               <div class="card-body">
                 <form action="/reports/<%= report.id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
                   <div class="mb-3">
-                    <label class="form-label" for="completion_notes">Catatan Penyelesaian (Opsional)</label>
+                    <label class="form-label" for="completion_notes">
+                      Catatan
+                      <span class="app-required d-none" data-completion-notes-required>*</span>
+                    </label>
                     <textarea id="completion_notes" name="completion_notes" class="form-control" rows="4" data-completion-notes></textarea>
-                    <div class="form-text">Isi catatan hanya jika diperlukan. Untuk tiket yang selesai tanpa kendala, catatan dapat dikosongkan.</div>
+                    <div class="form-text">Opsional untuk selesai dan eskalasi. Wajib untuk return/perlu tindak lanjut agar feedback Telegram jelas.</div>
                   </div>
 
                   <div class="mb-3">
@@ -265,13 +268,12 @@
                   </div>
 
                   <div class="mb-3">
-                    <label class="form-label">Upload Bukti <span class="app-required">*</span></label>
+                    <label class="form-label">Upload Bukti (Opsional)</label>
                     <input
                       type="file"
                       name="proof_file"
                       class="form-control"
                       accept=".jpg,.jpeg,.png,.webp,.pdf"
-                      required
                       data-proof-file-input
                     >
                     <div class="form-text">
@@ -408,15 +410,19 @@
 
       var statusField = form.querySelector('[data-completion-status]');
       var notesField = form.querySelector('[data-completion-notes]');
+      var notesRequiredIndicator = form.querySelector('[data-completion-notes-required]');
       var diitCodeGroup = form.querySelector('[data-diit-code-group]');
       var diitCodeField = form.querySelector('[data-diit-code]');
       if (!statusField || !notesField) return;
 
       function syncCompletionRequirements() {
-        var requiresNotes = statusField.value && statusField.value !== 'selesai';
+        var requiresNotes = statusField.value === 'perlu_tindak_lanjut';
         var requiresDiitCode = statusField.value === 'eskalasi';
 
         notesField.required = Boolean(requiresNotes);
+        if (notesRequiredIndicator) {
+          notesRequiredIndicator.classList.toggle('d-none', !requiresNotes);
+        }
 
         if (diitCodeGroup && diitCodeField) {
           diitCodeGroup.classList.toggle('d-none', !requiresDiitCode);

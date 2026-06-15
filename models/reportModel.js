@@ -985,12 +985,16 @@ async function completeReport(reportId, currentUser, formData, fileData) {
         ? formData.diit_code.trim()
         : '';
 
-    if (!finalStatus || (finalStatus !== 'selesai' && !completionNotes)) {
-      throw new Error('Catatan penyelesaian dan status akhir wajib diisi.');
+    if (!finalStatus) {
+      throw new Error('Status akhir wajib dipilih.');
     }
 
     if (!ALLOWED_FINAL_STATUSES.includes(finalStatus)) {
       throw new Error('Status akhir tidak valid.');
+    }
+
+    if (finalStatus === 'perlu_tindak_lanjut' && !completionNotes) {
+      throw new Error('Catatan return wajib diisi untuk status perlu tindak lanjut.');
     }
 
     if (finalStatus === 'eskalasi' && !diitCode) {
@@ -999,10 +1003,6 @@ async function completeReport(reportId, currentUser, formData, fileData) {
 
     if (finalStatus === 'eskalasi' && diitCode.length > 100) {
       throw new Error('Kode DIIT maksimal 100 karakter.');
-    }
-
-    if (!fileData) {
-      throw new Error('Bukti penyelesaian wajib diunggah.');
     }
 
     const logMeta = getCompletionLogMeta(finalStatus);
@@ -1033,31 +1033,33 @@ async function completeReport(reportId, currentUser, formData, fileData) {
       ]
     );
 
-    await connection.query(
-      `
-      INSERT INTO report_attachments
-      (
-        report_id,
-        source,
-        uploaded_by_user_id,
-        file_name,
-        file_path,
-        mime_type,
-        file_size,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-      `,
-      [
-        reportId,
-        'completion',
-        currentUser.id,
-        fileData.originalname,
-        '/uploads/' + fileData.filename,
-        fileData.mimetype,
-        fileData.size
-      ]
-    );
+    if (fileData) {
+      await connection.query(
+        `
+        INSERT INTO report_attachments
+        (
+          report_id,
+          source,
+          uploaded_by_user_id,
+          file_name,
+          file_path,
+          mime_type,
+          file_size,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+        `,
+        [
+          reportId,
+          'completion',
+          currentUser.id,
+          fileData.originalname,
+          '/uploads/' + fileData.filename,
+          fileData.mimetype,
+          fileData.size
+        ]
+      );
+    }
 
     await connection.query(
       `
