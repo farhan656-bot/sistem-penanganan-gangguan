@@ -25,15 +25,11 @@ function buildCompletedMessage(ticketId, orderId) {
 function buildReturnEvidenceMessage(ticketId, orderId, notes) {
   const returnNotes = typeof notes === 'string' ? notes.trim() : '';
   const messageLines = [
-    `Tiket ${ticketId} dikembalikan.`,
+    `Tiket ${ticketId} dikembalikan / perlu tindak lanjut.`,
     `Order ID: ${orderId}`,
     '',
-    'Mohon lengkapi evidence agar tiket dapat diproses kembali.'
+    `Catatan: ${returnNotes || '-'}`
   ];
-
-  if (returnNotes) {
-    messageLines.push('', 'Catatan return:', returnNotes);
-  }
 
   return messageLines.join('\n');
 }
