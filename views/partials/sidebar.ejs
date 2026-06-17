@@ -1,4 +1,4 @@
-<% 
+<%
   const user = (typeof currentUser !== 'undefined') ? currentUser : null;
   const role = user && user.role ? String(user.role) : null;
   const currentPath = (typeof activePath !== 'undefined' && activePath) ? String(activePath) : '';
@@ -14,7 +14,15 @@
   <aside class="app-sidebar">
     <div class="app-sidebar-inner">
       <div class="app-brand">
-        <div class="app-brand-mark">TG</div>
+        <div class="app-brand-mark">
+          <img
+            src="/images/telkom-logo.png"
+            alt="Telkom"
+            class="app-brand-logo"
+            onerror="this.hidden=true; this.nextElementSibling.hidden=false;"
+          >
+          <span class="app-brand-fallback" hidden>Telkom</span>
+        </div>
         <div>
           <div class="fw-semibold">Sistem Tiket Gangguan</div>
           <div class="text-muted small">Dashboard Operasional</div>
@@ -51,12 +59,6 @@
           <a class="nav-link <%= isActive('/region-switch/pending') ? 'active' : '' %>" href="/region-switch/pending">Approval Switch Region</a>
         <% } %>
       </nav>
-
-      <div class="mt-3 pt-3 border-top">
-        <div class="small text-muted">Login sebagai</div>
-        <div class="fw-semibold"><%= user.full_name || user.username || 'User' %></div>
-        <div class="small text-muted"><%= role %><% if (user.region_name) { %> • <%= user.region_name %><% } %></div>
-      </div>
     </div>
   </aside>
 <% } %>
