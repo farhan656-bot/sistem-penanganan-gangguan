@@ -55,6 +55,275 @@
     }
   }
 
+  var quickActionScrollKey = 'f027:ticket-action-scroll';
+  var quickActionFlashKey = 'f027:ticket-action-flash';
+
+  function getStorageItem(key) {
+    try {
+      return window.sessionStorage ? window.sessionStorage.getItem(key) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function setStorageItem(key, value) {
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.setItem(key, value);
+      }
+    } catch (e) {}
+  }
+
+  function removeStorageItem(key) {
+    try {
+      if (window.sessionStorage) {
+        window.sessionStorage.removeItem(key);
+      }
+    } catch (e) {}
+  }
+
+  function getCurrentPagePath() {
+    return window.location.pathname + window.location.search;
+  }
+
+  function saveQuickActionScroll() {
+    setStorageItem(quickActionScrollKey, JSON.stringify({
+      page: getCurrentPagePath(),
+      y: window.scrollY || window.pageYOffset || 0,
+      savedAt: Date.now()
+    }));
+  }
+
+  function restoreQuickActionScroll() {
+    var raw = getStorageItem(quickActionScrollKey);
+    if (!raw) return;
+
+    try {
+      var payload = JSON.parse(raw);
+      var isFresh = payload && payload.savedAt && (Date.now() - Number(payload.savedAt)) < 60000;
+
+      if (payload && payload.page === getCurrentPagePath() && isFresh) {
+        var y = Number(payload.y);
+        if (isFinite(y) && y >= 0) {
+          window.scrollTo(0, y);
+          window.setTimeout(function () {
+            window.scrollTo(0, y);
+          }, 50);
+        }
+      }
+    } catch (e) {
+      // Ignore invalid session storage payloads.
+    }
+
+    window.setTimeout(function () {
+      removeStorageItem(quickActionScrollKey);
+    }, 250);
+  }
+
+  function createFlashAlert(type, message) {
+    var alertEl = document.createElement('div');
+    var closeButton = document.createElement('button');
+    var textNode = document.createTextNode(message || '');
+
+    alertEl.className = 'alert alert-' + type + ' alert-dismissible fade show app-flash';
+    alertEl.setAttribute('role', 'alert');
+
+    if (type === 'success') {
+      alertEl.setAttribute('data-auto-dismiss', 'true');
+      alertEl.setAttribute('data-auto-dismiss-delay', '4000');
+    }
+
+    closeButton.type = 'button';
+    closeButton.className = 'btn-close';
+    closeButton.setAttribute('data-bs-dismiss', 'alert');
+    closeButton.setAttribute('aria-label', 'Close');
+
+    alertEl.appendChild(textNode);
+    alertEl.appendChild(closeButton);
+    return alertEl;
+  }
+
+  function getQuickActionFeedbackContainer() {
+    var container = document.getElementById('quickActionFeedback');
+
+    if (container) return container;
+    if (!document.body) return null;
+
+    container = document.createElement('div');
+    container.id = 'quickActionFeedback';
+    container.className = 'position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '1080';
+    container.style.maxWidth = '420px';
+    container.style.width = '100%';
+    document.body.appendChild(container);
+
+    return container;
+  }
+
+  function showQuickActionFlash(type, message) {
+    var container = getQuickActionFeedbackContainer();
+    var alertType = type === 'danger' ? 'danger' : 'success';
+    var alertEl = createFlashAlert(alertType, message);
+
+    if (!container) return;
+
+    container.appendChild(alertEl);
+    setupAutoDismissAlerts();
+  }
+
+  function saveQuickActionFlash(type, message) {
+    setStorageItem(quickActionFlashKey, JSON.stringify({
+      page: getCurrentPagePath(),
+      type: type,
+      message: message,
+      savedAt: Date.now()
+    }));
+  }
+
+  function restoreQuickActionFlash() {
+    var raw = getStorageItem(quickActionFlashKey);
+    if (!raw) return;
+
+    removeStorageItem(quickActionFlashKey);
+
+    try {
+      var payload = JSON.parse(raw);
+      var isFresh = payload && payload.savedAt && (Date.now() - Number(payload.savedAt)) < 60000;
+
+      if (payload && payload.page === getCurrentPagePath() && isFresh && payload.message) {
+        showQuickActionFlash(payload.type === 'danger' ? 'danger' : 'success', payload.message);
+      }
+    } catch (e) {
+      // Ignore invalid session storage payloads.
+    }
+  }
+
+  function ensureQuickActionReturnTo(form) {
+    var field = form.querySelector('input[name="return_to"]');
+
+    if (!field) {
+      field = document.createElement('input');
+      field.type = 'hidden';
+      field.name = 'return_to';
+      form.appendChild(field);
+    }
+
+    field.value = getCurrentPagePath();
+  }
+
+  function getQuickActionSubmitButton(form, event) {
+    if (event && event.submitter) {
+      return event.submitter;
+    }
+
+    return form.querySelector('button[type="submit"], input[type="submit"]');
+  }
+
+  function setQuickActionLoading(form, button, isLoading) {
+    if (!button) return;
+
+    if (isLoading) {
+      form.dataset.quickActionBusy = '1';
+      button.dataset.originalLabel = button.textContent;
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.textContent = 'Proses...';
+      return;
+    }
+
+    form.dataset.quickActionBusy = '0';
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+
+    if (button.dataset.originalLabel) {
+      button.textContent = button.dataset.originalLabel;
+      delete button.dataset.originalLabel;
+    }
+  }
+
+  function buildQuickActionBody(form) {
+    var body = new URLSearchParams(new FormData(form));
+    body.set('return_to', getCurrentPagePath());
+    return body;
+  }
+
+  function bindQuickTicketAction(form) {
+    if (!form || form.dataset.quickActionBound === '1') return;
+
+    form.dataset.quickActionBound = '1';
+
+    form.addEventListener('submit', function (event) {
+      if (event.defaultPrevented) return;
+
+      saveQuickActionScroll();
+      ensureQuickActionReturnTo(form);
+
+      if (!window.fetch || !window.FormData || !window.URLSearchParams) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (form.dataset.quickActionBusy === '1') return;
+
+      var button = getQuickActionSubmitButton(form, event);
+      var actionUrl = form.getAttribute('action');
+      var method = String(form.getAttribute('method') || 'POST').toUpperCase();
+
+      setQuickActionLoading(form, button, true);
+
+      window.fetch(actionUrl, {
+        method: method,
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: buildQuickActionBody(form)
+      })
+        .then(function (response) {
+          var contentType = response.headers.get('content-type') || '';
+
+          if (contentType.indexOf('application/json') === -1) {
+            throw new Error('Sesi login tidak valid atau respons server tidak dapat diproses.');
+          }
+
+          return response.json().then(function (payload) {
+            if (!response.ok || !payload || payload.success === false) {
+              throw new Error(payload && payload.message ? payload.message : 'Aksi laporan gagal diproses.');
+            }
+
+            return payload;
+          });
+        })
+        .then(function (payload) {
+          var message = payload && payload.message ? payload.message : 'Aksi laporan berhasil diproses.';
+          saveQuickActionScroll();
+          saveQuickActionFlash('success', message);
+          showQuickActionFlash('success', message);
+
+          window.setTimeout(function () {
+            window.location.reload();
+          }, 250);
+        })
+        .catch(function (error) {
+          removeStorageItem(quickActionScrollKey);
+          setQuickActionLoading(form, button, false);
+          showQuickActionFlash('danger', error && error.message ? error.message : 'Aksi laporan gagal diproses.');
+        });
+    });
+  }
+
+  function setupQuickTicketActions() {
+    restoreQuickActionScroll();
+    restoreQuickActionFlash();
+
+    var forms = document.querySelectorAll('[data-ticket-quick-action]');
+    for (var i = 0; i < forms.length; i += 1) {
+      bindQuickTicketAction(forms[i]);
+    }
+  }
+
   function escapeHtml(value) {
     return String(value === null || value === undefined ? '' : value)
       .replace(/&/g, '&amp;')
@@ -799,6 +1068,7 @@
     try { updateSidebarHashActive(); } catch (e2) {}
     try { setupReportDetailModal(); } catch (e3) {}
     try { setupCompletionEvidencePasteUpload(); } catch (e4) {}
+    try { setupQuickTicketActions(); } catch (e5) {}
   }
 
   function normalizePathname(pathname) {

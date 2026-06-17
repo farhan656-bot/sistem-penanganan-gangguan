@@ -27,7 +27,15 @@
   >Detail</a>
 
   <% if (canTakeTicket) { %>
-    <form action="/reports/<%= report.id %>/take" method="POST" class="m-0" onsubmit="return confirm('Ambil laporan ini?');">
+    <form
+      action="/reports/<%= report.id %>/take"
+      method="POST"
+      class="m-0"
+      data-ticket-quick-action
+      data-action-type="take"
+      data-report-id="<%= report.id %>"
+      onsubmit="return confirm('Ambil laporan ini?');"
+    >
       <button type="submit" class="btn btn-sm btn-primary">Ambil</button>
     </form>
   <% } %>

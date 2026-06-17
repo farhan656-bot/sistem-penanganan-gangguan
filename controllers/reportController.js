@@ -44,6 +44,72 @@ function normalizeJsonValue(value) {
   return value === undefined ? null : value;
 }
 
+function isAjaxRequest(req) {
+  const requestedWith = String(req.get('X-Requested-With') || '').trim().toLowerCase();
+  const acceptHeader = String(req.get('Accept') || '').trim().toLowerCase();
+
+  return requestedWith === 'xmlhttprequest' || acceptHeader.includes('application/json');
+}
+
+function normalizeReportReturnPath(req, fallbackPath) {
+  const requestHost = req.get('host');
+  const candidates = [
+    req.body && typeof req.body.return_to === 'string' ? req.body.return_to : '',
+    req.get('Referrer') || '',
+    req.get('Referer') || ''
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+
+    try {
+      const url = new URL(candidate, `${req.protocol}://${requestHost}`);
+      const isSameHost = url.host === requestHost;
+      const safePath = `${url.pathname}${url.search}`;
+
+      if (
+        isSameHost &&
+        (safePath === '/reports' || safePath.startsWith('/reports/') || safePath.startsWith('/reports?'))
+      ) {
+        return safePath;
+      }
+    } catch (error) {
+      // Ignore malformed return targets and use the known fallback below.
+    }
+  }
+
+  return fallbackPath;
+}
+
+function sendQuickActionSuccess(req, res, result, redirectPath) {
+  const message = result && result.message ? result.message : 'Aksi laporan berhasil diproses.';
+
+  if (isAjaxRequest(req)) {
+    return res.json({
+      success: true,
+      message,
+      redirectUrl: redirectPath
+    });
+  }
+
+  req.flash('success_msg', message);
+  return res.redirect(redirectPath);
+}
+
+function sendQuickActionError(req, res, error, fallbackMessage, redirectPath) {
+  const message = error && error.message ? error.message : fallbackMessage;
+
+  if (isAjaxRequest(req)) {
+    return res.status(400).json({
+      success: false,
+      message
+    });
+  }
+
+  req.flash('error_msg', message);
+  return res.redirect(redirectPath);
+}
+
 function buildReportDetailPayload(report) {
   return {
     id: normalizeJsonValue(report.id),
@@ -465,32 +531,33 @@ async function showReportDetailJson(req, res) {
 }
 
 async function takeReport(req, res) {
+  const redirectPath = normalizeReportReturnPath(req, '/reports');
+
   try {
     const reportId = req.params.id;
     const result = await reportModel.takeReport(reportId, req.session.user);
     await triggerTelegramFeedback(reportId, req.session.user, 'assigned');
 
-    req.flash('success_msg', result.message);
-    return res.redirect('/reports');
+    return sendQuickActionSuccess(req, res, result, redirectPath);
   } catch (error) {
     console.error(error);
-    req.flash('error_msg', error.message || 'Gagal mengambil laporan.');
-    return res.redirect('/reports');
+    return sendQuickActionError(req, res, error, 'Gagal mengambil laporan.', redirectPath);
   }
 }
 
 async function markReportInProgress(req, res) {
+  const fallbackPath = `/reports/${req.params.id}`;
+  const redirectPath = normalizeReportReturnPath(req, fallbackPath);
+
   try {
     const reportId = req.params.id;
     const result = await reportModel.markReportInProgress(reportId, req.session.user);
     await triggerTelegramFeedback(reportId, req.session.user, 'in_progress');
 
-    req.flash('success_msg', result.message);
-    return res.redirect(`/reports/${reportId}`);
+    return sendQuickActionSuccess(req, res, result, redirectPath);
   } catch (error) {
     console.error(error);
-    req.flash('error_msg', error.message || 'Gagal menandai laporan sedang dikerjakan.');
-    return res.redirect(`/reports/${req.params.id}`);
+    return sendQuickActionError(req, res, error, 'Gagal menandai laporan sedang dikerjakan.', redirectPath);
   }
 }
 
