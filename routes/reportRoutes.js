@@ -3,7 +3,7 @@ const router = express.Router();
 const reportController = require('../controllers/reportController');
 const { ensureAuthenticated } = require('../middlewares/authMiddleware');
 const { ensureRole } = require('../middlewares/roleMiddleware');
-const upload = require('../middlewares/uploadMiddleware');
+const { uploadCompletionEvidence } = require('../middlewares/uploadMiddleware');
 
 router.get(
   '/',
@@ -58,7 +58,7 @@ router.post(
   '/:id/complete',
   ensureAuthenticated,
   ensureRole('eksekutor', 'koordinator'),
-  upload.single('proof_file'),
+  uploadCompletionEvidence,
   reportController.completeReport
 );
 

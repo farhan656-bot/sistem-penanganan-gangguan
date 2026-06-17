@@ -514,6 +514,17 @@
     return ['image/jpeg', 'image/png', 'image/webp'].indexOf(type) >= 0;
   }
 
+  function isAllowedEvidenceUploadFile(file) {
+    var type = String(file && file.type ? file.type : '').toLowerCase();
+    var name = String(file && file.name ? file.name : '').toLowerCase();
+
+    if (['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].indexOf(type) >= 0) {
+      return true;
+    }
+
+    return /\.(jpe?g|png|webp|pdf)$/.test(name);
+  }
+
   function setEvidenceStatus(statusEl, message, tone) {
     if (!statusEl) return;
 
@@ -588,6 +599,7 @@
     var clearButton = form.querySelector('[data-evidence-clear]');
     var previewUrl = '';
     var maxFileSize = 5 * 1024 * 1024;
+    var maxFileCount = 5;
 
     if (!fileInput || !pasteArea) return;
 
@@ -611,14 +623,23 @@
       if (fileNoteEl) fileNoteEl.textContent = '';
     }
 
-    function showPreview(file, source) {
+    function showPreview(file, source, totalCount) {
       clearPreview();
 
       if (!file || !previewEl) return;
 
+      var selectedCount = totalCount || 1;
       previewEl.classList.remove('d-none');
-      if (fileNameEl) fileNameEl.textContent = file.name || 'Bukti penyelesaian';
-      if (fileSizeEl) fileSizeEl.textContent = 'Ukuran: ' + formatFileSize(file.size);
+      if (fileNameEl) {
+        fileNameEl.textContent = selectedCount > 1
+          ? (file.name || 'Bukti penyelesaian') + ' +' + (selectedCount - 1) + ' file lain'
+          : (file.name || 'Bukti penyelesaian');
+      }
+      if (fileSizeEl) {
+        fileSizeEl.textContent = selectedCount > 1
+          ? selectedCount + ' file dipilih. File pertama: ' + formatFileSize(file.size)
+          : 'Ukuran: ' + formatFileSize(file.size);
+      }
 
       if (file.type && file.type.indexOf('image/') === 0 && previewImageEl && window.URL && typeof window.URL.createObjectURL === 'function') {
         previewUrl = window.URL.createObjectURL(file);
@@ -638,7 +659,15 @@
     }
 
     function syncManualFilePreview() {
-      var file = fileInput.files && fileInput.files.length > 0 ? fileInput.files[0] : null;
+      var files = [];
+
+      if (fileInput.files && fileInput.files.length > 0) {
+        for (var i = 0; i < fileInput.files.length; i += 1) {
+          files.push(fileInput.files[i]);
+        }
+      }
+
+      var file = files.length > 0 ? files[0] : null;
 
       if (!file) {
         clearPreview();
@@ -646,13 +675,28 @@
         return;
       }
 
-      showPreview(file, 'manual');
+      showPreview(file, 'manual', files.length);
 
-      if (file.size > maxFileSize) {
-        setEvidenceStatus(statusEl, 'File lebih dari 5 MB dan akan ditolak oleh sistem.', 'danger');
-      } else {
-        setEvidenceStatus(statusEl, 'File bukti siap diunggah.', 'success');
+      if (files.length > maxFileCount) {
+        setEvidenceStatus(statusEl, 'Jumlah file terlalu banyak. Maksimal 5 file bukti per upload.', 'danger');
+        return;
       }
+
+      for (var j = 0; j < files.length; j += 1) {
+        if (!isAllowedEvidenceUploadFile(files[j])) {
+          setEvidenceStatus(statusEl, 'Format file tidak didukung. Gunakan JPG, JPEG, PNG, WEBP, atau PDF.', 'danger');
+          return;
+        }
+
+        if (files[j].size > maxFileSize) {
+          setEvidenceStatus(statusEl, 'Ada file lebih dari 5 MB dan akan ditolak oleh sistem.', 'danger');
+          return;
+        }
+      }
+
+      setEvidenceStatus(statusEl, files.length > 1
+        ? files.length + ' file bukti siap diunggah.'
+        : 'File bukti siap diunggah.', 'success');
     }
 
     pasteArea.addEventListener('click', function (event) {

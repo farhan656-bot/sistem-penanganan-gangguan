@@ -274,11 +274,12 @@
                       name="proof_file"
                       class="form-control"
                       accept=".jpg,.jpeg,.png,.webp,.pdf"
+                      multiple
                       data-proof-file-input
                     >
                     <div class="form-text">
                       Unggah file bukti atau klik area ini lalu tekan Ctrl + V untuk menempel screenshot.
-                      Format: JPG, PNG, WEBP, atau PDF. Maksimal 5 MB.
+                      Format: JPG, JPEG, PNG, WEBP, atau PDF. Maksimal 5 file, 5 MB per file.
                     </div>
 
                     <div
@@ -402,7 +403,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/app.js?v=f016-evidence-paste"></script>
+  <script src="/js/app.js?v=f024-upload-limits"></script>
   <script>
     (function () {
       var form = document.querySelector('[data-completion-form]');

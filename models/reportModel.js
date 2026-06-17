@@ -1,3 +1,4 @@
+const path = require('path');
 const pool = require('../config/db');
 const regionSwitchModel = require('./regionSwitchModel');
 
@@ -21,6 +22,7 @@ const TELEGRAM_TEXT_ENRICHMENT_FIELDS = [
   'fallout_type'
 ];
 const COORDINATOR_ALLOWED_REGION_CODES = ['PDG', 'BKT'];
+const PUBLIC_DIR = path.join(__dirname, '../public');
 
 function getCurrentUserRole(currentUser = {}) {
   return String(currentUser.role || currentUser.role_name || '').trim().toLowerCase();
@@ -89,6 +91,39 @@ function normalizeOptionalField(value) {
 
   const normalized = value.trim();
   return normalized ? normalized : null;
+}
+
+function normalizeUploadedFiles(fileData) {
+  if (Array.isArray(fileData)) {
+    return fileData.filter(Boolean);
+  }
+
+  return fileData ? [fileData] : [];
+}
+
+function sanitizeAttachmentFileName(file) {
+  const rawName = file && (file.safeOriginalName || file.originalname)
+    ? file.safeOriginalName || file.originalname
+    : 'bukti-penyelesaian';
+  const baseName = path.basename(String(rawName));
+  const sanitized = baseName
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/_{2,}/g, '_')
+    .slice(0, 120);
+
+  return sanitized || 'bukti-penyelesaian';
+}
+
+function buildPublicUploadPath(file) {
+  if (file && file.path) {
+    const relativePath = path.relative(PUBLIC_DIR, file.path);
+
+    if (relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+      return `/${relativePath.split(path.sep).join('/')}`;
+    }
+  }
+
+  return `/uploads/completion/${file.filename}`;
 }
 
 function normalizeComparableValue(value) {
@@ -1033,7 +1068,9 @@ async function completeReport(reportId, currentUser, formData, fileData) {
       ]
     );
 
-    if (fileData) {
+    const uploadedFiles = normalizeUploadedFiles(fileData);
+
+    for (const uploadedFile of uploadedFiles) {
       await connection.query(
         `
         INSERT INTO report_attachments
@@ -1053,10 +1090,10 @@ async function completeReport(reportId, currentUser, formData, fileData) {
           reportId,
           'completion',
           currentUser.id,
-          fileData.originalname,
-          '/uploads/' + fileData.filename,
-          fileData.mimetype,
-          fileData.size
+          sanitizeAttachmentFileName(uploadedFile),
+          buildPublicUploadPath(uploadedFile),
+          uploadedFile.mimetype,
+          uploadedFile.size
         ]
       );
     }

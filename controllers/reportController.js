@@ -2,6 +2,10 @@ const reportModel = require('../models/reportModel');
 const userModel = require('../models/userModel');
 const attachmentModel = require('../models/attachmentModel');
 const {
+  cleanupUploadedFiles,
+  getUploadedEvidenceFiles
+} = require('../middlewares/uploadMiddleware');
+const {
   sendAssignedFeedback,
   sendInProgressFeedback,
   sendCompletedFeedback,
@@ -170,6 +174,12 @@ function splitReportAttachments(attachments) {
     completionAttachments: sourceAttachments.filter((file) => !isTelegramAttachment(file)),
     telegramAttachments: sourceAttachments.filter(isTelegramAttachment)
   };
+}
+
+async function redirectCompleteWithError(req, res, reportId, message) {
+  await cleanupUploadedFiles(req);
+  req.flash('error_msg', message);
+  return res.redirect(`/reports/${reportId}`);
 }
 
 async function triggerTelegramFeedback(reportId, currentUser, feedbackType, options = {}) {
@@ -489,13 +499,11 @@ async function completeReport(req, res) {
         : '';
 
     if (!completionStatus) {
-      req.flash('error_msg', 'Status akhir wajib dipilih.');
-      return res.redirect(`/reports/${reportId}`);
+      return redirectCompleteWithError(req, res, reportId, 'Status akhir wajib dipilih.');
     }
 
     if (!ALLOWED_FINAL_STATUSES.includes(completionStatus)) {
-      req.flash('error_msg', 'Status akhir tidak valid.');
-      return res.redirect(`/reports/${reportId}`);
+      return redirectCompleteWithError(req, res, reportId, 'Status akhir tidak valid.');
     }
 
     req.body.completion_status = completionStatus;
@@ -506,8 +514,7 @@ async function completeReport(req, res) {
         : '';
 
     if (completionStatus === 'perlu_tindak_lanjut' && !completionNotes) {
-      req.flash('error_msg', 'Catatan return wajib diisi untuk status perlu tindak lanjut.');
-      return res.redirect(`/reports/${reportId}`);
+      return redirectCompleteWithError(req, res, reportId, 'Catatan return wajib diisi untuk status perlu tindak lanjut.');
     }
 
     req.body.completion_notes = completionNotes;
@@ -518,13 +525,11 @@ async function completeReport(req, res) {
         : '';
 
     if (completionStatus === 'eskalasi' && !diitCode) {
-      req.flash('error_msg', 'Kode DIIT wajib diisi untuk status eskalasi.');
-      return res.redirect(`/reports/${reportId}`);
+      return redirectCompleteWithError(req, res, reportId, 'Kode DIIT wajib diisi untuk status eskalasi.');
     }
 
     if (completionStatus === 'eskalasi' && diitCode.length > 100) {
-      req.flash('error_msg', 'Kode DIIT maksimal 100 karakter.');
-      return res.redirect(`/reports/${reportId}`);
+      return redirectCompleteWithError(req, res, reportId, 'Kode DIIT maksimal 100 karakter.');
     }
 
     req.body.diit_code = completionStatus === 'eskalasi' ? diitCode : '';
@@ -533,7 +538,7 @@ async function completeReport(req, res) {
       reportId,
       req.session.user,
       req.body,
-      req.file
+      getUploadedEvidenceFiles(req)
     );
 
     if (completionStatus === 'perlu_tindak_lanjut') {
@@ -552,6 +557,7 @@ async function completeReport(req, res) {
     return res.redirect(`/reports/${reportId}`);
   } catch (error) {
     console.error(error);
+    await cleanupUploadedFiles(req);
     req.flash('error_msg', error.message || 'Gagal menyelesaikan laporan.');
     return res.redirect(`/reports/${req.params.id}`);
   }
