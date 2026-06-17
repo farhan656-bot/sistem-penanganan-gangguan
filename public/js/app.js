@@ -143,6 +143,43 @@
     return regionCode + ' - ' + regionName;
   }
 
+  function optionalText(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+  }
+
+  function formatTelegramUsername(value) {
+    var username = optionalText(value);
+    if (!username) return '';
+    return username.charAt(0) === '@' ? username : '@' + username;
+  }
+
+  function formatTelegramSenderName(report) {
+    var firstName = optionalText(report.telegram_sender_first_name);
+    var lastName = optionalText(report.telegram_sender_last_name);
+    return [firstName, lastName].filter(Boolean).join(' ');
+  }
+
+  function renderTelegramSenderFields(report) {
+    var username = formatTelegramUsername(report.telegram_sender_username);
+    var senderName = formatTelegramSenderName(report);
+    var senderId = optionalText(report.telegram_sender_id);
+
+    if (!username && !senderName && !senderId) {
+      return [
+        '<div class="col-12">',
+        renderEmptyState('Data pengirim belum tersedia.'),
+        '</div>'
+      ];
+    }
+
+    return [
+      renderDetailField('Username Telegram', username || '-'),
+      renderDetailField('Nama Telegram', senderName || '-'),
+      renderDetailField('Telegram ID', senderId || '-')
+    ];
+  }
+
   function renderDetailField(label, value, options) {
     var config = options || {};
     var colClass = config.col || 'col-12 col-md-6 col-xl-3';
@@ -354,6 +391,7 @@
     var infoHtml = [
       overview,
       renderDetailSection('Informasi Utama', mainFields),
+      renderDetailSection('Pengirim Telegram', renderTelegramSenderFields(report)),
       renderDetailSection('Wilayah dan Lokasi', regionFields),
       renderDetailSection('Status dan Penugasan', statusFields),
       renderDetailSection('Waktu', timeFields),

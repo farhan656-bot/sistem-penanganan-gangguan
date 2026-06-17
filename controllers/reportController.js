@@ -48,6 +48,10 @@ function buildReportDetailPayload(report) {
   return {
     id: normalizeJsonValue(report.id),
     source_channel: normalizeJsonValue(report.source_channel),
+    telegram_sender_id: normalizeJsonValue(report.telegram_sender_id),
+    telegram_sender_username: normalizeJsonValue(report.telegram_sender_username),
+    telegram_sender_first_name: normalizeJsonValue(report.telegram_sender_first_name),
+    telegram_sender_last_name: normalizeJsonValue(report.telegram_sender_last_name),
     fallout_type: normalizeJsonValue(report.fallout_type),
     ticket_id: normalizeJsonValue(report.ticket_id),
     order_id: normalizeJsonValue(report.order_id),

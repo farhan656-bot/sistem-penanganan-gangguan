@@ -93,6 +93,15 @@ function normalizeOptionalField(value) {
   return normalized ? normalized : null;
 }
 
+function normalizeOptionalTelegramMetaField(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
 function normalizeUploadedFiles(fileData) {
   if (Array.isArray(fileData)) {
     return fileData.filter(Boolean);
@@ -450,6 +459,7 @@ async function createTelegramReport(parsedData, telegramMeta) {
     const orderId = typeof parsedData.order_id === 'string' ? parsedData.order_id.trim() : '';
     const summary = typeof parsedData.summary === 'string' ? parsedData.summary.trim() : '';
     const regionCode = typeof parsedData.region === 'string' ? parsedData.region.trim().toUpperCase() : '';
+    const meta = telegramMeta || {};
 
     if (!ticketId || !orderId || !summary || !regionCode) {
       throw new Error('Data wajib intake Telegram tidak lengkap.');
@@ -484,6 +494,16 @@ async function createTelegramReport(parsedData, telegramMeta) {
     }
 
     const selectedRegion = regionRows[0];
+    const telegramSenderId = normalizeOptionalTelegramMetaField(meta.sender_id ?? meta.telegram_sender_id);
+    const telegramSenderUsername = normalizeOptionalTelegramMetaField(
+      meta.sender_username ?? meta.telegram_sender_username ?? meta.username ?? meta.reporter_username
+    );
+    const telegramSenderFirstName = normalizeOptionalTelegramMetaField(
+      meta.sender_first_name ?? meta.telegram_sender_first_name
+    );
+    const telegramSenderLastName = normalizeOptionalTelegramMetaField(
+      meta.sender_last_name ?? meta.telegram_sender_last_name
+    );
 
     const [insertResult] = await connection.query(
       `
@@ -511,12 +531,16 @@ async function createTelegramReport(parsedData, telegramMeta) {
         current_assigned_user_id,
         telegram_chat_id,
         telegram_message_id,
+        telegram_sender_id,
+        telegram_sender_username,
+        telegram_sender_first_name,
+        telegram_sender_last_name,
         received_at,
         created_at,
         updated_at
       )
       VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tersedia', ?, ?, NULL, ?, ?, NOW(), NOW(), NOW())
+      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tersedia', ?, ?, NULL, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
       `,
       [
         'telegram',
@@ -537,8 +561,12 @@ async function createTelegramReport(parsedData, telegramMeta) {
         normalizeOptionalField(parsedData.status_andalas),
         selectedRegion.id,
         selectedRegion.id,
-        String(telegramMeta.chat_id),
-        String(telegramMeta.message_id)
+        String(meta.chat_id),
+        String(meta.message_id),
+        telegramSenderId,
+        telegramSenderUsername,
+        telegramSenderFirstName,
+        telegramSenderLastName
       ]
     );
 
@@ -550,7 +578,7 @@ async function createTelegramReport(parsedData, telegramMeta) {
       [
         insertResult.insertId,
         null,
-        `Laporan dari Telegram diterima dengan ticket_id ${ticketId}, order_id ${orderId}, source telegram, chat_id ${telegramMeta.chat_id}.`
+        `Laporan dari Telegram diterima dengan ticket_id ${ticketId}, order_id ${orderId}, source telegram, chat_id ${meta.chat_id}.`
       ]
     );
 

@@ -15,9 +15,18 @@ const {
 let botInstance = null;
 const TELEGRAM_UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'telegram');
 
+function normalizeTelegramMetaField(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized ? normalized : null;
+}
+
 function getReporterName(message) {
-  const firstName = message.from && message.from.first_name ? message.from.first_name : '';
-  const lastName = message.from && message.from.last_name ? message.from.last_name : '';
+  const firstName = normalizeTelegramMetaField(message?.from?.first_name) || '';
+  const lastName = normalizeTelegramMetaField(message?.from?.last_name) || '';
   return `${firstName} ${lastName}`.trim() || 'Pelapor';
 }
 
@@ -62,11 +71,19 @@ function buildEnrichmentConflictReply(ticketId, conflicts) {
 }
 
 function getTelegramMetaFromMessage(message) {
+  const sender = message?.from || {};
+  const senderUsername = normalizeTelegramMetaField(sender.username);
+
   return {
-    chat_id: message.chat && message.chat.id ? message.chat.id : null,
-    message_id: message.message_id || null,
-    username: message.from && message.from.username ? message.from.username : null,
-    reporter_name: getReporterName(message)
+    chat_id: message?.chat?.id ?? null,
+    message_id: message?.message_id ?? null,
+    username: senderUsername,
+    reporter_username: senderUsername,
+    reporter_name: getReporterName(message),
+    sender_id: normalizeTelegramMetaField(sender.id),
+    sender_username: senderUsername,
+    sender_first_name: normalizeTelegramMetaField(sender.first_name),
+    sender_last_name: normalizeTelegramMetaField(sender.last_name)
   };
 }
 
@@ -451,12 +468,7 @@ async function handleIncomingMessage(bot, message) {
       return;
     }
 
-    const telegramMeta = {
-      chat_id: message.chat.id,
-      message_id: message.message_id,
-      reporter_name: getReporterName(message),
-      reporter_username: message.from && message.from.username ? message.from.username : null
-    };
+    const telegramMeta = getTelegramMetaFromMessage(message);
 
     const created = await reportModel.createTelegramReport(parsed.data, telegramMeta);
 
