@@ -29,6 +29,8 @@
             <div class="card-body">
               <form method="GET" action="/reports" class="row g-3">
                 <input type="hidden" name="work_status" value="<%= filters.workStatus %>">
+                <input type="hidden" name="page" value="1">
+                <input type="hidden" name="per_page" value="<%= pagination.perPage %>">
 
                 <div class="col-12 col-lg-6">
                   <label class="form-label">Pencarian</label>
@@ -89,7 +91,7 @@
 
                     <% (reports || []).forEach((report, index) => { %>
                       <tr>
-                        <td class="text-muted"><%= index + 1 %></td>
+                        <td class="text-muted"><%= pagination.offset + index + 1 %></td>
                         <td class="fw-semibold"><%= report.ticket_id %></td>
                         <td><%= report.order_id || '-' %></td>
                         <td><%= report.service_type || '-' %></td>
@@ -118,6 +120,8 @@
                   </tbody>
                 </table>
               </div>
+
+              <%- include('../partials/report-pagination', { pagination, filters }) %>
             </div>
           </div>
 

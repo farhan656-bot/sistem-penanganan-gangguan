@@ -286,7 +286,7 @@ function applyWorkStatusFilter(sql, params, workStatus) {
 }
 
 async function getReports(
-  { search = '', region = '', workStatus = 'all' },
+  { search = '', region = '', workStatus = 'all', limit = 10, offset = 0 },
   currentUser
 ) {
   let sql = `
@@ -323,11 +323,40 @@ async function getReports(
     scopedQuery.params,
     Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
   );
+  const normalizedLimit = Number.isSafeInteger(Number(limit)) && Number(limit) > 0
+    ? Number(limit)
+    : 10;
+  const normalizedOffset = Number.isSafeInteger(Number(offset)) && Number(offset) >= 0
+    ? Number(offset)
+    : 0;
 
-  sql = `${filteredQuery.sql} ORDER BY reports.received_at DESC `;
+  sql = `${filteredQuery.sql} ORDER BY reports.received_at DESC LIMIT ? OFFSET ? `;
+  filteredQuery.params.push(normalizedLimit, normalizedOffset);
 
   const [rows] = await pool.query(sql, filteredQuery.params);
   return rows;
+}
+
+async function getReportCount(
+  { search = '', region = '', workStatus = 'all' },
+  currentUser
+) {
+  let sql = `
+    SELECT COUNT(*) AS total
+    FROM reports
+    LEFT JOIN regions ON reports.current_region_id = regions.id
+    WHERE 1=1
+  `;
+  const params = [];
+  const scopedQuery = await applyReportListScope(sql, params, { search, region }, currentUser);
+  const filteredQuery = applyWorkStatusFilter(
+    scopedQuery.sql,
+    scopedQuery.params,
+    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
+  );
+  const [rows] = await pool.query(filteredQuery.sql, filteredQuery.params);
+
+  return Number(rows[0] && rows[0].total) || 0;
 }
 
 async function getReportWorkStatusCounts({ search = '', region = '' }, currentUser) {
@@ -1659,6 +1688,7 @@ module.exports = {
   logTelegramTextEnrichmentFailure,
   applyTelegramTextEnrichment,
   getReports,
+  getReportCount,
   getReportWorkStatusCounts,
   getReportById,
   takeReport,

@@ -1,0 +1,71 @@
+<%
+  const pageData = pagination || {};
+  const selectedFilters = filters || {};
+  const perPageOptions = [10, 25, 50];
+%>
+
+<div class="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-3 mt-3">
+  <div class="d-flex flex-column flex-sm-row align-items-sm-center gap-3">
+    <form method="GET" action="/reports" class="d-flex align-items-center gap-2">
+      <input type="hidden" name="work_status" value="<%= selectedFilters.workStatus %>">
+      <input type="hidden" name="search" value="<%= selectedFilters.search || '' %>">
+      <input type="hidden" name="region" value="<%= selectedFilters.region || '' %>">
+      <input type="hidden" name="page" value="1">
+
+      <label for="reportPerPage" class="form-label mb-0 text-nowrap">Tiket per halaman</label>
+      <select
+        id="reportPerPage"
+        name="per_page"
+        class="form-select form-select-sm"
+        onchange="this.form.submit()"
+      >
+        <% perPageOptions.forEach((option) => { %>
+          <option value="<%= option %>" <%= pageData.perPage === option ? 'selected' : '' %>>
+            <%= option %>
+          </option>
+        <% }) %>
+      </select>
+    </form>
+
+    <div class="small text-muted text-nowrap">
+      Menampilkan <strong><%= pageData.from %>-<%= pageData.to %></strong>
+      dari <strong><%= pageData.totalItems %></strong> tiket
+    </div>
+  </div>
+
+  <nav aria-label="Pagination antrean kerja">
+    <ul class="pagination pagination-sm flex-wrap mb-0">
+      <li class="page-item <%= pageData.hasPrevious ? '' : 'disabled' %>">
+        <% if (pageData.hasPrevious) { %>
+          <a class="page-link" href="<%= pageData.previousUrl %>">Previous</a>
+        <% } else { %>
+          <span class="page-link" aria-disabled="true">Previous</span>
+        <% } %>
+      </li>
+
+      <% (pageData.items || []).forEach((item) => { %>
+        <% if (item.type === 'ellipsis') { %>
+          <li class="page-item disabled" aria-hidden="true">
+            <span class="page-link">&hellip;</span>
+          </li>
+        <% } else { %>
+          <li class="page-item <%= item.active ? 'active' : '' %>">
+            <% if (item.active) { %>
+              <span class="page-link" aria-current="page"><%= item.number %></span>
+            <% } else { %>
+              <a class="page-link" href="<%= item.href %>"><%= item.number %></a>
+            <% } %>
+          </li>
+        <% } %>
+      <% }) %>
+
+      <li class="page-item <%= pageData.hasNext ? '' : 'disabled' %>">
+        <% if (pageData.hasNext) { %>
+          <a class="page-link" href="<%= pageData.nextUrl %>">Next</a>
+        <% } else { %>
+          <span class="page-link" aria-disabled="true">Next</span>
+        <% } %>
+      </li>
+    </ul>
+  </nav>
+</div>

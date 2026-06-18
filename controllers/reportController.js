@@ -14,6 +14,9 @@ const {
 } = require('../services/telegramFeedbackService');
 
 const ALLOWED_FINAL_STATUSES = ['selesai', 'perlu_tindak_lanjut', 'eskalasi'];
+const DEFAULT_REPORT_PAGE = 1;
+const DEFAULT_REPORT_PER_PAGE = 10;
+const ALLOWED_REPORT_PER_PAGE = new Set([10, 25, 50]);
 const OPPOSITE_REGION_MAP = {
   PDG: 'BKT',
   BKT: 'PDG'
@@ -33,10 +36,95 @@ function normalizeWorkStatus(value) {
   return ALLOWED_WORK_STATUSES.has(normalized) ? normalized : 'all';
 }
 
+function normalizeReportPage(value) {
+  const page = Number(value);
+  return Number.isSafeInteger(page) && page >= 1 ? page : DEFAULT_REPORT_PAGE;
+}
+
+function normalizeReportPerPage(value) {
+  const perPage = Number(value);
+  return ALLOWED_REPORT_PER_PAGE.has(perPage) ? perPage : DEFAULT_REPORT_PER_PAGE;
+}
+
+function buildReportListUrl(filters, page, perPage) {
+  const query = new URLSearchParams();
+  query.set('work_status', filters.workStatus);
+  query.set('page', String(page));
+  query.set('per_page', String(perPage));
+
+  if (filters.search) {
+    query.set('search', filters.search);
+  }
+
+  if (filters.region) {
+    query.set('region', filters.region);
+  }
+
+  return `/reports?${query.toString()}`;
+}
+
+function buildPaginationItems(filters, currentPage, totalPages, perPage) {
+  const visiblePageNumbers = new Set([1, totalPages]);
+
+  for (let page = currentPage - 2; page <= currentPage + 2; page += 1) {
+    if (page >= 1 && page <= totalPages) {
+      visiblePageNumbers.add(page);
+    }
+  }
+
+  const sortedPageNumbers = Array.from(visiblePageNumbers).sort((a, b) => a - b);
+  const items = [];
+  let previousPageNumber = 0;
+
+  for (const pageNumber of sortedPageNumbers) {
+    if (previousPageNumber && pageNumber - previousPageNumber > 1) {
+      items.push({ type: 'ellipsis' });
+    }
+
+    items.push({
+      type: 'page',
+      number: pageNumber,
+      active: pageNumber === currentPage,
+      href: buildReportListUrl(filters, pageNumber, perPage)
+    });
+    previousPageNumber = pageNumber;
+  }
+
+  return items;
+}
+
+function buildReportPagination(filters, currentPage, perPage, totalItems, visibleItems) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+  const offset = (currentPage - 1) * perPage;
+  const hasPrevious = currentPage > 1;
+  const hasNext = currentPage < totalPages;
+
+  return {
+    page: currentPage,
+    perPage,
+    totalItems,
+    totalPages,
+    offset,
+    from: totalItems > 0 ? offset + 1 : 0,
+    to: totalItems > 0 ? offset + visibleItems : 0,
+    hasPrevious,
+    hasNext,
+    previousUrl: hasPrevious
+      ? buildReportListUrl(filters, currentPage - 1, perPage)
+      : null,
+    nextUrl: hasNext
+      ? buildReportListUrl(filters, currentPage + 1, perPage)
+      : null,
+    items: buildPaginationItems(filters, currentPage, totalPages, perPage)
+  };
+}
+
 function buildWorkStatusTabs(filters, counts) {
   return WORK_STATUS_TABS.map((tab) => {
     const query = new URLSearchParams();
     query.set('work_status', tab.key);
+    query.set('page', String(DEFAULT_REPORT_PAGE));
+    query.set('per_page', String(filters.perPage));
 
     if (filters.search) {
       query.set('search', filters.search);
@@ -399,16 +487,37 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType, opti
 async function listReports(req, res) {
   try {
     const workStatus = normalizeWorkStatus(req.query.work_status);
+    const requestedPage = normalizeReportPage(req.query.page);
+    const perPage = normalizeReportPerPage(req.query.per_page);
     const filters = {
       search: req.query.search || '',
       region: req.query.region || '',
-      workStatus
+      workStatus,
+      perPage
     };
 
-    const [reports, workStatusCounts] = await Promise.all([
-      reportModel.getReports(filters, req.session.user),
+    const [totalItems, workStatusCounts] = await Promise.all([
+      reportModel.getReportCount(filters, req.session.user),
       reportModel.getReportWorkStatusCounts(filters, req.session.user)
     ]);
+    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+    const page = Math.min(requestedPage, totalPages);
+    const offset = (page - 1) * perPage;
+    const reports = await reportModel.getReports(
+      {
+        ...filters,
+        limit: perPage,
+        offset
+      },
+      req.session.user
+    );
+    const pagination = buildReportPagination(
+      filters,
+      page,
+      perPage,
+      totalItems,
+      reports.length
+    );
     const workStatusTabs = buildWorkStatusTabs(filters, workStatusCounts);
     const activeWorkStatusTab = workStatusTabs.find((tab) => tab.active) || workStatusTabs[0];
 
@@ -422,6 +531,7 @@ async function listReports(req, res) {
       title: 'Daftar Antrean Kerja',
       reports,
       filters,
+      pagination,
       workStatusTabs,
       activeWorkStatusTab
     });
