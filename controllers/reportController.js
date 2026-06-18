@@ -18,6 +18,42 @@ const OPPOSITE_REGION_MAP = {
   PDG: 'BKT',
   BKT: 'PDG'
 };
+const WORK_STATUS_TABS = Object.freeze([
+  { key: 'all', label: 'Semua' },
+  { key: 'available', label: 'Tersedia' },
+  { key: 'in_progress', label: 'Sedang Dikerjakan' },
+  { key: 'completed', label: 'Selesai' },
+  { key: 'follow_up', label: 'Perlu Tindak Lanjut' },
+  { key: 'escalated', label: 'Eskalasi' }
+]);
+const ALLOWED_WORK_STATUSES = new Set(WORK_STATUS_TABS.map((tab) => tab.key));
+
+function normalizeWorkStatus(value) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : 'all';
+  return ALLOWED_WORK_STATUSES.has(normalized) ? normalized : 'all';
+}
+
+function buildWorkStatusTabs(filters, counts) {
+  return WORK_STATUS_TABS.map((tab) => {
+    const query = new URLSearchParams();
+    query.set('work_status', tab.key);
+
+    if (filters.search) {
+      query.set('search', filters.search);
+    }
+
+    if (filters.region) {
+      query.set('region', filters.region);
+    }
+
+    return {
+      ...tab,
+      count: Number(counts[tab.key]) || 0,
+      href: `/reports?${query.toString()}`,
+      active: filters.workStatus === tab.key
+    };
+  });
+}
 
 function buildManualReportFormData(body = {}) {
   return {
@@ -362,13 +398,19 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType, opti
 
 async function listReports(req, res) {
   try {
+    const workStatus = normalizeWorkStatus(req.query.work_status);
     const filters = {
       search: req.query.search || '',
-      status: req.query.status || '',
-      region: req.query.region || ''
+      region: req.query.region || '',
+      workStatus
     };
 
-    const reports = await reportModel.getReports(filters, req.session.user);
+    const [reports, workStatusCounts] = await Promise.all([
+      reportModel.getReports(filters, req.session.user),
+      reportModel.getReportWorkStatusCounts(filters, req.session.user)
+    ]);
+    const workStatusTabs = buildWorkStatusTabs(filters, workStatusCounts);
+    const activeWorkStatusTab = workStatusTabs.find((tab) => tab.active) || workStatusTabs[0];
 
     const viewName = req.session.user.role === 'eksekutor'
       ? 'eksekutor/reports/index'
@@ -379,7 +421,9 @@ async function listReports(req, res) {
     res.render(viewName, {
       title: 'Daftar Antrean Kerja',
       reports,
-      filters
+      filters,
+      workStatusTabs,
+      activeWorkStatusTab
     });
   } catch (error) {
     console.error(error);

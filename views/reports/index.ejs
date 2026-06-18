@@ -23,10 +23,14 @@
             pageSubtitle: 'Pantau antrean laporan dan lakukan aksi sesuai hak akses.'
           }) %>
 
+          <%- include('../partials/report-work-status-tabs', { workStatusTabs }) %>
+
           <div class="card app-card mb-3">
             <div class="card-body">
               <form method="GET" action="/reports" class="row g-3">
-                <div class="col-12 col-lg-4">
+                <input type="hidden" name="work_status" value="<%= filters.workStatus %>">
+
+                <div class="col-12 col-lg-6">
                   <label class="form-label">Pencarian</label>
                   <input
                     type="text"
@@ -37,20 +41,7 @@
                   >
                 </div>
 
-                <div class="col-12 col-lg-3">
-                  <label class="form-label">Status Internal</label>
-                  <select name="status" class="form-select">
-                    <option value="">Semua</option>
-                    <option value="tersedia" <%= filters.status === 'tersedia' ? 'selected' : '' %>>Tersedia</option>
-                    <option value="diambil" <%= filters.status === 'diambil' ? 'selected' : '' %>>Diambil</option>
-                    <option value="didelegasikan" <%= filters.status === 'didelegasikan' ? 'selected' : '' %>>Didelegasikan</option>
-                    <option value="selesai" <%= filters.status === 'selesai' ? 'selected' : '' %>>Selesai</option>
-                    <option value="perlu_tindak_lanjut" <%= filters.status === 'perlu_tindak_lanjut' ? 'selected' : '' %>>Perlu Tindak Lanjut</option>
-                    <option value="eskalasi" <%= filters.status === 'eskalasi' ? 'selected' : '' %>>Eskalasi</option>
-                  </select>
-                </div>
-
-                <div class="col-12 col-lg-3">
+                <div class="col-12 col-lg-4">
                   <label class="form-label">Wilayah</label>
                   <select name="region" class="form-select">
                     <option value="">Semua</option>
@@ -90,7 +81,9 @@
                   <tbody>
                     <% if (!reports || reports.length === 0) { %>
                       <tr>
-                        <td colspan="13" class="text-center text-muted app-table-empty">Belum ada data laporan.</td>
+                        <td colspan="13" class="text-center text-muted app-table-empty">
+                          Tidak ada tiket pada tab <strong><%= activeWorkStatusTab.label %></strong> untuk filter yang dipilih.
+                        </td>
                       </tr>
                     <% } %>
 

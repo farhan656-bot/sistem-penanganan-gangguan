@@ -8,7 +8,7 @@ const { uploadCompletionEvidence } = require('../middlewares/uploadMiddleware');
 router.get(
   '/',
   ensureAuthenticated,
-  ensureRole('eksekutor', 'koordinator', 'super_admin'),
+  ensureRole('eksekutor', 'koordinator', 'supervisor', 'super_admin'),
   reportController.listReports
 );
 

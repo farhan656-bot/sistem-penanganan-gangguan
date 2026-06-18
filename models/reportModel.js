@@ -23,6 +23,14 @@ const TELEGRAM_TEXT_ENRICHMENT_FIELDS = [
 ];
 const COORDINATOR_ALLOWED_REGION_CODES = ['PDG', 'BKT'];
 const PUBLIC_DIR = path.join(__dirname, '../public');
+const WORK_STATUS_STATUS_MAP = Object.freeze({
+  all: null,
+  available: ['baru', 'tersedia'],
+  in_progress: ['diambil', 'didelegasikan'],
+  completed: ['selesai'],
+  follow_up: ['perlu_tindak_lanjut'],
+  escalated: ['eskalasi']
+});
 
 function getCurrentUserRole(currentUser = {}) {
   return String(currentUser.role || currentUser.role_name || '').trim().toLowerCase();
@@ -207,9 +215,80 @@ function getCompletionLogMeta(finalStatus) {
   };
 }
 
-async function getReports({ search = '', status = '', region = '' }, currentUser) {
+async function applyReportListScope(sql, params, { search = '', region = '' }, currentUser) {
   const currentUserRole = getCurrentUserRole(currentUser);
   const selectedRegionCode = normalizeRegionCode(region);
+
+  if (currentUserRole === 'koordinator') {
+    const allowedRegions = await getCoordinatorAllowedRegions();
+    const selectedRegion = selectedRegionCode
+      ? allowedRegions.find((allowedRegion) => allowedRegion.code === selectedRegionCode)
+      : null;
+    const allowedRegionIds = selectedRegion
+      ? [selectedRegion.id]
+      : allowedRegions.map((allowedRegion) => allowedRegion.id);
+    const effectiveAllowedRegionIds = selectedRegionCode && !selectedRegion
+      ? []
+      : allowedRegionIds;
+
+    sql = appendRegionIdAccessCondition(sql, effectiveAllowedRegionIds);
+    params.push(...effectiveAllowedRegionIds);
+  }
+
+  if (currentUserRole === 'eksekutor') {
+    const extraRegionIds = await regionSwitchModel.getActiveExtraRegionsByUserId(currentUser.id);
+    const regionIds = [currentUser.region_id, ...extraRegionIds].filter(Boolean);
+
+    if (regionIds.length > 0) {
+      const placeholders = buildPlaceholders(regionIds);
+      sql += ` AND (
+        reports.current_region_id IN (${placeholders})
+        OR reports.current_assigned_user_id = ?
+      ) `;
+      params.push(...regionIds, currentUser.id);
+    } else {
+      sql += ` AND reports.current_assigned_user_id = ? `;
+      params.push(currentUser.id);
+    }
+  }
+
+  if (search) {
+    sql += ` AND (
+      reports.ticket_id LIKE ?
+      OR reports.order_id LIKE ?
+      OR reports.summary LIKE ?
+      OR reports.sto LIKE ?
+      OR reports.branch_name LIKE ?
+    ) `;
+    const keyword = `%${search}%`;
+    params.push(keyword, keyword, keyword, keyword, keyword);
+  }
+
+  if (currentUserRole !== 'koordinator' && selectedRegionCode) {
+    sql += ` AND regions.code = ? `;
+    params.push(selectedRegionCode);
+  }
+
+  return { sql, params };
+}
+
+function applyWorkStatusFilter(sql, params, workStatus) {
+  const statuses = WORK_STATUS_STATUS_MAP[workStatus];
+
+  if (!Array.isArray(statuses) || statuses.length === 0) {
+    return { sql, params };
+  }
+
+  sql += ` AND reports.status_internal IN (${buildPlaceholders(statuses)}) `;
+  params.push(...statuses);
+
+  return { sql, params };
+}
+
+async function getReports(
+  { search = '', region = '', workStatus = 'all' },
+  currentUser
+) {
   let sql = `
     SELECT
       reports.id,
@@ -237,68 +316,46 @@ async function getReports({ search = '', status = '', region = '' }, currentUser
     LEFT JOIN users ON reports.current_assigned_user_id = users.id
     WHERE 1=1
   `;
-
   const params = [];
+  const scopedQuery = await applyReportListScope(sql, params, { search, region }, currentUser);
+  const filteredQuery = applyWorkStatusFilter(
+    scopedQuery.sql,
+    scopedQuery.params,
+    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
+  );
 
-  if (currentUserRole === 'koordinator') {
-    const allowedRegions = await getCoordinatorAllowedRegions();
-    const selectedRegion = selectedRegionCode
-      ? allowedRegions.find((allowedRegion) => allowedRegion.code === selectedRegionCode)
-      : null;
-    const allowedRegionIds = selectedRegion
-      ? [selectedRegion.id]
-      : allowedRegions.map((allowedRegion) => allowedRegion.id);
-    const effectiveAllowedRegionIds = selectedRegionCode && !selectedRegion
-      ? []
-      : allowedRegionIds;
+  sql = `${filteredQuery.sql} ORDER BY reports.received_at DESC `;
 
-    sql = appendRegionIdAccessCondition(sql, effectiveAllowedRegionIds);
-    params.push(...effectiveAllowedRegionIds);
-  }
-
-  if (currentUserRole === 'eksekutor') {
-    const extraRegionIds = await regionSwitchModel.getActiveExtraRegionsByUserId(currentUser.id);
-    const regionIds = [currentUser.region_id, ...extraRegionIds].filter(Boolean);
-
-    if (regionIds.length > 0) {
-      const placeholders = regionIds.map(() => '?').join(', ');
-      sql += ` AND (
-        reports.current_region_id IN (${placeholders})
-        OR reports.current_assigned_user_id = ?
-      ) `;
-      params.push(...regionIds, currentUser.id);
-    } else {
-      sql += ` AND reports.current_assigned_user_id = ? `;
-      params.push(currentUser.id);
-    }
-  }
-
-  if (search) {
-    sql += ` AND (
-      reports.ticket_id LIKE ?
-      OR reports.order_id LIKE ?
-      OR reports.summary LIKE ?
-      OR reports.sto LIKE ?
-      OR reports.branch_name LIKE ?
-    ) `;
-    const keyword = `%${search}%`;
-    params.push(keyword, keyword, keyword, keyword, keyword);
-  }
-
-  if (status) {
-    sql += ` AND reports.status_internal = ? `;
-    params.push(status);
-  }
-
-  if (currentUserRole !== 'koordinator' && selectedRegionCode) {
-    sql += ` AND regions.code = ? `;
-    params.push(selectedRegionCode);
-  }
-
-  sql += ` ORDER BY reports.received_at DESC `;
-
-  const [rows] = await pool.query(sql, params);
+  const [rows] = await pool.query(sql, filteredQuery.params);
   return rows;
+}
+
+async function getReportWorkStatusCounts({ search = '', region = '' }, currentUser) {
+  let sql = `
+    SELECT
+      COUNT(*) AS total_all,
+      COALESCE(SUM(CASE WHEN reports.status_internal IN ('baru', 'tersedia') THEN 1 ELSE 0 END), 0) AS available,
+      COALESCE(SUM(CASE WHEN reports.status_internal IN ('diambil', 'didelegasikan') THEN 1 ELSE 0 END), 0) AS in_progress,
+      COALESCE(SUM(CASE WHEN reports.status_internal = 'selesai' THEN 1 ELSE 0 END), 0) AS completed,
+      COALESCE(SUM(CASE WHEN reports.status_internal = 'perlu_tindak_lanjut' THEN 1 ELSE 0 END), 0) AS follow_up,
+      COALESCE(SUM(CASE WHEN reports.status_internal = 'eskalasi' THEN 1 ELSE 0 END), 0) AS escalated
+    FROM reports
+    LEFT JOIN regions ON reports.current_region_id = regions.id
+    WHERE 1=1
+  `;
+  const params = [];
+  const scopedQuery = await applyReportListScope(sql, params, { search, region }, currentUser);
+  const [rows] = await pool.query(scopedQuery.sql, scopedQuery.params);
+  const counts = rows[0] || {};
+
+  return {
+    all: Number(counts.total_all) || 0,
+    available: Number(counts.available) || 0,
+    in_progress: Number(counts.in_progress) || 0,
+    completed: Number(counts.completed) || 0,
+    follow_up: Number(counts.follow_up) || 0,
+    escalated: Number(counts.escalated) || 0
+  };
 }
 
 async function getRegions() {
@@ -1602,6 +1659,7 @@ module.exports = {
   logTelegramTextEnrichmentFailure,
   applyTelegramTextEnrichment,
   getReports,
+  getReportWorkStatusCounts,
   getReportById,
   takeReport,
   markReportInProgress,

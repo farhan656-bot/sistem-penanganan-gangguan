@@ -1,0 +1,22 @@
+<%
+  const statusTabs = Array.isArray(workStatusTabs) ? workStatusTabs : [];
+%>
+
+<nav class="app-work-status-tabs mb-3" aria-label="Filter status antrean kerja">
+  <ul class="nav nav-tabs flex-nowrap">
+    <% statusTabs.forEach((tab) => { %>
+      <li class="nav-item">
+        <a
+          class="nav-link <%= tab.active ? 'active' : '' %>"
+          href="<%= tab.href %>"
+          <% if (tab.active) { %>aria-current="page"<% } %>
+        >
+          <span><%= tab.label %></span>
+          <span class="badge rounded-pill <%= tab.active ? 'text-bg-primary' : 'text-bg-light' %>">
+            <%= tab.count %>
+          </span>
+        </a>
+      </li>
+    <% }) %>
+  </ul>
+</nav>

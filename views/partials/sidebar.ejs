@@ -39,6 +39,7 @@
 
         <% if (role === 'supervisor') { %>
           <a class="nav-link" href="/dashboard/supervisor#dashboard-ringkasan">Dashboard Ringkasan</a>
+          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
           <a class="nav-link" href="/dashboard/supervisor#analisis-wilayah">Analisis Wilayah</a>
           <a class="nav-link" href="/dashboard/supervisor#kinerja-eksekutor">Kinerja Eksekutor</a>
           <a class="nav-link" href="/dashboard/supervisor#tiket-perlu-perhatian">Tiket Perlu Perhatian</a>

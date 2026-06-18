@@ -27,10 +27,14 @@
             pageSubtitle: 'Pantau status tiket dan penanggung jawab aktif. Pembagian region digunakan untuk membantu manajemen pelaporan dan monitoring wilayah.'
           }) %>
 
+          <%- include('../../partials/report-work-status-tabs', { workStatusTabs }) %>
+
           <div class="card app-card mb-3">
             <div class="card-body">
               <form method="GET" action="/reports" class="row g-2">
-                <div class="col-12 col-lg-5">
+                <input type="hidden" name="work_status" value="<%= selectedFilters.workStatus %>">
+
+                <div class="col-12 col-lg-7">
                   <label class="form-label">Pencarian</label>
                   <input
                     type="text"
@@ -41,20 +45,7 @@
                   >
                 </div>
 
-                <div class="col-12 col-md-6 col-lg-3">
-                  <label class="form-label">Status Internal</label>
-                  <select name="status" class="form-select">
-                    <option value="" <%= !selectedFilters.status ? 'selected' : '' %>>Semua</option>
-                    <option value="tersedia" <%= selectedFilters.status === 'tersedia' ? 'selected' : '' %>>Tersedia</option>
-                    <option value="diambil" <%= selectedFilters.status === 'diambil' ? 'selected' : '' %>>Diambil</option>
-                    <option value="didelegasikan" <%= selectedFilters.status === 'didelegasikan' ? 'selected' : '' %>>Didelegasikan</option>
-                    <option value="selesai" <%= selectedFilters.status === 'selesai' ? 'selected' : '' %>>Selesai</option>
-                    <option value="perlu_tindak_lanjut" <%= selectedFilters.status === 'perlu_tindak_lanjut' ? 'selected' : '' %>>Perlu Tindak Lanjut</option>
-                    <option value="eskalasi" <%= selectedFilters.status === 'eskalasi' ? 'selected' : '' %>>Eskalasi</option>
-                  </select>
-                </div>
-
-                <div class="col-12 col-md-6 col-lg-2">
+                <div class="col-12 col-md-7 col-lg-3">
                   <label class="form-label">Wilayah</label>
                   <select name="region" class="form-select">
                     <option value="" <%= !selectedFilters.region ? 'selected' : '' %>>Semua</option>
@@ -94,7 +85,9 @@
                   <tbody>
                     <% if (!reports || reports.length === 0) { %>
                       <tr>
-                        <td colspan="13" class="app-table-empty">Belum ada data laporan.</td>
+                        <td colspan="13" class="text-center text-muted app-table-empty">
+                          Tidak ada tiket pada tab <strong><%= activeWorkStatusTab.label %></strong> untuk filter yang dipilih.
+                        </td>
                       </tr>
                     <% } %>
 

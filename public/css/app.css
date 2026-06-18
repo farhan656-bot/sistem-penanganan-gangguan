@@ -227,6 +227,39 @@ body {
   padding: 1.25rem 0;
 }
 
+/* Work queue status tabs */
+.app-work-status-tabs {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.app-work-status-tabs .nav-tabs {
+  min-width: max-content;
+  border-bottom-color: var(--app-border);
+}
+
+.app-work-status-tabs .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: #495057;
+  white-space: nowrap;
+}
+
+.app-work-status-tabs .nav-link.active {
+  color: var(--app-primary);
+  font-weight: 700;
+  border-top-color: var(--app-border);
+  border-right-color: var(--app-border);
+  border-bottom-color: var(--app-surface);
+  border-left-color: var(--app-border);
+}
+
+.app-work-status-tabs .badge.text-bg-light {
+  color: #495057 !important;
+  border: 1px solid var(--app-border);
+}
+
 /* Report detail modal */
 .report-detail-tabs {
   scrollbar-width: thin;
