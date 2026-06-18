@@ -20,85 +20,138 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Dashboard Eksekutor',
-            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Wilayah: ${currentUser && currentUser.region_name ? currentUser.region_name : '-'}.`
+            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Ringkasan pekerjaan mengikuti region utama, region switch aktif, dan tiket yang ditugaskan kepada Anda.`,
+            pageActions: `
+              <a href="/reports" class="btn btn-primary">Buka Daftar Antrean Kerja</a>
+            `
           }) %>
 
-          <% if (typeof summary !== 'undefined' && summary) { %>
-            <div class="row g-3 mb-3">
-              <div class="col-12 col-md-6 col-xl-3">
-                <div class="card app-card h-100">
-                  <div class="card-body">
-                    <div class="text-muted small">Tiket Tersedia</div>
-                    <h3 class="mb-0 text-primary"><%= summary.total_available %></h3>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 col-md-6 col-xl-3">
-                <div class="card app-card h-100">
-                  <div class="card-body">
-                    <div class="text-muted small">Sedang Ditangani</div>
-                    <h3 class="mb-0 text-warning"><%= summary.total_in_progress %></h3>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 col-md-6 col-xl-3">
-                <div class="card app-card h-100">
-                  <div class="card-body">
-                    <div class="text-muted small">Perlu Tindak Lanjut</div>
-                    <h3 class="mb-0 text-warning"><%= summary.total_follow_up %></h3>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 col-md-6 col-xl-3">
-                <div class="card app-card h-100">
-                  <div class="card-body">
-                    <div class="text-muted small">Eskalasi</div>
-                    <h3 class="mb-0 text-danger"><%= summary.total_escalated %></h3>
-                  </div>
-                </div>
-              </div>
-            </div>
-          <% } %>
-
-          <div class="row g-3">
-            <div class="col-12 col-xl-6">
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6 col-xl">
               <div class="card app-card h-100">
                 <div class="card-body">
-                  <div class="d-flex align-items-start justify-content-between gap-3">
-                    <div>
-                      <h5 class="card-title mb-1">Daftar Antrean Kerja</h5>
-                      <div class="text-muted">Eksekutor secara default hanya dapat melihat tiket sesuai region utama. Tiket dari region lain akan tampil jika temporary region switch telah disetujui Koordinator dan masih aktif.</div>
-                    </div>
-                    <span class="badge text-bg-primary">Tugas</span>
-                  </div>
-
-                  <div class="mt-3">
-                    <a href="/reports" class="btn btn-primary">Buka Antrean Kerja</a>
-                  </div>
+                  <div class="text-muted small">Tiket Tersedia</div>
+                  <h3 class="mb-1 text-primary"><%= summary.total_available %></h3>
+                  <div class="small text-muted">Sesuai akses wilayah kerja</div>
                 </div>
               </div>
             </div>
 
-            <div class="col-12 col-xl-6">
+            <div class="col-12 col-md-6 col-xl">
               <div class="card app-card h-100">
                 <div class="card-body">
-                  <div class="d-flex align-items-start justify-content-between gap-3">
-                    <div>
-                      <h5 class="card-title mb-1">Pengajuan Switch Region</h5>
-                      <div class="text-muted">Akses region sementara digunakan untuk mendukung kebutuhan operasional lintas region berdasarkan persetujuan Koordinator.</div>
-                    </div>
-                    <span class="badge text-bg-primary">F007</span>
-                  </div>
+                  <div class="text-muted small">Tiket Saya</div>
+                  <h3 class="mb-1 text-warning"><%= summary.total_my_in_progress %></h3>
+                  <div class="small text-muted">Sedang Anda kerjakan</div>
+                </div>
+              </div>
+            </div>
 
-                  <div class="mt-3 d-flex gap-2 flex-wrap">
-                    <a href="/region-switch/my" class="btn btn-primary">Lihat Pengajuan</a>
-                    <a href="/region-switch/create" class="btn btn-outline-primary">Ajukan Switch Region</a>
-                  </div>
+            <div class="col-12 col-md-6 col-xl">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Tiket Selesai</div>
+                  <h3 class="mb-1 text-success"><%= summary.total_completed %></h3>
+                  <div class="small text-muted">Diselesaikan oleh Anda</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Perlu Tindak Lanjut</div>
+                  <h3 class="mb-1 text-warning"><%= summary.total_follow_up %></h3>
+                  <div class="small text-muted">Tiket Anda yang perlu ditinjau</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Eskalasi</div>
+                  <h3 class="mb-1 text-danger"><%= summary.total_escalated %></h3>
+                  <div class="small text-muted">Tiket Anda yang dieskalasikan</div>
                 </div>
               </div>
             </div>
           </div>
 
+          <div class="row g-3">
+            <div class="col-12 col-xl-8">
+              <div class="card app-card h-100">
+                <div class="card-header d-flex align-items-center justify-content-between gap-2">
+                  <div>
+                    <strong>Tiket Assigned Terbaru</strong>
+                    <div class="text-muted small">Maksimal 5 tiket terbaru yang ditugaskan kepada Anda.</div>
+                  </div>
+                  <span class="badge text-bg-primary"><%= latestAssignedReports.length %> tiket</span>
+                </div>
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead>
+                        <tr>
+                          <th>Ticket ID</th>
+                          <th>Ringkasan</th>
+                          <th>Wilayah</th>
+                          <th>Status</th>
+                          <th>Waktu Assignment</th>
+                          <th class="app-table-actions">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% if (!latestAssignedReports || latestAssignedReports.length === 0) { %>
+                          <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                              Belum ada tiket yang ditugaskan kepada Anda.
+                            </td>
+                          </tr>
+                        <% } %>
+
+                        <% (latestAssignedReports || []).forEach(report => { %>
+                          <tr>
+                            <td>
+                              <div class="fw-semibold"><%= report.ticket_id || '-' %></div>
+                              <div class="text-muted small"><%= report.order_id || '-' %></div>
+                            </td>
+                            <td>
+                              <div class="app-truncate-lg" title="<%= report.summary || '-' %>">
+                                <%= report.summary || '-' %>
+                              </div>
+                            </td>
+                            <td><%= report.region_code || '-' %></td>
+                            <td>
+                              <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                            </td>
+                            <td><span class="text-muted"><%= formatDateTime(report.taken_at || report.updated_at || report.received_at) %></span></td>
+                            <td class="app-table-actions">
+                              <a href="/reports/<%= report.id %>" class="btn btn-sm btn-outline-secondary">Detail</a>
+                            </td>
+                          </tr>
+                        <% }) %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-xl-4">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <h5 class="card-title mb-1">Shortcut Pekerjaan</h5>
+                  <div class="text-muted mb-3">Akses cepat ke antrean kerja dan pengaturan akses region sementara.</div>
+
+                  <div class="d-grid gap-2">
+                    <a href="/reports" class="btn btn-primary">Daftar Antrean Kerja</a>
+                    <a href="/region-switch/my" class="btn btn-outline-primary">Pengajuan Switch Region</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </div>

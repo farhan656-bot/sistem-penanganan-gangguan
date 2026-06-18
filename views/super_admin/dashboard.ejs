@@ -20,68 +20,125 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Dashboard Super Admin',
-            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Kelola user, role, dan status akun sistem.`,
+            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Ringkasan administrasi user, region, dan data laporan sistem.`,
             pageActions: `
               <div class="d-flex gap-2 flex-wrap">
-                <a href="/users" class="btn btn-primary">Kelola User</a>
-                <a href="/reports" class="btn btn-outline-secondary">Antrean Laporan</a>
+                <a href="/users" class="btn btn-primary">Manajemen User</a>
+                <a href="/users/create" class="btn btn-outline-primary">Tambah User</a>
               </div>
             `
           }) %>
 
-          <div class="row g-3">
-            <div class="col-12">
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6 col-xl-4">
+              <a href="/users" class="card app-card h-100 text-decoration-none text-reset">
+                <div class="card-body">
+                  <div class="text-muted small">Total User</div>
+                  <h3 class="mb-0"><%= summary.total_users %></h3>
+                </div>
+              </a>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-4">
+              <a href="/users" class="card app-card h-100 text-decoration-none text-reset">
+                <div class="card-body">
+                  <div class="text-muted small">User Aktif</div>
+                  <h3 class="mb-0 text-success"><%= summary.total_active_users %></h3>
+                </div>
+              </a>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-4">
+              <a href="/users" class="card app-card h-100 text-decoration-none text-reset">
+                <div class="card-body">
+                  <div class="text-muted small">User Nonaktif</div>
+                  <h3 class="mb-0 text-secondary"><%= summary.total_inactive_users %></h3>
+                </div>
+              </a>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-4">
+              <a href="/reports" class="card app-card h-100 text-decoration-none text-reset">
+                <div class="card-body">
+                  <div class="text-muted small">Total Laporan Ticketing</div>
+                  <h3 class="mb-0 text-primary"><%= summary.total_reports %></h3>
+                </div>
+              </a>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-4">
+              <a href="/manual-reports" class="card app-card h-100 text-decoration-none text-reset">
+                <div class="card-body">
+                  <div class="text-muted small">Laporan Manual Non-Ticketing</div>
+                  <h3 class="mb-0 text-info"><%= summary.total_manual_reports %></h3>
+                </div>
+              </a>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-4">
               <div class="card app-card h-100">
                 <div class="card-body">
-                  <div class="d-flex align-items-start justify-content-between gap-3">
-                    <div>
-                      <h5 class="card-title mb-1">Manajemen User</h5>
-                      <div class="text-muted">Kelola akun internal untuk eksekutor, koordinator, supervisor, dan super admin.</div>
-                    </div>
-                    <span class="badge text-bg-primary">Admin</span>
-                  </div>
+                  <div class="text-muted small">Total Region</div>
+                  <h3 class="mb-0"><%= summary.total_regions %></h3>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                  <div class="mt-3 d-flex gap-2 flex-wrap">
-                    <a href="/users" class="btn btn-primary">Buka Kelola User</a>
-                    <a href="/users/create" class="btn btn-outline-secondary">Tambah User</a>
+          <div class="row g-3">
+            <div class="col-12 col-xl-8">
+              <div class="card app-card h-100">
+                <div class="card-header">
+                  <strong>User Berdasarkan Role</strong>
+                  <div class="text-muted small">Ringkasan jumlah akun aktif dan nonaktif untuk setiap role.</div>
+                </div>
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead>
+                        <tr>
+                          <th>Role</th>
+                          <th>Total User</th>
+                          <th>Aktif</th>
+                          <th>Nonaktif</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% if (!usersByRole || usersByRole.length === 0) { %>
+                          <tr>
+                            <td colspan="4" class="text-center text-muted py-4">
+                              Data role belum tersedia.
+                            </td>
+                          </tr>
+                        <% } %>
+
+                        <% (usersByRole || []).forEach(role => { %>
+                          <tr>
+                            <td>
+                              <%- include('../partials/status-badge', { type: 'role', value: role.role_name }) %>
+                            </td>
+                            <td><strong><%= role.total_users %></strong></td>
+                            <td class="text-success"><%= role.total_active_users %></td>
+                            <td class="text-secondary"><%= role.total_inactive_users %></td>
+                          </tr>
+                        <% }) %>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div class="col-12">
-              <div class="card app-card">
+            <div class="col-12 col-xl-4">
+              <div class="card app-card h-100">
                 <div class="card-body">
-                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <div class="fw-semibold">Catatan akses role</div>
-                    <div class="text-muted small">Ringkasan hak akses (read-only vs operasional).</div>
-                  </div>
-                  <hr class="my-3">
-                  <div class="row g-2 small">
-                    <div class="col-12 col-md-6 col-xl-3">
-                      <div class="d-flex align-items-start gap-2">
-                        <%- include('../partials/status-badge', { type: 'role', value: 'super_admin' }) %>
-                        <div class="text-muted">Manajemen user dan administrasi akun sistem.</div>
-                      </div>
-                    </div>
-                    <div class="col-12 col-md-6 col-xl-3">
-                      <div class="d-flex align-items-start gap-2">
-                        <%- include('../partials/status-badge', { type: 'role', value: 'koordinator' }) %>
-                        <div class="text-muted">Delegasi dan pembatalan penugasan.</div>
-                      </div>
-                    </div>
-                    <div class="col-12 col-md-6 col-xl-3">
-                      <div class="d-flex align-items-start gap-2">
-                        <%- include('../partials/status-badge', { type: 'role', value: 'eksekutor' }) %>
-                        <div class="text-muted">Ambil dan selesaikan tiket sesuai wilayah.</div>
-                      </div>
-                    </div>
-                    <div class="col-12 col-md-6 col-xl-3">
-                      <div class="d-flex align-items-start gap-2">
-                        <%- include('../partials/status-badge', { type: 'role', value: 'supervisor' }) %>
-                        <div class="text-muted">Monitoring KPI (read-only).</div>
-                      </div>
-                    </div>
+                  <h5 class="card-title mb-1">Shortcut Administrasi</h5>
+                  <div class="text-muted mb-3">Akses cepat ke halaman administrasi dan ringkasan data sistem.</div>
+
+                  <div class="d-grid gap-2">
+                    <a href="/users" class="btn btn-primary">Manajemen User</a>
+                    <a href="/manual-reports" class="btn btn-outline-primary">Laporan Manual</a>
+                    <a href="/reports" class="btn btn-outline-secondary">Daftar Antrean</a>
                   </div>
                 </div>
               </div>

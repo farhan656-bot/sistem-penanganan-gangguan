@@ -1,22 +1,50 @@
 const supervisorModel = require('../models/supervisorModel');
 const userModel = require('../models/userModel');
+const dashboardModel = require('../models/dashboardModel');
 
-function eksekutorDashboard(req, res) {
-  res.render('eksekutor/dashboard', {
-    title: 'Dashboard Eksekutor'
-  });
+async function eksekutorDashboard(req, res) {
+  try {
+    const dashboardData = await dashboardModel.getEksekutorDashboard(req.session.user);
+
+    return res.render('eksekutor/dashboard', {
+      title: 'Dashboard Eksekutor',
+      ...dashboardData
+    });
+  } catch (error) {
+    console.error(error);
+    req.flash('error_msg', 'Gagal memuat dashboard Eksekutor.');
+    return res.redirect('/auth/login');
+  }
 }
 
-function koordinatorDashboard(req, res) {
-  res.render('koordinator/dashboard', {
-    title: 'Dashboard Koordinator'
-  });
+async function koordinatorDashboard(req, res) {
+  try {
+    const dashboardData = await dashboardModel.getKoordinatorDashboard();
+
+    return res.render('koordinator/dashboard', {
+      title: 'Dashboard Koordinator',
+      ...dashboardData
+    });
+  } catch (error) {
+    console.error(error);
+    req.flash('error_msg', 'Gagal memuat dashboard Koordinator.');
+    return res.redirect('/auth/login');
+  }
 }
 
-function superAdminDashboard(req, res) {
-  res.render('super_admin/dashboard', {
-    title: 'Dashboard Super Admin'
-  });
+async function superAdminDashboard(req, res) {
+  try {
+    const dashboardData = await dashboardModel.getSuperAdminDashboard();
+
+    return res.render('super_admin/dashboard', {
+      title: 'Dashboard Super Admin',
+      ...dashboardData
+    });
+  } catch (error) {
+    console.error(error);
+    req.flash('error_msg', 'Gagal memuat dashboard Super Admin.');
+    return res.redirect('/auth/login');
+  }
 }
 
 function formatMinutes(minutes) {

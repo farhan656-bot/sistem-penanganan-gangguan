@@ -20,84 +20,210 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Dashboard Koordinator',
-            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Fokus utama: monitoring antrean kerja, delegasi, dan approval F007.`
+            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Ringkasan monitoring dan koordinasi tiket wilayah PDG dan BKT.`,
+            pageActions: `
+              <div class="d-flex gap-2 flex-wrap">
+                <a href="/reports" class="btn btn-primary">Daftar Antrean Kerja</a>
+                <a href="/manual-reports" class="btn btn-outline-primary">Laporan Manual</a>
+              </div>
+            `
           }) %>
 
-          <% if (typeof summary !== 'undefined' && summary) { %>
-            <div class="row g-3 mb-3">
-              <div class="col-12 col-md-6 col-xl-3">
-                <div class="card app-card h-100">
-                  <div class="card-body">
-                    <div class="text-muted small">Tiket Tersedia</div>
-                    <h3 class="mb-0 text-primary"><%= summary.total_available %></h3>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 col-md-6 col-xl-3">
-                <div class="card app-card h-100">
-                  <div class="card-body">
-                    <div class="text-muted small">Sedang Ditangani</div>
-                    <h3 class="mb-0 text-warning"><%= summary.total_in_progress %></h3>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 col-md-6 col-xl-3">
-                <div class="card app-card h-100">
-                  <div class="card-body">
-                    <div class="text-muted small">Perlu Tindak Lanjut</div>
-                    <h3 class="mb-0 text-warning"><%= summary.total_follow_up %></h3>
-                  </div>
-                </div>
-              </div>
-              <div class="col-12 col-md-6 col-xl-3">
-                <div class="card app-card h-100">
-                  <div class="card-body">
-                    <div class="text-muted small">Eskalasi</div>
-                    <h3 class="mb-0 text-danger"><%= summary.total_escalated %></h3>
-                  </div>
-                </div>
-              </div>
-            </div>
-          <% } %>
-
-          <div class="row g-3">
-            <div class="col-12 col-xl-6">
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6 col-xl-3">
               <div class="card app-card h-100">
                 <div class="card-body">
-                  <div class="d-flex align-items-start justify-content-between gap-3">
-                    <div>
-                      <h5 class="card-title mb-1">Daftar Antrean Kerja</h5>
-                      <div class="text-muted">Pantau status tiket, cek penanggung jawab aktif, dan buka detail untuk delegasi/cancel bila diperlukan.</div>
-                    </div>
-                    <span class="badge text-bg-primary">Operasional</span>
-                  </div>
-
-                  <div class="mt-3 d-flex gap-2 flex-wrap">
-                    <a href="/reports" class="btn btn-primary">Buka Antrean</a>
-                  </div>
+                  <div class="text-muted small">Total Tiket PDG & BKT</div>
+                  <h3 class="mb-0"><%= summary.total_reports %></h3>
                 </div>
               </div>
             </div>
 
-            <div class="col-12 col-xl-6">
+            <div class="col-12 col-md-6 col-xl-3">
               <div class="card app-card h-100">
                 <div class="card-body">
-                  <div class="d-flex align-items-start justify-content-between gap-3">
-                    <div>
-                      <h5 class="card-title mb-1">Approval Switch Region</h5>
-                      <div class="text-muted">Akses region sementara digunakan untuk mendukung kebutuhan operasional lintas region berdasarkan persetujuan Koordinator.</div>
-                    </div>
-                    <span class="badge text-bg-primary">F007</span>
-                  </div>
+                  <div class="text-muted small">Tiket Tersedia</div>
+                  <h3 class="mb-0 text-primary"><%= summary.total_available %></h3>
+                </div>
+              </div>
+            </div>
 
-                  <div class="mt-3">
-                    <a href="/region-switch/pending" class="btn btn-primary">Buka Approval</a>
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Sedang Dikerjakan</div>
+                  <h3 class="mb-0 text-warning"><%= summary.total_in_progress %></h3>
+                  <div class="small text-muted">Status diambil</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Didelegasikan</div>
+                  <h3 class="mb-0 text-info"><%= summary.total_delegated %></h3>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Tiket Selesai</div>
+                  <h3 class="mb-0 text-success"><%= summary.total_completed %></h3>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Perlu Tindak Lanjut</div>
+                  <h3 class="mb-0 text-warning"><%= summary.total_follow_up %></h3>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Eskalasi</div>
+                  <h3 class="mb-0 text-danger"><%= summary.total_escalated %></h3>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-3">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <div class="text-muted small">Cakupan Monitoring</div>
+                  <h5 class="mb-1">PDG & BKT</h5>
+                  <div class="small text-muted">Sesuai akses F018</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-xl-8">
+              <div class="card app-card h-100">
+                <div class="card-header">
+                  <strong>Ringkasan per Wilayah</strong>
+                  <div class="text-muted small">Perbandingan kondisi tiket PDG dan BKT.</div>
+                </div>
+                <div class="card-body">
+                  <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                      <thead>
+                        <tr>
+                          <th>Wilayah</th>
+                          <th>Total</th>
+                          <th>Tersedia</th>
+                          <th>Dikerjakan</th>
+                          <th>Delegasi</th>
+                          <th>Selesai</th>
+                          <th>Tindak Lanjut</th>
+                          <th>Eskalasi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% if (!regionSummary || regionSummary.length === 0) { %>
+                          <tr>
+                            <td colspan="8" class="text-center text-muted py-4">
+                              Data wilayah PDG dan BKT belum tersedia.
+                            </td>
+                          </tr>
+                        <% } %>
+
+                        <% (regionSummary || []).forEach(region => { %>
+                          <tr>
+                            <td>
+                              <div class="fw-semibold"><%= region.region_code || '-' %></div>
+                              <div class="text-muted small"><%= region.region_name || '-' %></div>
+                            </td>
+                            <td><strong><%= region.total_reports %></strong></td>
+                            <td><%= region.total_available %></td>
+                            <td><%= region.total_in_progress %></td>
+                            <td><%= region.total_delegated %></td>
+                            <td><%= region.total_completed %></td>
+                            <td><%= region.total_follow_up %></td>
+                            <td><%= region.total_escalated %></td>
+                          </tr>
+                        <% }) %>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-12 col-xl-4">
+              <div class="card app-card h-100">
+                <div class="card-body">
+                  <h5 class="card-title mb-1">Shortcut Koordinasi</h5>
+                  <div class="text-muted mb-3">Akses cepat ke halaman kerja yang paling sering digunakan.</div>
+
+                  <div class="d-grid gap-2">
+                    <a href="/reports" class="btn btn-primary">Daftar Antrean Kerja</a>
+                    <a href="/manual-reports" class="btn btn-outline-primary">Laporan Manual</a>
+                    <a href="/region-switch/pending" class="btn btn-outline-secondary">Approval Switch Region</a>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
+          <div class="card app-card">
+            <div class="card-header">
+              <strong>Aktivitas Ticketing Terbaru</strong>
+              <div class="text-muted small">Maksimal 8 aktivitas terbaru dari report_logs untuk wilayah PDG dan BKT.</div>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Waktu</th>
+                      <th>Pelaku</th>
+                      <th>Tiket</th>
+                      <th>Wilayah</th>
+                      <th>Aktivitas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% if (!latestActivities || latestActivities.length === 0) { %>
+                      <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                          Belum ada aktivitas ticketing yang tercatat.
+                        </td>
+                      </tr>
+                    <% } %>
+
+                    <% (latestActivities || []).forEach(activity => { %>
+                      <tr>
+                        <td><span class="text-muted"><%= formatDateTime(activity.created_at) %></span></td>
+                        <td><%= activity.actor_name || 'Sistem' %></td>
+                        <td>
+                          <a href="/reports/<%= activity.report_id %>" class="fw-semibold text-decoration-none">
+                            <%= activity.ticket_id || '-' %>
+                          </a>
+                          <div class="text-muted small"><%= activity.order_id || '-' %></div>
+                        </td>
+                        <td><%= activity.region_code || '-' %></td>
+                        <td>
+                          <div><%= activity.description || '-' %></div>
+                          <div class="mt-1">
+                            <%- include('../partials/status-badge', { type: 'ticket', value: activity.status_internal }) %>
+                          </div>
+                        </td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </div>
