@@ -1,0 +1,81 @@
+<%
+  const selectedFilters = filters || {};
+  const queueRole = String(currentUser && currentUser.role ? currentUser.role : '').trim().toLowerCase();
+  const isOperationalQueue = queueRole === 'eksekutor' || queueRole === 'koordinator';
+%>
+
+<div class="card app-card">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle">
+        <thead>
+          <tr>
+            <th style="width: 64px">No</th>
+            <th>Ticket ID</th>
+            <th>Order ID</th>
+            <th>Jenis Layanan</th>
+            <th>Provider</th>
+            <th>Branch</th>
+            <th>Cluster</th>
+            <th>STO</th>
+            <th>Ringkasan</th>
+            <th>Wilayah</th>
+            <th>Status</th>
+            <th>Assigned To</th>
+            <th class="app-table-actions">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!reports || reports.length === 0) { %>
+            <tr>
+              <td colspan="13" class="text-center text-muted app-table-empty">
+                Tidak ada tiket pada tab <strong><%= activeWorkStatusTab.label %></strong> untuk filter yang dipilih.
+              </td>
+            </tr>
+          <% } %>
+
+          <% (reports || []).forEach((report, index) => { %>
+            <tr>
+              <td class="<%= isOperationalQueue ? '' : 'text-muted' %>">
+                <%= pagination.offset + index + 1 %>
+              </td>
+              <td class="fw-semibold"><%= report.ticket_id %></td>
+              <td><%= report.order_id || '-' %></td>
+              <td><%= report.service_type || '-' %></td>
+              <td><%= report.provider || '-' %></td>
+              <td><%= report.branch_name || '-' %></td>
+              <td><%= report.cluster_name || '-' %></td>
+              <td><%= report.sto || '-' %></td>
+              <td>
+                <div
+                  class="<%= isOperationalQueue ? 'app-truncate-lg' : 'app-truncate' %>"
+                  title="<%= report.summary || '-' %>"
+                ><%= report.summary || '-' %></div>
+              </td>
+              <td><%= report.region_code || '-' %></td>
+              <td>
+                <%- include('./status-badge', { type: 'ticket', value: report.status_internal }) %>
+              </td>
+              <td>
+                <div class="<%= report.assigned_user_name ? 'fw-semibold' : 'text-muted' %>">
+                  <%= report.assigned_user_name || '-' %>
+                </div>
+
+                <% if (report.status_internal === 'didelegasikan') { %>
+                  <div class="mt-1">
+                    <span class="badge text-bg-info">Delegasi Aktif</span>
+                  </div>
+                <% } %>
+              </td>
+              <td class="app-table-actions">
+                <%- include('./report-action-buttons', { report }) %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+
+    <%- include('./report-pagination', { pagination, filters: selectedFilters }) %>
+  </div>
+</div>

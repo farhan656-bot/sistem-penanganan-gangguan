@@ -2,6 +2,8 @@
   'use strict';
 
   var activeSupervisorSectionHash = null;
+  var ACTIVE_QUEUE_CHECK_INTERVAL_MS = 10000;
+  var INACTIVE_QUEUE_CHECK_INTERVAL_MS = 60000;
 
   function getDelayMs(element) {
     var raw = element.getAttribute('data-auto-dismiss-delay');
@@ -314,14 +316,252 @@
     });
   }
 
-  function setupQuickTicketActions() {
-    restoreQuickActionScroll();
-    restoreQuickActionFlash();
-
+  function bindQuickTicketActionForms() {
     var forms = document.querySelectorAll('[data-ticket-quick-action]');
     for (var i = 0; i < forms.length; i += 1) {
       bindQuickTicketAction(forms[i]);
     }
+  }
+
+  function setupQuickTicketActions() {
+    restoreQuickActionScroll();
+    restoreQuickActionFlash();
+    bindQuickTicketActionForms();
+  }
+
+  function setupQueueAutoRefreshPolling() {
+    var refreshRoot = document.querySelector('[data-report-queue-auto-refresh]');
+
+    if (!refreshRoot || refreshRoot.dataset.pollingBound === '1' || !window.fetch) return;
+
+    var tabsTarget = refreshRoot.querySelector('[data-report-tabs-target]');
+    var listTarget = refreshRoot.querySelector('[data-report-list-target]');
+    var checkUrl = refreshRoot.getAttribute('data-check-url') || '/reports/check-new';
+    var fragmentUrl = refreshRoot.getAttribute('data-fragment-url') || '/reports/queue-fragment';
+    var sinceId = parseInt(refreshRoot.getAttribute('data-latest-report-id'), 10);
+    var activePollInterval = parseInt(
+      refreshRoot.getAttribute('data-active-poll-interval'),
+      10
+    );
+    var inactivePollInterval = parseInt(
+      refreshRoot.getAttribute('data-inactive-poll-interval'),
+      10
+    );
+    var pendingLatestReportId = sinceId;
+    var pendingUpdate = false;
+    var isChecking = false;
+    var isRefreshing = false;
+    var pollingTimerId = null;
+
+    if (!tabsTarget || !listTarget) return;
+    if (!isFinite(sinceId) || sinceId < 0) sinceId = 0;
+    if (!isFinite(activePollInterval) || activePollInterval < 5000) {
+      activePollInterval = ACTIVE_QUEUE_CHECK_INTERVAL_MS;
+    }
+    if (!isFinite(inactivePollInterval) || inactivePollInterval < activePollInterval) {
+      inactivePollInterval = INACTIVE_QUEUE_CHECK_INTERVAL_MS;
+    }
+    pendingLatestReportId = sinceId;
+
+    refreshRoot.dataset.pollingBound = '1';
+
+    function buildCheckUrl() {
+      var endpoint = new URL(checkUrl, window.location.origin);
+      var currentQuery = new URLSearchParams(window.location.search);
+      var filterNames = ['region', 'search', 'keyword'];
+
+      endpoint.searchParams.set('since_id', String(sinceId));
+
+      for (var i = 0; i < filterNames.length; i += 1) {
+        var filterName = filterNames[i];
+        var filterValue = currentQuery.get(filterName);
+
+        if (filterValue) {
+          endpoint.searchParams.set(filterName, filterValue);
+        }
+      }
+
+      return endpoint.toString();
+    }
+
+    function buildFragmentUrl() {
+      var endpoint = new URL(fragmentUrl, window.location.origin);
+      var currentQuery = new URLSearchParams(window.location.search);
+      var filterNames = ['work_status', 'region', 'search', 'keyword', 'page', 'per_page'];
+
+      for (var i = 0; i < filterNames.length; i += 1) {
+        var filterName = filterNames[i];
+        var filterValue = currentQuery.get(filterName);
+
+        if (filterValue) {
+          endpoint.searchParams.set(filterName, filterValue);
+        }
+      }
+
+      return endpoint.toString();
+    }
+
+    function isQueueUpdateBlocked() {
+      var openModal = document.querySelector('.modal.show');
+      var activeElement = document.activeElement;
+      var activeForm = activeElement && activeElement.closest
+        ? activeElement.closest('form')
+        : null;
+      var busyQuickAction = refreshRoot.querySelector(
+        '[data-ticket-quick-action][data-quick-action-busy="1"]'
+      );
+
+      return Boolean(openModal || activeForm || busyQuickAction);
+    }
+
+    function parseQueueFragment(html) {
+      var template = document.createElement('template');
+      template.innerHTML = String(html || '').trim();
+
+      return {
+        tabs: template.content.querySelector('[data-report-tabs-fragment]'),
+        list: template.content.querySelector('[data-report-list-fragment]')
+      };
+    }
+
+    function restoreQueueScroll(scrollY) {
+      window.scrollTo(0, scrollY);
+      window.setTimeout(function () {
+        window.scrollTo(0, scrollY);
+      }, 0);
+    }
+
+    function refreshQueueFragment() {
+      if (!pendingUpdate || isRefreshing || isQueueUpdateBlocked()) return;
+
+      isRefreshing = true;
+      var savedScrollY = window.scrollY || window.pageYOffset || 0;
+
+      window.fetch(buildFragmentUrl(), {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'text/html',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error('Gagal memuat fragment antrean.');
+          }
+
+          return response.text();
+        })
+        .then(function (html) {
+          if (isQueueUpdateBlocked()) {
+            throw new Error('Pembaruan antrean ditunda karena pengguna sedang berinteraksi.');
+          }
+
+          var fragment = parseQueueFragment(html);
+
+          if (!fragment.tabs || !fragment.list) {
+            throw new Error('Fragment antrean tidak valid.');
+          }
+
+          tabsTarget.innerHTML = fragment.tabs.innerHTML;
+          listTarget.innerHTML = fragment.list.innerHTML;
+          sinceId = Math.max(sinceId, pendingLatestReportId);
+          pendingUpdate = false;
+          refreshRoot.setAttribute('data-latest-report-id', String(sinceId));
+
+          restoreQueueScroll(savedScrollY);
+          bindQuickTicketActionForms();
+          showQuickActionFlash('success', 'Daftar tiket diperbarui otomatis.');
+        })
+        .catch(function () {
+          // Pertahankan pending update dan coba lagi pada interval berikutnya.
+        })
+        .then(function () {
+          isRefreshing = false;
+        });
+    }
+
+    function queueFragmentRefresh(latestReportId) {
+      var normalizedLatestReportId = Number(latestReportId);
+
+      if (isFinite(normalizedLatestReportId) && normalizedLatestReportId >= 0) {
+        pendingLatestReportId = Math.max(pendingLatestReportId, normalizedLatestReportId);
+      }
+
+      pendingUpdate = true;
+      refreshQueueFragment();
+    }
+
+    function checkForNewReports() {
+      if (isChecking) return;
+      isChecking = true;
+
+      window.fetch(buildCheckUrl(), {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json'
+        }
+      })
+        .then(function (response) {
+          var contentType = response.headers.get('content-type') || '';
+
+          if (!response.ok || contentType.indexOf('application/json') === -1) {
+            throw new Error('Respons pengecekan laporan baru tidak valid.');
+          }
+
+          return response.json();
+        })
+        .then(function (payload) {
+          if (!payload || payload.success === false) return;
+
+          var newCount = Number(payload.newCount);
+          if (payload.hasNewReports && isFinite(newCount) && newCount > 0) {
+            queueFragmentRefresh(payload.latestReportId);
+          }
+        })
+        .catch(function () {
+          // Polling gagal secara senyap agar tidak mengganggu pekerjaan pengguna.
+        })
+        .then(function () {
+          isChecking = false;
+        });
+    }
+
+    var detailModal = document.getElementById('reportDetailModal');
+    if (detailModal) {
+      detailModal.addEventListener('hidden.bs.modal', function () {
+        refreshQueueFragment();
+      });
+    }
+
+    document.addEventListener('focusout', function () {
+      if (!pendingUpdate) return;
+      window.setTimeout(refreshQueueFragment, 0);
+    });
+
+    function getPollingInterval() {
+      return document.visibilityState === 'hidden'
+        ? inactivePollInterval
+        : activePollInterval;
+    }
+
+    function schedulePolling() {
+      if (pollingTimerId !== null) {
+        window.clearInterval(pollingTimerId);
+      }
+
+      pollingTimerId = window.setInterval(checkForNewReports, getPollingInterval());
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      schedulePolling();
+
+      if (document.visibilityState === 'visible') {
+        refreshQueueFragment();
+        checkForNewReports();
+      }
+    });
+
+    schedulePolling();
   }
 
   function escapeHtml(value) {
@@ -687,9 +927,6 @@
     var modalEl = document.getElementById('reportDetailModal');
     if (!modalEl || modalEl.dataset.reportDetailBound === '1') return;
 
-    var buttons = document.querySelectorAll('[data-report-detail-url]');
-    if (buttons.length === 0) return;
-
     var loadingEl = modalEl.querySelector('[data-report-detail-loading]');
     var errorEl = modalEl.querySelector('[data-report-detail-error]');
     var contentEl = modalEl.querySelector('[data-report-detail-content]');
@@ -760,53 +997,56 @@
       resetModal('');
     });
 
-    for (var i = 0; i < buttons.length; i += 1) {
-      buttons[i].addEventListener('click', function (event) {
-        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-        if (!window.bootstrap || !window.bootstrap.Modal || !window.fetch) return;
+    document.addEventListener('click', function (event) {
+      var eventTarget = event.target;
+      var button = eventTarget && eventTarget.closest
+        ? eventTarget.closest('[data-report-detail-url]')
+        : null;
 
-        var button = event.currentTarget;
-        var detailUrl = button.getAttribute('data-report-detail-url');
-        var fallbackUrl = button.getAttribute('href') || '';
+      if (!button) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (!window.bootstrap || !window.bootstrap.Modal || !window.fetch) return;
 
-        if (!detailUrl) return;
+      var detailUrl = button.getAttribute('data-report-detail-url');
+      var fallbackUrl = button.getAttribute('href') || '';
 
-        event.preventDefault();
-        activeDetailRequestId += 1;
-        var requestId = activeDetailRequestId;
-        resetModal(fallbackUrl);
+      if (!detailUrl) return;
 
-        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      event.preventDefault();
+      activeDetailRequestId += 1;
+      var requestId = activeDetailRequestId;
+      resetModal(fallbackUrl);
 
-        window.fetch(detailUrl, {
-          headers: {
-            Accept: 'application/json'
+      window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+      window.fetch(detailUrl, {
+        headers: {
+          Accept: 'application/json'
+        }
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error(response.status === 404
+              ? 'Laporan tidak ditemukan atau tidak dapat diakses.'
+              : 'Gagal memuat detail laporan.');
           }
+          if ((response.headers.get('content-type') || '').indexOf('application/json') === -1) {
+            throw new Error('Sesi login tidak valid atau akses ditolak.');
+          }
+          return response.json();
         })
-          .then(function (response) {
-            if (!response.ok) {
-              throw new Error(response.status === 404
-                ? 'Laporan tidak ditemukan atau tidak dapat diakses.'
-                : 'Gagal memuat detail laporan.');
-            }
-            if ((response.headers.get('content-type') || '').indexOf('application/json') === -1) {
-              throw new Error('Sesi login tidak valid atau akses ditolak.');
-            }
-            return response.json();
-          })
-          .then(function (payload) {
-            if (requestId !== activeDetailRequestId) return;
-            if (!payload || payload.success === false) {
-              throw new Error(payload && payload.message ? payload.message : 'Gagal memuat detail laporan.');
-            }
-            showContent(payload);
-          })
-          .catch(function (error) {
-            if (requestId !== activeDetailRequestId) return;
-            showError(error && error.message ? error.message : 'Gagal memuat detail laporan.');
-          });
-      });
-    }
+        .then(function (payload) {
+          if (requestId !== activeDetailRequestId) return;
+          if (!payload || payload.success === false) {
+            throw new Error(payload && payload.message ? payload.message : 'Gagal memuat detail laporan.');
+          }
+          showContent(payload);
+        })
+        .catch(function (error) {
+          if (requestId !== activeDetailRequestId) return;
+          showError(error && error.message ? error.message : 'Gagal memuat detail laporan.');
+        });
+    });
   }
 
   function getScreenshotFileName(mimeType) {
@@ -1069,6 +1309,7 @@
     try { setupReportDetailModal(); } catch (e3) {}
     try { setupCompletionEvidencePasteUpload(); } catch (e4) {}
     try { setupQuickTicketActions(); } catch (e5) {}
+    try { setupQueueAutoRefreshPolling(); } catch (e6) {}
   }
 
   function normalizePathname(pathname) {

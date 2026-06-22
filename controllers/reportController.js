@@ -46,6 +46,15 @@ function normalizeReportPerPage(value) {
   return ALLOWED_REPORT_PER_PAGE.has(perPage) ? perPage : DEFAULT_REPORT_PER_PAGE;
 }
 
+function normalizeSinceReportId(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const sinceId = Number(value);
+  return Number.isSafeInteger(sinceId) && sinceId >= 0 ? sinceId : null;
+}
+
 function buildReportListUrl(filters, page, perPage) {
   const query = new URLSearchParams();
   query.set('work_status', filters.workStatus);
@@ -484,61 +493,131 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType, opti
   }
 }
 
+async function buildReportListViewData(req, { includeLatestReportId = false } = {}) {
+  const workStatus = normalizeWorkStatus(req.query.work_status);
+  const requestedPage = normalizeReportPage(req.query.page);
+  const perPage = normalizeReportPerPage(req.query.per_page);
+  const filters = {
+    search: req.query.search || req.query.keyword || '',
+    region: req.query.region || '',
+    workStatus,
+    perPage
+  };
+  const dataRequests = [
+    reportModel.getReportCount(filters, req.session.user),
+    reportModel.getReportWorkStatusCounts(filters, req.session.user)
+  ];
+
+  if (includeLatestReportId) {
+    dataRequests.push(
+      reportModel.getNewReportStats(
+        {
+          ...filters,
+          sinceId: 0,
+          workStatus: 'all'
+        },
+        req.session.user
+      )
+    );
+  }
+
+  const [totalItems, workStatusCounts, newReportBaseline] = await Promise.all(dataRequests);
+  const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * perPage;
+  const reports = await reportModel.getReports(
+    {
+      ...filters,
+      limit: perPage,
+      offset
+    },
+    req.session.user
+  );
+  const pagination = buildReportPagination(
+    filters,
+    page,
+    perPage,
+    totalItems,
+    reports.length
+  );
+  const workStatusTabs = buildWorkStatusTabs(filters, workStatusCounts);
+  const activeWorkStatusTab = workStatusTabs.find((tab) => tab.active) || workStatusTabs[0];
+
+  return {
+    reports,
+    filters,
+    pagination,
+    workStatusTabs,
+    activeWorkStatusTab,
+    latestReportId: newReportBaseline ? newReportBaseline.latestReportId : undefined
+  };
+}
+
 async function listReports(req, res) {
   try {
-    const workStatus = normalizeWorkStatus(req.query.work_status);
-    const requestedPage = normalizeReportPage(req.query.page);
-    const perPage = normalizeReportPerPage(req.query.per_page);
-    const filters = {
-      search: req.query.search || '',
-      region: req.query.region || '',
-      workStatus,
-      perPage
-    };
-
-    const [totalItems, workStatusCounts] = await Promise.all([
-      reportModel.getReportCount(filters, req.session.user),
-      reportModel.getReportWorkStatusCounts(filters, req.session.user)
-    ]);
-    const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
-    const page = Math.min(requestedPage, totalPages);
-    const offset = (page - 1) * perPage;
-    const reports = await reportModel.getReports(
-      {
-        ...filters,
-        limit: perPage,
-        offset
-      },
-      req.session.user
-    );
-    const pagination = buildReportPagination(
-      filters,
-      page,
-      perPage,
-      totalItems,
-      reports.length
-    );
-    const workStatusTabs = buildWorkStatusTabs(filters, workStatusCounts);
-    const activeWorkStatusTab = workStatusTabs.find((tab) => tab.active) || workStatusTabs[0];
-
+    const viewData = await buildReportListViewData(req, {
+      includeLatestReportId: true
+    });
     const viewName = req.session.user.role === 'eksekutor'
       ? 'eksekutor/reports/index'
       : req.session.user.role === 'koordinator'
         ? 'koordinator/reports/index'
         : 'reports/index';
 
-    res.render(viewName, {
+    return res.render(viewName, {
       title: 'Daftar Antrean Kerja',
-      reports,
-      filters,
-      pagination,
-      workStatusTabs,
-      activeWorkStatusTab
+      ...viewData
     });
   } catch (error) {
     console.error(error);
     req.flash('error_msg', 'Gagal memuat daftar laporan.');
-    res.redirect('/');
+    return res.redirect('/');
+  }
+}
+
+async function showReportQueueFragment(req, res) {
+  try {
+    const viewData = await buildReportListViewData(req);
+    return res.render('partials/report-queue-fragment', viewData);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send('Gagal memperbarui daftar antrean.');
+  }
+}
+
+async function checkNewReports(req, res) {
+  try {
+    const sinceId = normalizeSinceReportId(req.query.since_id);
+
+    if (sinceId === null) {
+      return res.status(400).json({
+        success: false,
+        message: 'Parameter since_id tidak valid.'
+      });
+    }
+
+    const stats = await reportModel.getNewReportStats(
+      {
+        sinceId,
+        search: req.query.search || req.query.keyword || '',
+        region: req.query.region || '',
+        workStatus: normalizeWorkStatus(req.query.work_status)
+      },
+      req.session.user
+    );
+
+    return res.json({
+      success: true,
+      hasNewReports: stats.newCount > 0,
+      newCount: stats.newCount,
+      latestReportId: stats.latestReportId
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: 'Gagal mengecek laporan baru.'
+    });
   }
 }
 
@@ -855,6 +934,8 @@ module.exports = {
   showCreateReportForm,
   createManualReport,
   listReports,
+  showReportQueueFragment,
+  checkNewReports,
   showReportDetail,
   showReportDetailJson,
   takeReport,

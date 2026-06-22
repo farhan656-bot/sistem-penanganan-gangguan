@@ -68,6 +68,14 @@ async function getCoordinatorAllowedRegionIds(db = pool) {
   return allowedRegions.map((region) => region.id);
 }
 
+async function getExecutorAllowedRegionIds(currentUser = {}) {
+  const extraRegionIds = await regionSwitchModel.getActiveExtraRegionsByUserId(currentUser.id);
+
+  return [...new Set([currentUser.region_id, ...extraRegionIds]
+    .map((regionId) => Number(regionId))
+    .filter((regionId) => Number.isFinite(regionId) && regionId > 0))];
+}
+
 function appendRegionIdAccessCondition(sql, regionIds) {
   if (regionIds.length === 0) {
     return `${sql} AND 1=0 `;
@@ -236,8 +244,7 @@ async function applyReportListScope(sql, params, { search = '', region = '' }, c
   }
 
   if (currentUserRole === 'eksekutor') {
-    const extraRegionIds = await regionSwitchModel.getActiveExtraRegionsByUserId(currentUser.id);
-    const regionIds = [currentUser.region_id, ...extraRegionIds].filter(Boolean);
+    const regionIds = await getExecutorAllowedRegionIds(currentUser);
 
     if (regionIds.length > 0) {
       const placeholders = buildPlaceholders(regionIds);
@@ -384,6 +391,38 @@ async function getReportWorkStatusCounts({ search = '', region = '' }, currentUs
     completed: Number(counts.completed) || 0,
     follow_up: Number(counts.follow_up) || 0,
     escalated: Number(counts.escalated) || 0
+  };
+}
+
+async function getNewReportStats(
+  { sinceId = 0, search = '', region = '', workStatus = 'all' },
+  currentUser
+) {
+  const normalizedSinceId = Number.isSafeInteger(Number(sinceId)) && Number(sinceId) >= 0
+    ? Number(sinceId)
+    : 0;
+  let sql = `
+    SELECT
+      COUNT(*) AS new_count,
+      COALESCE(MAX(reports.id), ?) AS latest_report_id
+    FROM reports
+    LEFT JOIN regions ON reports.current_region_id = regions.id
+    WHERE reports.id > ?
+      AND reports.source_channel = 'telegram'
+  `;
+  const params = [normalizedSinceId, normalizedSinceId];
+  const scopedQuery = await applyReportListScope(sql, params, { search, region }, currentUser);
+  const filteredQuery = applyWorkStatusFilter(
+    scopedQuery.sql,
+    scopedQuery.params,
+    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
+  );
+  const [rows] = await pool.query(filteredQuery.sql, filteredQuery.params);
+  const stats = rows[0] || {};
+
+  return {
+    newCount: Number(stats.new_count) || 0,
+    latestReportId: Number(stats.latest_report_id) || normalizedSinceId
   };
 }
 
@@ -961,12 +1000,15 @@ async function getReportById(reportId, currentUser) {
   }
 
   if (currentUserRole === 'eksekutor') {
-    if (currentUser.region_id) {
+    const allowedRegionIds = await getExecutorAllowedRegionIds(currentUser);
+
+    if (allowedRegionIds.length > 0) {
+      const placeholders = buildPlaceholders(allowedRegionIds);
       sql += ` AND (
-        reports.current_region_id = ?
+        reports.current_region_id IN (${placeholders})
         OR reports.current_assigned_user_id = ?
       ) `;
-      params.push(currentUser.region_id, currentUser.id);
+      params.push(...allowedRegionIds, currentUser.id);
     } else {
       sql += ` AND reports.current_assigned_user_id = ? `;
       params.push(currentUser.id);
@@ -1012,17 +1054,18 @@ async function takeReport(reportId, currentUser) {
       await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
     }
 
-    if (
-      currentUserRole === 'eksekutor' &&
-      currentUser.region_id &&
-      Number(report.current_region_id) !== Number(currentUser.region_id)
-    ) {
-      throw new Error('Anda tidak dapat mengambil laporan di luar wilayah Anda.');
+    if (currentUserRole === 'eksekutor') {
+      const allowedRegionIds = await getExecutorAllowedRegionIds(currentUser);
+      const canAccessReportRegion = allowedRegionIds.some(
+        (regionId) => Number(regionId) === Number(report.current_region_id)
+      );
+
+      if (!canAccessReportRegion) {
+        throw new Error('Anda tidak dapat mengambil laporan di luar wilayah aktif Anda.');
+      }
     }
 
-    const assignmentRegionId = currentUserRole === 'koordinator'
-      ? report.current_region_id
-      : currentUser.region_id;
+    const assignmentRegionId = report.current_region_id;
     const assignmentNotes = currentUserRole === 'koordinator'
       ? 'Laporan diambil oleh koordinator untuk membantu penanganan.'
       : 'Laporan diambil sendiri oleh eksekutor.';
@@ -1690,6 +1733,7 @@ module.exports = {
   getReports,
   getReportCount,
   getReportWorkStatusCounts,
+  getNewReportStats,
   getReportById,
   takeReport,
   markReportInProgress,

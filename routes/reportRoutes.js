@@ -13,6 +13,20 @@ router.get(
 );
 
 router.get(
+  '/check-new',
+  ensureAuthenticated,
+  ensureRole('eksekutor', 'koordinator', 'supervisor', 'super_admin'),
+  reportController.checkNewReports
+);
+
+router.get(
+  '/queue-fragment',
+  ensureAuthenticated,
+  ensureRole('eksekutor', 'koordinator', 'supervisor', 'super_admin'),
+  reportController.showReportQueueFragment
+);
+
+router.get(
   '/create',
   ensureAuthenticated,
   ensureRole('koordinator', 'super_admin'),

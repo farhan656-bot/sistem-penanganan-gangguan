@@ -1,0 +1,12 @@
+<div data-report-tabs-fragment>
+  <%- include('./report-work-status-tabs', { workStatusTabs }) %>
+</div>
+
+<div data-report-list-fragment>
+  <%- include('./report-queue-table', {
+    reports,
+    filters,
+    pagination,
+    activeWorkStatusTab
+  }) %>
+</div>
