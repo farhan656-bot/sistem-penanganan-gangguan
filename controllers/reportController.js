@@ -503,25 +503,23 @@ async function buildReportListViewData(req, { includeLatestReportId = false } = 
     workStatus,
     perPage
   };
+  const accessContext = await reportModel.buildReportListAccessContext(req.session.user);
   const dataRequests = [
-    reportModel.getReportCount(filters, req.session.user),
-    reportModel.getReportWorkStatusCounts(filters, req.session.user)
+    reportModel.getReportWorkStatusCounts(filters, req.session.user, accessContext)
   ];
 
   if (includeLatestReportId) {
     dataRequests.push(
-      reportModel.getNewReportStats(
-        {
-          ...filters,
-          sinceId: 0,
-          workStatus: 'all'
-        },
-        req.session.user
+      reportModel.getLatestReportId(
+        filters,
+        req.session.user,
+        accessContext
       )
     );
   }
 
-  const [totalItems, workStatusCounts, newReportBaseline] = await Promise.all(dataRequests);
+  const [workStatusCounts, latestReportId] = await Promise.all(dataRequests);
+  const totalItems = Number(workStatusCounts[workStatus]) || 0;
   const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
   const page = Math.min(requestedPage, totalPages);
   const offset = (page - 1) * perPage;
@@ -531,7 +529,8 @@ async function buildReportListViewData(req, { includeLatestReportId = false } = 
       limit: perPage,
       offset
     },
-    req.session.user
+    req.session.user,
+    accessContext
   );
   const pagination = buildReportPagination(
     filters,
@@ -549,7 +548,7 @@ async function buildReportListViewData(req, { includeLatestReportId = false } = 
     pagination,
     workStatusTabs,
     activeWorkStatusTab,
-    latestReportId: newReportBaseline ? newReportBaseline.latestReportId : undefined
+    latestReportId: includeLatestReportId ? latestReportId : undefined
   };
 }
 

@@ -76,6 +76,22 @@ async function getExecutorAllowedRegionIds(currentUser = {}) {
     .filter((regionId) => Number.isFinite(regionId) && regionId > 0))];
 }
 
+async function buildReportListAccessContext(currentUser = {}) {
+  const role = getCurrentUserRole(currentUser);
+
+  if (role !== 'eksekutor') {
+    return {
+      role,
+      regionIds: []
+    };
+  }
+
+  return {
+    role,
+    regionIds: await getExecutorAllowedRegionIds(currentUser)
+  };
+}
+
 function appendRegionIdAccessCondition(sql, regionIds) {
   if (regionIds.length === 0) {
     return `${sql} AND 1=0 `;
@@ -223,28 +239,32 @@ function getCompletionLogMeta(finalStatus) {
   };
 }
 
-async function applyReportListScope(sql, params, { search = '', region = '' }, currentUser) {
-  const currentUserRole = getCurrentUserRole(currentUser);
+async function applyReportListScope(
+  sql,
+  params,
+  { search = '', region = '' },
+  currentUser,
+  accessContext = null
+) {
+  const context = accessContext || await buildReportListAccessContext(currentUser);
+  const currentUserRole = context.role || getCurrentUserRole(currentUser);
   const selectedRegionCode = normalizeRegionCode(region);
 
   if (currentUserRole === 'koordinator') {
-    const allowedRegions = await getCoordinatorAllowedRegions();
-    const selectedRegion = selectedRegionCode
-      ? allowedRegions.find((allowedRegion) => allowedRegion.code === selectedRegionCode)
-      : null;
-    const allowedRegionIds = selectedRegion
-      ? [selectedRegion.id]
-      : allowedRegions.map((allowedRegion) => allowedRegion.id);
-    const effectiveAllowedRegionIds = selectedRegionCode && !selectedRegion
-      ? []
-      : allowedRegionIds;
+    const allowedRegionCodes = selectedRegionCode
+      ? COORDINATOR_ALLOWED_REGION_CODES.filter((code) => code === selectedRegionCode)
+      : COORDINATOR_ALLOWED_REGION_CODES;
 
-    sql = appendRegionIdAccessCondition(sql, effectiveAllowedRegionIds);
-    params.push(...effectiveAllowedRegionIds);
+    if (allowedRegionCodes.length === 0) {
+      sql += ' AND 1=0 ';
+    } else {
+      sql += ` AND regions.code IN (${buildPlaceholders(allowedRegionCodes)}) `;
+      params.push(...allowedRegionCodes);
+    }
   }
 
   if (currentUserRole === 'eksekutor') {
-    const regionIds = await getExecutorAllowedRegionIds(currentUser);
+    const regionIds = Array.isArray(context.regionIds) ? context.regionIds : [];
 
     if (regionIds.length > 0) {
       const placeholders = buildPlaceholders(regionIds);
@@ -294,12 +314,12 @@ function applyWorkStatusFilter(sql, params, workStatus) {
 
 async function getReports(
   { search = '', region = '', workStatus = 'all', limit = 10, offset = 0 },
-  currentUser
+  currentUser,
+  accessContext = null
 ) {
   let sql = `
     SELECT
       reports.id,
-      reports.fallout_type,
       reports.ticket_id,
       reports.order_id,
       reports.service_type,
@@ -308,15 +328,9 @@ async function getReports(
       reports.cluster_name,
       reports.sto,
       reports.summary,
-      reports.status_wfm,
-      reports.status_andalas,
       reports.status_internal,
       reports.current_assigned_user_id,
-      reports.received_at,
-      reports.taken_at,
-      reports.resolved_at,
       regions.code AS region_code,
-      regions.name AS region_name,
       users.full_name AS assigned_user_name
     FROM reports
     LEFT JOIN regions ON reports.current_region_id = regions.id
@@ -324,7 +338,13 @@ async function getReports(
     WHERE 1=1
   `;
   const params = [];
-  const scopedQuery = await applyReportListScope(sql, params, { search, region }, currentUser);
+  const scopedQuery = await applyReportListScope(
+    sql,
+    params,
+    { search, region },
+    currentUser,
+    accessContext
+  );
   const filteredQuery = applyWorkStatusFilter(
     scopedQuery.sql,
     scopedQuery.params,
@@ -337,7 +357,7 @@ async function getReports(
     ? Number(offset)
     : 0;
 
-  sql = `${filteredQuery.sql} ORDER BY reports.received_at DESC LIMIT ? OFFSET ? `;
+  sql = `${filteredQuery.sql} ORDER BY reports.received_at DESC, reports.id DESC LIMIT ? OFFSET ? `;
   filteredQuery.params.push(normalizedLimit, normalizedOffset);
 
   const [rows] = await pool.query(sql, filteredQuery.params);
@@ -346,7 +366,8 @@ async function getReports(
 
 async function getReportCount(
   { search = '', region = '', workStatus = 'all' },
-  currentUser
+  currentUser,
+  accessContext = null
 ) {
   let sql = `
     SELECT COUNT(*) AS total
@@ -355,7 +376,13 @@ async function getReportCount(
     WHERE 1=1
   `;
   const params = [];
-  const scopedQuery = await applyReportListScope(sql, params, { search, region }, currentUser);
+  const scopedQuery = await applyReportListScope(
+    sql,
+    params,
+    { search, region },
+    currentUser,
+    accessContext
+  );
   const filteredQuery = applyWorkStatusFilter(
     scopedQuery.sql,
     scopedQuery.params,
@@ -366,7 +393,11 @@ async function getReportCount(
   return Number(rows[0] && rows[0].total) || 0;
 }
 
-async function getReportWorkStatusCounts({ search = '', region = '' }, currentUser) {
+async function getReportWorkStatusCounts(
+  { search = '', region = '' },
+  currentUser,
+  accessContext = null
+) {
   let sql = `
     SELECT
       COUNT(*) AS total_all,
@@ -380,7 +411,13 @@ async function getReportWorkStatusCounts({ search = '', region = '' }, currentUs
     WHERE 1=1
   `;
   const params = [];
-  const scopedQuery = await applyReportListScope(sql, params, { search, region }, currentUser);
+  const scopedQuery = await applyReportListScope(
+    sql,
+    params,
+    { search, region },
+    currentUser,
+    accessContext
+  );
   const [rows] = await pool.query(scopedQuery.sql, scopedQuery.params);
   const counts = rows[0] || {};
 
@@ -396,7 +433,8 @@ async function getReportWorkStatusCounts({ search = '', region = '' }, currentUs
 
 async function getNewReportStats(
   { sinceId = 0, search = '', region = '', workStatus = 'all' },
-  currentUser
+  currentUser,
+  accessContext = null
 ) {
   const normalizedSinceId = Number.isSafeInteger(Number(sinceId)) && Number(sinceId) >= 0
     ? Number(sinceId)
@@ -411,7 +449,13 @@ async function getNewReportStats(
       AND reports.source_channel = 'telegram'
   `;
   const params = [normalizedSinceId, normalizedSinceId];
-  const scopedQuery = await applyReportListScope(sql, params, { search, region }, currentUser);
+  const scopedQuery = await applyReportListScope(
+    sql,
+    params,
+    { search, region },
+    currentUser,
+    accessContext
+  );
   const filteredQuery = applyWorkStatusFilter(
     scopedQuery.sql,
     scopedQuery.params,
@@ -424,6 +468,35 @@ async function getNewReportStats(
     newCount: Number(stats.new_count) || 0,
     latestReportId: Number(stats.latest_report_id) || normalizedSinceId
   };
+}
+
+async function getLatestReportId(
+  { search = '', region = '', workStatus = 'all' },
+  currentUser,
+  accessContext = null
+) {
+  let sql = `
+    SELECT COALESCE(MAX(reports.id), 0) AS latest_report_id
+    FROM reports
+    LEFT JOIN regions ON reports.current_region_id = regions.id
+    WHERE reports.source_channel = 'telegram'
+  `;
+  const params = [];
+  const scopedQuery = await applyReportListScope(
+    sql,
+    params,
+    { search, region },
+    currentUser,
+    accessContext
+  );
+  const filteredQuery = applyWorkStatusFilter(
+    scopedQuery.sql,
+    scopedQuery.params,
+    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
+  );
+  const [rows] = await pool.query(filteredQuery.sql, filteredQuery.params);
+
+  return Number(rows[0] && rows[0].latest_report_id) || 0;
 }
 
 async function getRegions() {
@@ -1730,10 +1803,12 @@ module.exports = {
   storeTelegramAdditionalData,
   logTelegramTextEnrichmentFailure,
   applyTelegramTextEnrichment,
+  buildReportListAccessContext,
   getReports,
   getReportCount,
   getReportWorkStatusCounts,
   getNewReportStats,
+  getLatestReportId,
   getReportById,
   takeReport,
   markReportInProgress,

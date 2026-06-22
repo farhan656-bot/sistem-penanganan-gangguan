@@ -58,61 +58,51 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
   ]);
   const safeAssignedLimit = normalizeLimit(assignedLimit, 5, 10);
 
-  let availableAccessSql = 'reports.current_assigned_user_id = ?';
+  let availableAccessSql = 'current_assigned_user_id = ?';
   const summaryParams = [];
 
   if (accessibleRegionIds.length > 0) {
     availableAccessSql = `(
-      reports.current_region_id IN (${buildPlaceholders(accessibleRegionIds)})
-      OR reports.current_assigned_user_id = ?
+      current_region_id IN (${buildPlaceholders(accessibleRegionIds)})
+      OR current_assigned_user_id = ?
     )`;
     summaryParams.push(...accessibleRegionIds, userId);
   } else {
     summaryParams.push(userId);
   }
 
-  summaryParams.push(userId, userId, userId, userId);
+  summaryParams.push(userId);
 
   const [summaryResult, assignedResult] = await Promise.all([
     pool.query(
       `
       SELECT
-        COALESCE(SUM(
-          CASE
-            WHEN reports.status_internal = 'tersedia'
-              AND ${availableAccessSql}
-            THEN 1 ELSE 0
-          END
-        ), 0) AS total_available,
-        COALESCE(SUM(
-          CASE
-            WHEN reports.status_internal IN ('diambil', 'didelegasikan')
-              AND reports.current_assigned_user_id = ?
-            THEN 1 ELSE 0
-          END
-        ), 0) AS total_my_in_progress,
-        COALESCE(SUM(
-          CASE
-            WHEN reports.status_internal = 'selesai'
-              AND reports.current_assigned_user_id = ?
-            THEN 1 ELSE 0
-          END
-        ), 0) AS total_completed,
-        COALESCE(SUM(
-          CASE
-            WHEN reports.status_internal = 'perlu_tindak_lanjut'
-              AND reports.current_assigned_user_id = ?
-            THEN 1 ELSE 0
-          END
-        ), 0) AS total_follow_up,
-        COALESCE(SUM(
-          CASE
-            WHEN reports.status_internal = 'eskalasi'
-              AND reports.current_assigned_user_id = ?
-            THEN 1 ELSE 0
-          END
-        ), 0) AS total_escalated
-      FROM reports
+        dashboard_counts.metric,
+        dashboard_counts.total
+      FROM (
+        SELECT
+          'available' AS metric,
+          COUNT(*) AS total
+        FROM reports
+        WHERE status_internal = 'tersedia'
+          AND ${availableAccessSql}
+
+        UNION ALL
+
+        SELECT
+          status_internal AS metric,
+          COUNT(*) AS total
+        FROM reports
+        WHERE current_assigned_user_id = ?
+          AND status_internal IN (
+            'diambil',
+            'didelegasikan',
+            'selesai',
+            'perlu_tindak_lanjut',
+            'eskalasi'
+          )
+        GROUP BY status_internal
+      ) dashboard_counts
       `,
       summaryParams
     ),
@@ -148,15 +138,19 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
     )
   ]);
 
-  const summaryRow = summaryResult[0][0] || {};
+  const countByMetric = (summaryResult[0] || []).reduce((counts, row) => {
+    counts[row.metric] = toNumber(row.total);
+    return counts;
+  }, {});
 
   return {
     summary: {
-      total_available: toNumber(summaryRow.total_available),
-      total_my_in_progress: toNumber(summaryRow.total_my_in_progress),
-      total_completed: toNumber(summaryRow.total_completed),
-      total_follow_up: toNumber(summaryRow.total_follow_up),
-      total_escalated: toNumber(summaryRow.total_escalated)
+      total_available: toNumber(countByMetric.available),
+      total_my_in_progress: toNumber(countByMetric.diambil)
+        + toNumber(countByMetric.didelegasikan),
+      total_completed: toNumber(countByMetric.selesai),
+      total_follow_up: toNumber(countByMetric.perlu_tindak_lanjut),
+      total_escalated: toNumber(countByMetric.eskalasi)
     },
     latestAssignedReports: assignedResult[0] || []
   };
@@ -184,22 +178,7 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
   }
 
   const placeholders = buildPlaceholders(regionIds);
-  const [summaryResult, regionSummaryResult, activityResult] = await Promise.all([
-    pool.query(
-      `
-      SELECT
-        COUNT(*) AS total_reports,
-        COALESCE(SUM(reports.status_internal = 'tersedia'), 0) AS total_available,
-        COALESCE(SUM(reports.status_internal = 'diambil'), 0) AS total_in_progress,
-        COALESCE(SUM(reports.status_internal = 'didelegasikan'), 0) AS total_delegated,
-        COALESCE(SUM(reports.status_internal = 'selesai'), 0) AS total_completed,
-        COALESCE(SUM(reports.status_internal = 'perlu_tindak_lanjut'), 0) AS total_follow_up,
-        COALESCE(SUM(reports.status_internal = 'eskalasi'), 0) AS total_escalated
-      FROM reports
-      WHERE reports.current_region_id IN (${placeholders})
-      `,
-      regionIds
-    ),
+  const [regionSummaryResult, activityResult] = await Promise.all([
     pool.query(
       `
       SELECT
@@ -253,28 +232,37 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
     )
   ]);
 
-  const summaryRow = summaryResult[0][0] || {};
+  const regionSummary = (regionSummaryResult[0] || []).map((row) => ({
+    ...row,
+    total_reports: toNumber(row.total_reports),
+    total_available: toNumber(row.total_available),
+    total_in_progress: toNumber(row.total_in_progress),
+    total_delegated: toNumber(row.total_delegated),
+    total_completed: toNumber(row.total_completed),
+    total_follow_up: toNumber(row.total_follow_up),
+    total_escalated: toNumber(row.total_escalated)
+  }));
+  const summary = regionSummary.reduce((totals, row) => ({
+    total_reports: totals.total_reports + row.total_reports,
+    total_available: totals.total_available + row.total_available,
+    total_in_progress: totals.total_in_progress + row.total_in_progress,
+    total_delegated: totals.total_delegated + row.total_delegated,
+    total_completed: totals.total_completed + row.total_completed,
+    total_follow_up: totals.total_follow_up + row.total_follow_up,
+    total_escalated: totals.total_escalated + row.total_escalated
+  }), {
+    total_reports: 0,
+    total_available: 0,
+    total_in_progress: 0,
+    total_delegated: 0,
+    total_completed: 0,
+    total_follow_up: 0,
+    total_escalated: 0
+  });
 
   return {
-    summary: {
-      total_reports: toNumber(summaryRow.total_reports),
-      total_available: toNumber(summaryRow.total_available),
-      total_in_progress: toNumber(summaryRow.total_in_progress),
-      total_delegated: toNumber(summaryRow.total_delegated),
-      total_completed: toNumber(summaryRow.total_completed),
-      total_follow_up: toNumber(summaryRow.total_follow_up),
-      total_escalated: toNumber(summaryRow.total_escalated)
-    },
-    regionSummary: (regionSummaryResult[0] || []).map((row) => ({
-      ...row,
-      total_reports: toNumber(row.total_reports),
-      total_available: toNumber(row.total_available),
-      total_in_progress: toNumber(row.total_in_progress),
-      total_delegated: toNumber(row.total_delegated),
-      total_completed: toNumber(row.total_completed),
-      total_follow_up: toNumber(row.total_follow_up),
-      total_escalated: toNumber(row.total_escalated)
-    })),
+    summary,
+    regionSummary,
     latestActivities: activityResult[0] || []
   };
 }

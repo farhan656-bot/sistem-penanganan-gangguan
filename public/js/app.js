@@ -368,7 +368,7 @@
     function buildCheckUrl() {
       var endpoint = new URL(checkUrl, window.location.origin);
       var currentQuery = new URLSearchParams(window.location.search);
-      var filterNames = ['region', 'search', 'keyword'];
+      var filterNames = ['work_status', 'region', 'search', 'keyword'];
 
       endpoint.searchParams.set('since_id', String(sinceId));
 
