@@ -9,7 +9,8 @@ const {
   parseTelegramCoreMessage,
   extractTicketIdFromText,
   buildFormatExample,
-  parseTelegramEnrichmentMessage
+  parseTelegramEnrichmentMessage,
+  hasCoreIntakeStructure
 } = require('../utils/telegramParser');
 
 let botInstance = null;
@@ -445,6 +446,11 @@ async function handleIncomingMessage(bot, message) {
   const parsed = parseTelegramCoreMessage(text);
 
   if (!parsed.isValid) {
+    if (hasCoreIntakeStructure(text)) {
+      await bot.sendMessage(chatId, buildInvalidFormatReply(parsed.errors));
+      return;
+    }
+
     const enrichmentParsed = parseTelegramEnrichmentMessage(text);
     const enrichmentHandled = await handleTextEnrichment(bot, message, text, enrichmentParsed);
     if (enrichmentHandled) {

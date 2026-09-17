@@ -26,19 +26,12 @@ router.get(
   reportController.showReportQueueFragment
 );
 
-router.get(
-  '/create',
-  ensureAuthenticated,
-  ensureRole('koordinator', 'super_admin'),
-  reportController.showCreateReportForm
-);
-
-router.post(
-  '/',
-  ensureAuthenticated,
-  ensureRole('koordinator', 'super_admin'),
-  reportController.createManualReport
-);
+// Legacy manual ticket entry is intentionally disabled. Keep this guard
+// before '/:id' so '/reports/create' cannot be treated as a report detail.
+router.get('/create', ensureAuthenticated, (req, res) => {
+  req.flash('error_msg', 'Input tiket manual sudah dinonaktifkan.');
+  return res.redirect('/reports');
+});
 
 router.get(
   '/:id/detail-json',

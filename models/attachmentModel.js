@@ -12,6 +12,7 @@ async function createAttachment(data) {
       file_type,
       mime_type,
       original_name,
+      file_name,
       stored_name,
       file_path,
       file_size,
@@ -19,7 +20,7 @@ async function createAttachment(data) {
       uploaded_by_user_id,
       created_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `,
     [
       data.report_id,
@@ -29,6 +30,7 @@ async function createAttachment(data) {
       data.file_type || null,
       data.mime_type || null,
       data.original_name || null,
+      data.file_name || data.original_name || data.stored_name || 'telegram-media',
       data.stored_name || null,
       data.file_path || null,
       data.file_size || null,

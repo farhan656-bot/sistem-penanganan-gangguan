@@ -152,27 +152,6 @@ function buildWorkStatusTabs(filters, counts) {
   });
 }
 
-function buildManualReportFormData(body = {}) {
-  return {
-    fallout_type: body.fallout_type || '',
-    ticket_id: body.ticket_id || '',
-    order_id: body.order_id || '',
-    wo_number: body.wo_number || '',
-    service_type: body.service_type || '',
-    segment: body.segment || '',
-    provider: body.provider || '',
-    telkom_area: body.telkom_area || '',
-    branch_name: body.branch_name || '',
-    cluster_name: body.cluster_name || '',
-    sto: body.sto || '',
-    summary: body.summary || '',
-    service_id: body.service_id || '',
-    status_wfm: body.status_wfm || '',
-    status_andalas: body.status_andalas || '',
-    reported_region_id: body.reported_region_id || ''
-  };
-}
-
 function normalizeJsonValue(value) {
   return value === undefined ? null : value;
 }
@@ -620,64 +599,6 @@ async function checkNewReports(req, res) {
   }
 }
 
-async function showCreateReportForm(req, res) {
-  try {
-    const regions = await reportModel.getRegions();
-
-    const viewName = req.session.user.role === 'super_admin'
-      ? 'super_admin/reports-create'
-      : req.session.user.role === 'koordinator'
-        ? 'koordinator/reports/create'
-        : 'reports/create';
-
-    return res.render(viewName, {
-      title: 'Tambah Laporan Manual',
-      regions,
-      formData: buildManualReportFormData()
-    });
-  } catch (error) {
-    console.error(error);
-    req.flash('error_msg', 'Gagal memuat form input laporan manual.');
-
-    if (req.session.user.role === 'super_admin') {
-      return res.redirect('/dashboard/super-admin');
-    }
-
-    return res.redirect('/reports');
-  }
-}
-
-async function createManualReport(req, res) {
-  try {
-    const ticketId = typeof req.body.ticket_id === 'string' ? req.body.ticket_id.trim() : '';
-    const summary = typeof req.body.summary === 'string' ? req.body.summary.trim() : '';
-    const reportedRegionId = Number(req.body.reported_region_id);
-
-    if (!ticketId) {
-      req.flash('error_msg', 'Ticket ID wajib diisi.');
-      return res.redirect('/reports/create');
-    }
-
-    if (!summary) {
-      req.flash('error_msg', 'Ringkasan gangguan wajib diisi.');
-      return res.redirect('/reports/create');
-    }
-
-    if (!reportedRegionId) {
-      req.flash('error_msg', 'Wilayah awal wajib dipilih.');
-      return res.redirect('/reports/create');
-    }
-
-    const result = await reportModel.createManualReport(req.body, req.session.user);
-    req.flash('success_msg', result.message);
-    return res.redirect('/reports');
-  } catch (error) {
-    console.error(error);
-    req.flash('error_msg', error.message || 'Gagal membuat laporan manual.');
-    return res.redirect('/reports/create');
-  }
-}
-
 async function showReportDetail(req, res) {
   try {
     const reportId = req.params.id;
@@ -930,8 +851,6 @@ async function cancelAssignment(req, res) {
 }
 
 module.exports = {
-  showCreateReportForm,
-  createManualReport,
   listReports,
   showReportQueueFragment,
   checkNewReports,

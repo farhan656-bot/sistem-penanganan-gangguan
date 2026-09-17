@@ -499,154 +499,6 @@ async function getLatestReportId(
   return Number(rows[0] && rows[0].latest_report_id) || 0;
 }
 
-async function getRegions() {
-  const [rows] = await pool.query(
-    `
-    SELECT id, code, name
-    FROM regions
-    ORDER BY code ASC
-    `
-  );
-
-  return rows;
-}
-
-async function createManualReport(data, currentUser) {
-  const connection = await pool.getConnection();
-
-  try {
-    await connection.beginTransaction();
-
-    const ticketId = typeof data.ticket_id === 'string' ? data.ticket_id.trim() : '';
-    const summary = typeof data.summary === 'string' ? data.summary.trim() : '';
-    const reportedRegionId = Number(data.reported_region_id);
-
-    if (!ticketId) {
-      throw new Error('Ticket ID wajib diisi.');
-    }
-
-    if (!summary) {
-      throw new Error('Ringkasan gangguan wajib diisi.');
-    }
-
-    if (!reportedRegionId) {
-      throw new Error('Wilayah awal wajib dipilih.');
-    }
-
-    const [duplicateRows] = await connection.query(
-      `
-      SELECT id
-      FROM reports
-      WHERE ticket_id = ?
-      LIMIT 1
-      `,
-      [ticketId]
-    );
-
-    if (duplicateRows.length > 0) {
-      throw new Error('Ticket ID sudah terdaftar. Gunakan Ticket ID yang unik.');
-    }
-
-    const [regionRows] = await connection.query(
-      `
-      SELECT id, code, name
-      FROM regions
-      WHERE id = ?
-      LIMIT 1
-      `,
-      [reportedRegionId]
-    );
-
-    if (regionRows.length === 0) {
-      throw new Error('Wilayah yang dipilih tidak valid.');
-    }
-
-    const selectedRegion = regionRows[0];
-
-    const [insertResult] = await connection.query(
-      `
-      INSERT INTO reports
-      (
-        source_channel,
-        fallout_type,
-        ticket_id,
-        order_id,
-        wo_number,
-        service_type,
-        segment,
-        provider,
-        telkom_area,
-        branch_name,
-        cluster_name,
-        sto,
-        summary,
-        service_id,
-        status_wfm,
-        status_andalas,
-        status_internal,
-        reported_region_id,
-        current_region_id,
-        current_assigned_user_id,
-        received_at,
-        created_at,
-        updated_at
-      )
-      VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tersedia', ?, ?, ?, NOW(), NOW(), NOW())
-      `,
-      [
-        'manual',
-        normalizeOptionalField(data.fallout_type),
-        ticketId,
-        normalizeOptionalField(data.order_id),
-        normalizeOptionalField(data.wo_number),
-        normalizeOptionalField(data.service_type),
-        normalizeOptionalField(data.segment),
-        normalizeOptionalField(data.provider),
-        normalizeOptionalField(data.telkom_area),
-        normalizeOptionalField(data.branch_name),
-        normalizeOptionalField(data.cluster_name),
-        normalizeOptionalField(data.sto),
-        summary,
-        normalizeOptionalField(data.service_id),
-        normalizeOptionalField(data.status_wfm),
-        normalizeOptionalField(data.status_andalas),
-        reportedRegionId,
-        reportedRegionId,
-        null
-      ]
-    );
-
-    const reportId = insertResult.insertId;
-
-    await connection.query(
-      `
-      INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-      VALUES (?, ?, 'create_manual_report', ?, NOW())
-      `,
-      [
-        reportId,
-        currentUser.id,
-        `Laporan manual dibuat oleh ${currentUser.full_name} dengan ticket_id ${ticketId} untuk wilayah ${selectedRegion.code}.`
-      ]
-    );
-
-    await connection.commit();
-
-    return {
-      success: true,
-      reportId,
-      ticketId,
-      message: `Laporan manual ${ticketId} berhasil dibuat dan masuk antrean tersedia.`
-    };
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
-  }
-}
-
 async function createTelegramReport(parsedData, telegramMeta) {
   const connection = await pool.getConnection();
 
@@ -1318,7 +1170,7 @@ async function completeReport(reportId, currentUser, formData, fileData) {
         `,
         [
           reportId,
-          'completion',
+          'manual',
           currentUser.id,
           sanitizeAttachmentFileName(uploadedFile),
           buildPublicUploadPath(uploadedFile),
@@ -1793,8 +1645,6 @@ async function getTelegramAdditionalMediaByReportId(reportId) {
 }
 
 module.exports = {
-  getRegions,
-  createManualReport,
   createTelegramReport,
   findByTicketId,
   getReportByTicketId,

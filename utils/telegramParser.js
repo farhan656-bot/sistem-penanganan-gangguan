@@ -146,18 +146,52 @@ function parseTelegramCoreMessage(text) {
   };
 }
 
+function hasCoreIntakeStructure(text) {
+  if (typeof text !== 'string' || !text.trim()) {
+    return false;
+  }
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const matchedKeys = new Set();
+
+  for (const line of lines) {
+    const separatorIndex = line.indexOf(':');
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const rawLabel = line.slice(0, separatorIndex).trim();
+    const normalizedLabel = normalizeLabel(rawLabel);
+    const mappedKey = KEY_ALIASES[normalizedLabel];
+
+    if (mappedKey) {
+      matchedKeys.add(mappedKey);
+    }
+  }
+
+  return (
+    matchedKeys.has('order_id') ||
+    matchedKeys.has('summary') ||
+    matchedKeys.has('region')
+  );
+}
+
 function extractTicketIdFromText(text) {
   if (typeof text !== 'string' || !text.trim()) {
     return null;
   }
 
-  const directMatch = text.match(/TICKET\s*ID\s*:\s*([^\n\r]+)/i);
-  if (directMatch && directMatch[1]) {
+  const directMatch = text.match(/TICKET[ \t]*ID[ \t]*:[ \t]*([^\r\n]+)/i);
+  if (directMatch && directMatch[1] && directMatch[1].trim()) {
     return directMatch[1].trim().toUpperCase();
   }
 
   const looseMatch = text.match(/\b([A-Z]{2,}\d{3,}|[A-Z]+[-_]?\d{3,})\b/i);
-  if (looseMatch && looseMatch[1]) {
+  if (looseMatch && looseMatch[1] && looseMatch[1].trim()) {
     return looseMatch[1].trim().toUpperCase();
   }
 
@@ -276,5 +310,6 @@ module.exports = {
   buildFormatExample,
   extractTicketIdFromText,
   parseAdditionalDataMessage,
-  parseTelegramEnrichmentMessage
+  parseTelegramEnrichmentMessage,
+  hasCoreIntakeStructure
 };
