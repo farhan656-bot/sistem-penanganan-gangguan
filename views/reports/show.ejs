@@ -49,7 +49,7 @@
 
                 <div class="text-end">
                   <div class="text-muted small">Wilayah Laporan</div>
-                  <div class="fw-semibold"><%= report.current_region_code || '-' %></div>
+                  <div class="fw-semibold"><%= report.reported_region_code || report.region_code || report.current_region_code || '-' %></div>
                 </div>
               </div>
 
@@ -208,7 +208,7 @@
     <% if (
       currentUser.role === 'eksekutor' &&
       ['diambil', 'didelegasikan'].includes(report.status_internal) &&
-      Number(report.current_assigned_user_id) === Number(currentUser.id)
+      Number(report.assigned_to_user_id) === Number(currentUser.id)
     ) { %>
       <div class="card app-card mb-3">
         <div class="card-header fw-semibold">Update Pengerjaan</div>
@@ -338,7 +338,7 @@
               <select name="target_user_id" class="form-select" required>
                 <option value="">Pilih pegawai eksekutor</option>
                 <% eksekutorUsers.forEach(user => { %>
-                  <% if (Number(user.id) !== Number(report.current_assigned_user_id)) { %>
+                  <% if (Number(user.id) !== Number(report.assigned_to_user_id)) { %>
                     <option value="<%= user.id %>">
                       <%= user.full_name %> - <%= user.region_code || '-' %>
                     </option>
@@ -372,7 +372,7 @@
     <% if (
       currentUser.role === 'koordinator' &&
       ['diambil', 'didelegasikan'].includes(report.status_internal) &&
-      report.current_assigned_user_id
+      report.assigned_to_user_id
     ) { %>
       <div class="card app-card">
         <div class="card-header fw-semibold">Batalkan Penugasan</div>

@@ -205,7 +205,7 @@
                         <td><span class="text-muted"><%= formatDateTime(activity.created_at) %></span></td>
                         <td><%= activity.actor_name || 'Sistem' %></td>
                         <td>
-                          <a href="/reports/<%= activity.report_id %>" class="fw-semibold text-decoration-none">
+                          <a href="/reports/<%= activity.ticket_id %>" class="fw-semibold text-decoration-none">
                             <%= activity.ticket_id || '-' %>
                           </a>
                           <div class="text-muted small"><%= activity.order_id || '-' %></div>

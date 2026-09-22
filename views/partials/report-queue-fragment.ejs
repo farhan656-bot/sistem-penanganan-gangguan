@@ -2,7 +2,11 @@
   <%- include('./report-work-status-tabs', { workStatusTabs }) %>
 </div>
 
-<div data-report-list-fragment>
+<div
+  data-report-list-fragment
+  data-received-at="<%= (reports && reports.length > 0 && reports[0].received_at) ? new Date(reports[0].received_at).toISOString() : '' %>"
+  data-ticket-id="<%= (reports && reports.length > 0 && reports[0].ticket_id) ? reports[0].ticket_id : '' %>"
+>
   <%- include('./report-queue-table', {
     reports,
     filters,

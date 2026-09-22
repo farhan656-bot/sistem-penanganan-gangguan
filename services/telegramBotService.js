@@ -336,6 +336,8 @@ async function persistMediaFile(bot, message, mediaMetadata) {
 async function linkPendingMediaToReport(report, pendingMedia) {
   await attachmentModel.createAttachment({
     report_id: report.id,
+    ticket_id: report.ticket_id,
+    type_attachment_code: 'bukti_pelapor',
     source: 'telegram',
     telegram_file_id: pendingMedia.telegram_file_id,
     telegram_file_unique_id: pendingMedia.telegram_file_unique_id,
@@ -349,7 +351,7 @@ async function linkPendingMediaToReport(report, pendingMedia) {
     uploaded_by_user_id: null
   });
 
-  await pendingMediaModel.markPendingMediaLinked(pendingMedia.id, report.id);
+  await pendingMediaModel.markPendingMediaLinked(pendingMedia.id, report.id, report.ticket_id);
 }
 
 async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
@@ -366,6 +368,8 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
 
     await attachmentModel.createAttachment({
       report_id: report.id,
+      ticket_id: report.ticket_id,
+      type_attachment_code: 'bukti_pelapor',
       source: 'telegram',
       telegram_file_id: persistedMedia.telegram_file_id,
       telegram_file_unique_id: persistedMedia.telegram_file_unique_id,
@@ -382,6 +386,7 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
     await bot.sendMessage(chatId, `Media Telegram berhasil disatukan ke tiket: ${report.ticket_id}`);
     return;
   }
+
 
   await pendingMediaModel.createPendingMedia({
     chat_id: chatId,

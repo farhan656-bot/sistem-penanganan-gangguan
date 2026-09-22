@@ -28,6 +28,8 @@
             data-check-url="/reports/check-new"
             data-fragment-url="/reports/queue-fragment"
             data-latest-report-id="<%= Number(latestReportId) || 0 %>"
+            data-received-at="<%= (reports && reports.length > 0 && reports[0].received_at) ? new Date(reports[0].received_at).toISOString() : '' %>"
+            data-ticket-id="<%= (reports && reports.length > 0 && reports[0].ticket_id) ? reports[0].ticket_id : '' %>"
             data-active-poll-interval="10000"
             data-inactive-poll-interval="60000"
           >

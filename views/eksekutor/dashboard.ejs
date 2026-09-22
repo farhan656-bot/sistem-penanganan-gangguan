@@ -127,7 +127,7 @@
                             </td>
                             <td><span class="text-muted"><%= formatDateTime(report.taken_at || report.updated_at || report.received_at) %></span></td>
                             <td class="app-table-actions">
-                              <a href="/reports/<%= report.id %>" class="btn btn-sm btn-outline-secondary">Detail</a>
+                              <a href="/reports/<%= report.ticket_id %>" class="btn btn-sm btn-outline-secondary">Detail</a>
                             </td>
                           </tr>
                         <% }) %>

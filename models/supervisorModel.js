@@ -41,7 +41,7 @@ function buildReportWhereClause(filters, tableAlias = 'reports') {
   }
 
   if (normalized.regionId) {
-    conditions.push(`${tableAlias}.current_region_id = ?`);
+    conditions.push(`${tableAlias}.reported_region_id = ?`);
     params.push(normalized.regionId);
   }
 
@@ -65,7 +65,7 @@ function buildReportJoinFilterClause(filters, tableAlias = 'rep', { includeRegio
   }
 
   if (includeRegion && normalized.regionId) {
-    conditions.push(`${tableAlias}.current_region_id = ?`);
+    conditions.push(`${tableAlias}.reported_region_id = ?`);
     params.push(normalized.regionId);
   }
 
@@ -167,7 +167,7 @@ async function getRegionSummary(filters = {}) {
       COALESCE(SUM(CASE WHEN rep.status_internal = 'eskalasi' THEN 1 ELSE 0 END), 0) AS total_escalated
     FROM regions r
     LEFT JOIN reports rep
-      ON rep.current_region_id = r.id
+      ON rep.reported_region_id = r.id
       ${joinFilterSql}
     ${regionWhereSql}
     GROUP BY r.id, r.code, r.name
@@ -213,8 +213,12 @@ async function getUserPerformance(filters = {}) {
     FROM users u
     JOIN roles ro ON u.role_id = ro.id
     LEFT JOIN regions reg ON u.region_id = reg.id
-    LEFT JOIN reports rep
-      ON rep.current_assigned_user_id = u.id
+    LEFT JOIN (
+      reports rep
+      JOIN report_assignments ra
+        ON ra.ticket_id = rep.ticket_id
+       AND ra.is_active = 1
+    ) ON ra.assigned_to_user_id = u.id
       ${joinFilterSql}
     WHERE ${userConditions.join(' AND ')}
     GROUP BY u.id, u.full_name, reg.code, reg.name
@@ -291,7 +295,7 @@ async function getRegionComparisonChartData(filters = {}) {
       COUNT(rep.id) AS total
     FROM regions r
     LEFT JOIN reports rep
-      ON rep.current_region_id = r.id
+      ON rep.reported_region_id = r.id
       ${joinFilterSql}
     ${regionWhereSql}
     GROUP BY r.id, r.code, r.name
@@ -316,7 +320,7 @@ async function getAttentionTickets(filters = {}, { limit = 15 } = {}) {
   }
 
   if (normalized.regionId) {
-    whereParts.push('rep.current_region_id = ?');
+    whereParts.push('rep.reported_region_id = ?');
     params.push(normalized.regionId);
   }
 
@@ -344,8 +348,11 @@ async function getAttentionTickets(filters = {}, { limit = 15 } = {}) {
       reg.name AS region_name,
       u.full_name AS assigned_user_name
     FROM reports rep
-    LEFT JOIN regions reg ON rep.current_region_id = reg.id
-    LEFT JOIN users u ON rep.current_assigned_user_id = u.id
+    LEFT JOIN regions reg ON rep.reported_region_id = reg.id
+    LEFT JOIN report_assignments ra
+      ON ra.ticket_id = rep.ticket_id
+     AND ra.is_active = 1
+    LEFT JOIN users u ON ra.assigned_to_user_id = u.id
     ${whereSql}
     ORDER BY rep.received_at DESC
     LIMIT ${safeLimit}

@@ -5,6 +5,11 @@ const { ensureAuthenticated } = require('../middlewares/authMiddleware');
 const { ensureRole } = require('../middlewares/roleMiddleware');
 const { uploadCompletionEvidence } = require('../middlewares/uploadMiddleware');
 
+router.param('ticketId', (req, res, next, ticketId) => {
+  req.params.id = req.params.id || ticketId;
+  next();
+});
+
 router.get(
   '/',
   ensureAuthenticated,
@@ -27,42 +32,42 @@ router.get(
 );
 
 // Legacy manual ticket entry is intentionally disabled. Keep this guard
-// before '/:id' so '/reports/create' cannot be treated as a report detail.
+// before '/:ticketId' so '/reports/create' cannot be treated as a report detail.
 router.get('/create', ensureAuthenticated, (req, res) => {
   req.flash('error_msg', 'Input tiket manual sudah dinonaktifkan.');
   return res.redirect('/reports');
 });
 
 router.get(
-  '/:id/detail-json',
+  '/:ticketId/detail-json',
   ensureAuthenticated,
   ensureRole('eksekutor', 'koordinator', 'supervisor', 'super_admin'),
   reportController.showReportDetailJson
 );
 
 router.get(
-  '/:id',
+  '/:ticketId',
   ensureAuthenticated,
   ensureRole('eksekutor', 'koordinator', 'supervisor', 'super_admin'),
   reportController.showReportDetail
 );
 
 router.post(
-  '/:id/take',
+  '/:ticketId/take',
   ensureAuthenticated,
   ensureRole('eksekutor', 'koordinator'),
   reportController.takeReport
 );
 
 router.post(
-  '/:id/in-progress',
+  '/:ticketId/in-progress',
   ensureAuthenticated,
   ensureRole('eksekutor', 'koordinator'),
   reportController.markReportInProgress
 );
 
 router.post(
-  '/:id/complete',
+  '/:ticketId/complete',
   ensureAuthenticated,
   ensureRole('eksekutor', 'koordinator'),
   uploadCompletionEvidence,
@@ -70,14 +75,14 @@ router.post(
 );
 
 router.post(
-  '/:id/delegate',
+  '/:ticketId/delegate',
   ensureAuthenticated,
   ensureRole('koordinator'),
   reportController.delegateReport
 );
 
 router.post(
-  '/:id/cancel-assignment',
+  '/:ticketId/cancel-assignment',
   ensureAuthenticated,
   ensureRole('koordinator'),
   reportController.cancelAssignment

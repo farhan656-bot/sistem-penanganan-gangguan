@@ -55,6 +55,21 @@ function normalizeSinceReportId(value) {
   return Number.isSafeInteger(sinceId) && sinceId >= 0 ? sinceId : null;
 }
 
+function normalizeSinceReceivedAt(value) {
+  if (typeof value !== 'string') return null;
+  const timestamp = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp)) {
+    return null;
+  }
+  const date = new Date(timestamp);
+  const calendarDate = new Date(`${timestamp.slice(0, 10)}T00:00:00.000Z`);
+  if (!Number.isFinite(date.getTime()) || !Number.isFinite(calendarDate.getTime())
+    || calendarDate.toISOString().slice(0, 10) !== timestamp.slice(0, 10)) {
+    return null;
+  }
+  return date;
+}
+
 function buildReportListUrl(filters, page, perPage) {
   const query = new URLSearchParams();
   query.set('work_status', filters.workStatus);
@@ -183,7 +198,7 @@ function normalizeReportReturnPath(req, fallbackPath) {
         isSameHost &&
         (safePath === '/reports' || safePath.startsWith('/reports/') || safePath.startsWith('/reports?'))
       ) {
-        return safePath;
+        return safePath.startsWith('/reports/') ? fallbackPath : safePath;
       }
     } catch (error) {
       // Ignore malformed return targets and use the known fallback below.
@@ -266,6 +281,10 @@ function buildReportDetailPayload(report) {
 function buildAttachmentPayload(file) {
   return {
     id: normalizeJsonValue(file.id),
+    ticket_id: normalizeJsonValue(file.ticket_id),
+    type_attachment_id: normalizeJsonValue(file.type_attachment_id),
+    type_attachment_code: normalizeJsonValue(file.type_attachment_code),
+    type_attachment_name: normalizeJsonValue(file.type_attachment_name),
     source: normalizeJsonValue(file.source),
     file_name: normalizeJsonValue(file.file_name || file.original_name || file.stored_name),
     file_path: normalizeJsonValue(file.file_path),
@@ -326,6 +345,14 @@ function isCompletionEvidenceAttachment(file) {
     return false;
   }
 
+  if (file.type_attachment_code === 'bukti_penanganan') {
+    return true;
+  }
+
+  if (file.type_attachment_code === 'bukti_pelapor') {
+    return false;
+  }
+
   if (hasTelegramMetadata(file)) {
     return false;
   }
@@ -335,6 +362,14 @@ function isCompletionEvidenceAttachment(file) {
 
 function isTelegramAttachment(file) {
   if (!file) {
+    return false;
+  }
+
+  if (file.type_attachment_code === 'bukti_pelapor') {
+    return true;
+  }
+
+  if (file.type_attachment_code === 'bukti_penanganan') {
     return false;
   }
 
@@ -358,10 +393,11 @@ function splitReportAttachments(attachments) {
   };
 }
 
-async function redirectCompleteWithError(req, res, reportId, message) {
+
+async function redirectCompleteWithError(req, res, ticketId, message) {
   await cleanupUploadedFiles(req);
   req.flash('error_msg', message);
-  return res.redirect(`/reports/${reportId}`);
+  return res.redirect(`/reports/${ticketId}`);
 }
 
 async function triggerTelegramFeedback(reportId, currentUser, feedbackType, options = {}) {
@@ -565,9 +601,21 @@ async function showReportQueueFragment(req, res) {
 
 async function checkNewReports(req, res) {
   try {
+    const rawReceivedAt = req.query.since_received_at;
+    const hasTimestamp = rawReceivedAt !== undefined && rawReceivedAt !== null
+      && !(typeof rawReceivedAt === 'string' && rawReceivedAt.trim() === '');
+    const sinceReceivedAt = hasTimestamp ? normalizeSinceReceivedAt(rawReceivedAt) : null;
+    const sinceTicketId = req.query.since_ticket_id === undefined ? '' : req.query.since_ticket_id;
     const sinceId = normalizeSinceReportId(req.query.since_id);
 
-    if (sinceId === null) {
+    if ((hasTimestamp && !sinceReceivedAt) || typeof sinceTicketId !== 'string' || sinceTicketId.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Parameter cursor polling tidak valid.'
+      });
+    }
+
+    if (!sinceReceivedAt && sinceId === null) {
       return res.status(400).json({
         success: false,
         message: 'Parameter since_id tidak valid.'
@@ -576,7 +624,9 @@ async function checkNewReports(req, res) {
 
     const stats = await reportModel.getNewReportStats(
       {
-        sinceId,
+        sinceReceivedAt,
+        sinceTicketId,
+        sinceId: sinceId === null ? 0 : sinceId,
         search: req.query.search || req.query.keyword || '',
         region: req.query.region || '',
         workStatus: normalizeWorkStatus(req.query.work_status)
@@ -588,7 +638,9 @@ async function checkNewReports(req, res) {
       success: true,
       hasNewReports: stats.newCount > 0,
       newCount: stats.newCount,
-      latestReportId: stats.latestReportId
+      latestReportId: stats.latestReportId,
+      latest_received_at: stats.latest_received_at,
+      latest_ticket_id: stats.latest_ticket_id
     });
   } catch (error) {
     console.error(error);
@@ -599,17 +651,35 @@ async function checkNewReports(req, res) {
   }
 }
 
+async function resolveReportForController(param, currentUser) {
+  const identifier = param == null ? '' : String(param).trim();
+
+  if (!identifier) {
+    return null;
+  }
+
+  if (/^\d+$/.test(identifier)) {
+    const report = await reportModel.getReportById(identifier, currentUser);
+    if (report) {
+      return report;
+    }
+  }
+
+  const report = await reportModel.findByTicketId(identifier);
+  return report ? reportModel.getReportById(report.id, currentUser) : null;
+}
+
 async function showReportDetail(req, res) {
   try {
-    const reportId = req.params.id;
-    const report = await reportModel.getReportById(reportId, req.session.user);
+    const identifier = req.params.ticketId || req.params.id;
+    const report = await resolveReportForController(identifier, req.session.user);
 
     if (!report) {
       req.flash('error_msg', 'Laporan tidak ditemukan.');
       return res.redirect('/reports');
     }
 
-    const attachments = await reportModel.getAttachmentsByReportId(reportId);
+    const attachments = await reportModel.getAttachmentsByReportId(report.id);
     const {
       completionAttachments,
       telegramAttachments
@@ -646,8 +716,8 @@ async function showReportDetail(req, res) {
 
 async function showReportDetailJson(req, res) {
   try {
-    const reportId = req.params.id;
-    const report = await reportModel.getReportById(reportId, req.session.user);
+    const identifier = req.params.ticketId || req.params.id;
+    const report = await resolveReportForController(identifier, req.session.user);
 
     if (!report) {
       return res.status(404).json({
@@ -656,14 +726,14 @@ async function showReportDetailJson(req, res) {
       });
     }
 
-    const attachments = await reportModel.getAttachmentsByReportId(reportId);
-    const telegramAttachments = await attachmentModel.getAttachmentsByReportId(reportId);
-    const telegramLogMedia = await reportModel.getTelegramAdditionalMediaByReportId(reportId);
-    const reportLogs = await reportModel.getReportLogsByReportId(reportId);
+    const attachments = await reportModel.getAttachmentsByReportId(report.id);
+    const telegramAttachments = await attachmentModel.getAttachmentsByReportId(report.id);
+    const telegramLogMedia = await reportModel.getTelegramAdditionalMediaByReportId(report.id);
+    const reportLogs = await reportModel.getReportLogsByTicketId(report.ticket_id);
 
     return res.json({
       success: true,
-      fallbackUrl: `/reports/${report.id}`,
+      fallbackUrl: `/reports/${report.ticket_id}`,
       report: buildReportDetailPayload(report),
       attachments: (attachments || [])
         .filter((file) => !isTelegramAttachment(file))
@@ -684,12 +754,19 @@ async function showReportDetailJson(req, res) {
 }
 
 async function takeReport(req, res) {
-  const redirectPath = normalizeReportReturnPath(req, '/reports');
+  let redirectPath = normalizeReportReturnPath(req, '/reports');
 
   try {
-    const reportId = req.params.id;
-    const result = await reportModel.takeReport(reportId, req.session.user);
-    await triggerTelegramFeedback(reportId, req.session.user, 'assigned');
+    const identifier = req.params.ticketId || req.params.id;
+    const report = await resolveReportForController(identifier, req.session.user);
+
+    if (!report) {
+      throw new Error('Laporan tidak ditemukan atau tidak dapat diakses.');
+    }
+
+    redirectPath = normalizeReportReturnPath(req, `/reports/${report.ticket_id}`);
+    const result = await reportModel.takeReport(report.ticket_id, req.session.user);
+    await triggerTelegramFeedback(report.id, req.session.user, 'assigned');
 
     return sendQuickActionSuccess(req, res, result, redirectPath);
   } catch (error) {
@@ -699,13 +776,20 @@ async function takeReport(req, res) {
 }
 
 async function markReportInProgress(req, res) {
-  const fallbackPath = `/reports/${req.params.id}`;
-  const redirectPath = normalizeReportReturnPath(req, fallbackPath);
+  let redirectPath = normalizeReportReturnPath(req, '/reports');
 
   try {
-    const reportId = req.params.id;
-    const result = await reportModel.markReportInProgress(reportId, req.session.user);
-    await triggerTelegramFeedback(reportId, req.session.user, 'in_progress');
+    const identifier = req.params.ticketId || req.params.id;
+    const report = await resolveReportForController(identifier, req.session.user);
+
+    if (!report) {
+      throw new Error('Laporan tidak ditemukan atau tidak dapat diakses.');
+    }
+
+    const fallbackPath = `/reports/${report.ticket_id}`;
+    redirectPath = normalizeReportReturnPath(req, fallbackPath);
+    const result = await reportModel.markReportInProgress(report.id, req.session.user);
+    await triggerTelegramFeedback(report.id, req.session.user, 'in_progress');
 
     return sendQuickActionSuccess(req, res, result, redirectPath);
   } catch (error) {
@@ -715,19 +799,27 @@ async function markReportInProgress(req, res) {
 }
 
 async function completeReport(req, res) {
+  let report = null;
+
   try {
-    const reportId = req.params.id;
+    const identifier = req.params.ticketId || req.params.id;
+    report = await resolveReportForController(identifier, req.session.user);
+
+    if (!report) {
+      throw new Error('Laporan tidak ditemukan atau tidak dapat diakses.');
+    }
+
     const completionStatus =
       typeof req.body.completion_status === 'string'
         ? req.body.completion_status.trim().toLowerCase()
         : '';
 
     if (!completionStatus) {
-      return redirectCompleteWithError(req, res, reportId, 'Status akhir wajib dipilih.');
+      return redirectCompleteWithError(req, res, report.ticket_id, 'Status akhir wajib dipilih.');
     }
 
     if (!ALLOWED_FINAL_STATUSES.includes(completionStatus)) {
-      return redirectCompleteWithError(req, res, reportId, 'Status akhir tidak valid.');
+      return redirectCompleteWithError(req, res, report.ticket_id, 'Status akhir tidak valid.');
     }
 
     req.body.completion_status = completionStatus;
@@ -738,7 +830,7 @@ async function completeReport(req, res) {
         : '';
 
     if (completionStatus === 'perlu_tindak_lanjut' && !completionNotes) {
-      return redirectCompleteWithError(req, res, reportId, 'Catatan return wajib diisi untuk status perlu tindak lanjut.');
+      return redirectCompleteWithError(req, res, report.ticket_id, 'Catatan return wajib diisi untuk status perlu tindak lanjut.');
     }
 
     req.body.completion_notes = completionNotes;
@@ -749,47 +841,55 @@ async function completeReport(req, res) {
         : '';
 
     if (completionStatus === 'eskalasi' && !diitCode) {
-      return redirectCompleteWithError(req, res, reportId, 'Kode DIIT wajib diisi untuk status eskalasi.');
+      return redirectCompleteWithError(req, res, report.ticket_id, 'Kode DIIT wajib diisi untuk status eskalasi.');
     }
 
     if (completionStatus === 'eskalasi' && diitCode.length > 100) {
-      return redirectCompleteWithError(req, res, reportId, 'Kode DIIT maksimal 100 karakter.');
+      return redirectCompleteWithError(req, res, report.ticket_id, 'Kode DIIT maksimal 100 karakter.');
     }
 
     req.body.diit_code = completionStatus === 'eskalasi' ? diitCode : '';
 
     const result = await reportModel.completeReport(
-      reportId,
+      report.ticket_id,
       req.session.user,
       req.body,
       getUploadedEvidenceFiles(req)
     );
 
     if (completionStatus === 'perlu_tindak_lanjut') {
-      await triggerTelegramFeedback(reportId, req.session.user, 'return_evidence', {
+      await triggerTelegramFeedback(report.id, req.session.user, 'return_evidence', {
         notes: req.body.completion_notes
       });
     } else if (completionStatus === 'eskalasi') {
-      await triggerTelegramFeedback(reportId, req.session.user, 'escalation', {
+      await triggerTelegramFeedback(report.id, req.session.user, 'escalation', {
         diitCode
       });
     } else {
-      await triggerTelegramFeedback(reportId, req.session.user, 'completed');
+      await triggerTelegramFeedback(report.id, req.session.user, 'completed');
     }
 
     req.flash('success_msg', result.message);
-    return res.redirect(`/reports/${reportId}`);
+    return res.redirect(`/reports/${report.ticket_id}`);
   } catch (error) {
     console.error(error);
     await cleanupUploadedFiles(req);
     req.flash('error_msg', error.message || 'Gagal menyelesaikan laporan.');
-    return res.redirect(`/reports/${req.params.id}`);
+    return res.redirect(report ? `/reports/${report.ticket_id}` : '/reports');
   }
 }
 
 async function delegateReport(req, res) {
+  let report = null;
+
   try {
-    const reportId = req.params.id;
+    const identifier = req.params.ticketId || req.params.id;
+    report = await resolveReportForController(identifier, req.session.user);
+
+    if (!report) {
+      throw new Error('Laporan tidak ditemukan atau tidak dapat diakses.');
+    }
+
     const { target_user_id } = req.body;
     const delegation_notes =
       typeof req.body.delegation_notes === 'string'
@@ -798,33 +898,41 @@ async function delegateReport(req, res) {
 
     if (!target_user_id) {
       req.flash('error_msg', 'Pegawai tujuan delegasi wajib dipilih.');
-      return res.redirect(`/reports/${reportId}`);
+      return res.redirect(`/reports/${report.ticket_id}`);
     }
 
     if (!delegation_notes) {
       req.flash('error_msg', 'Alasan delegasi wajib diisi.');
-      return res.redirect(`/reports/${reportId}`);
+      return res.redirect(`/reports/${report.ticket_id}`);
     }
 
     const result = await reportModel.delegateReport(
-      reportId,
+      report.ticket_id,
       req.session.user,
       target_user_id,
       delegation_notes
     );
 
     req.flash('success_msg', result.message);
-    return res.redirect(`/reports/${reportId}`);
+    return res.redirect(`/reports/${report.ticket_id}`);
   } catch (error) {
     console.error(error);
     req.flash('error_msg', error.message || 'Gagal melakukan delegasi.');
-    return res.redirect(`/reports/${req.params.id}`);
+    return res.redirect(report ? `/reports/${report.ticket_id}` : '/reports');
   }
 }
 
 async function cancelAssignment(req, res) {
+  let report = null;
+
   try {
-    const reportId = req.params.id;
+    const identifier = req.params.ticketId || req.params.id;
+    report = await resolveReportForController(identifier, req.session.user);
+
+    if (!report) {
+      throw new Error('Laporan tidak ditemukan atau tidak dapat diakses.');
+    }
+
     const cancel_notes =
       typeof req.body.cancel_notes === 'string'
         ? req.body.cancel_notes.trim()
@@ -832,21 +940,21 @@ async function cancelAssignment(req, res) {
 
     if (!cancel_notes) {
       req.flash('error_msg', 'Alasan pembatalan wajib diisi.');
-      return res.redirect(`/reports/${reportId}`);
+      return res.redirect(`/reports/${report.ticket_id}`);
     }
 
     const result = await reportModel.cancelAssignment(
-      reportId,
+      report.ticket_id,
       req.session.user,
       cancel_notes
     );
 
     req.flash('success_msg', result.message);
-    return res.redirect(`/reports/${reportId}`);
+    return res.redirect(`/reports/${report.ticket_id}`);
   } catch (error) {
     console.error(error);
     req.flash('error_msg', error.message || 'Gagal membatalkan penugasan.');
-    return res.redirect(`/reports/${req.params.id}`);
+    return res.redirect(report ? `/reports/${report.ticket_id}` : '/reports');
   }
 }
 
@@ -860,5 +968,9 @@ module.exports = {
   markReportInProgress,
   completeReport,
   delegateReport,
-  cancelAssignment
+  cancelAssignment,
+  buildAttachmentPayload,
+  isCompletionEvidenceAttachment,
+  isTelegramAttachment,
+  splitReportAttachments
 };

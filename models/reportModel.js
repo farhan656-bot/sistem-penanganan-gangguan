@@ -1,6 +1,7 @@
 const path = require('path');
 const pool = require('../config/db');
 const regionSwitchModel = require('./regionSwitchModel');
+const attachmentModel = require('./attachmentModel');
 
 const ALLOWED_FINAL_STATUSES = ['selesai', 'perlu_tindak_lanjut', 'eskalasi'];
 const OPPOSITE_REGION_MAP = {
@@ -98,7 +99,7 @@ function appendRegionIdAccessCondition(sql, regionIds) {
   }
 
   const placeholders = buildPlaceholders(regionIds);
-  return `${sql} AND reports.current_region_id IN (${placeholders}) `;
+  return `${sql} AND reports.reported_region_id IN (${placeholders}) `;
 }
 
 async function ensureCoordinatorCanAccessReportRegion(regionId, db = pool) {
@@ -269,12 +270,12 @@ async function applyReportListScope(
     if (regionIds.length > 0) {
       const placeholders = buildPlaceholders(regionIds);
       sql += ` AND (
-        reports.current_region_id IN (${placeholders})
-        OR reports.current_assigned_user_id = ?
+        reports.reported_region_id IN (${placeholders})
+        OR ra.assigned_to_user_id = ?
       ) `;
       params.push(...regionIds, currentUser.id);
     } else {
-      sql += ` AND reports.current_assigned_user_id = ? `;
+      sql += ` AND ra.assigned_to_user_id = ? `;
       params.push(currentUser.id);
     }
   }
@@ -321,6 +322,7 @@ async function getReports(
     SELECT
       reports.id,
       reports.ticket_id,
+      reports.received_at,
       reports.order_id,
       reports.service_type,
       reports.provider,
@@ -329,12 +331,13 @@ async function getReports(
       reports.sto,
       reports.summary,
       reports.status_internal,
-      reports.current_assigned_user_id,
+      ra.assigned_to_user_id,
       regions.code AS region_code,
       users.full_name AS assigned_user_name
     FROM reports
-    LEFT JOIN regions ON reports.current_region_id = regions.id
-    LEFT JOIN users ON reports.current_assigned_user_id = users.id
+    LEFT JOIN regions ON reports.reported_region_id = regions.id
+    LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
+    LEFT JOIN users ON ra.assigned_to_user_id = users.id
     WHERE 1=1
   `;
   const params = [];
@@ -361,6 +364,9 @@ async function getReports(
   filteredQuery.params.push(normalizedLimit, normalizedOffset);
 
   const [rows] = await pool.query(sql, filteredQuery.params);
+  for (const row of rows) {
+    row.current_assigned_user_id = row.assigned_to_user_id;
+  }
   return rows;
 }
 
@@ -372,7 +378,8 @@ async function getReportCount(
   let sql = `
     SELECT COUNT(*) AS total
     FROM reports
-    LEFT JOIN regions ON reports.current_region_id = regions.id
+    LEFT JOIN regions ON reports.reported_region_id = regions.id
+    LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
     WHERE 1=1
   `;
   const params = [];
@@ -407,7 +414,8 @@ async function getReportWorkStatusCounts(
       COALESCE(SUM(CASE WHEN reports.status_internal = 'perlu_tindak_lanjut' THEN 1 ELSE 0 END), 0) AS follow_up,
       COALESCE(SUM(CASE WHEN reports.status_internal = 'eskalasi' THEN 1 ELSE 0 END), 0) AS escalated
     FROM reports
-    LEFT JOIN regions ON reports.current_region_id = regions.id
+    LEFT JOIN regions ON reports.reported_region_id = regions.id
+    LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
     WHERE 1=1
   `;
   const params = [];
@@ -432,23 +440,38 @@ async function getReportWorkStatusCounts(
 }
 
 async function getNewReportStats(
-  { sinceId = 0, search = '', region = '', workStatus = 'all' },
+  { sinceReceivedAt = null, sinceTicketId = '', sinceId = 0, search = '', region = '', workStatus = 'all' },
   currentUser,
   accessContext = null
 ) {
   const normalizedSinceId = Number.isSafeInteger(Number(sinceId)) && Number(sinceId) >= 0
     ? Number(sinceId)
     : 0;
+  // Date parameters use the same mysql2 timezone conversion as report reads.
+  const sinceDate = sinceReceivedAt ? new Date(sinceReceivedAt) : null;
+  if (sinceDate && !Number.isFinite(sinceDate.getTime())) {
+    throw new Error('Cursor received_at tidak valid.');
+  }
+  if (typeof sinceTicketId !== 'string' || sinceTicketId.length > 100) {
+    throw new Error('Cursor ticket_id tidak valid.');
+  }
+  const cursorPredicate = sinceDate
+    ? `(
+        COALESCE(reports.received_at, reports.created_at) > ?
+        OR (
+          COALESCE(reports.received_at, reports.created_at) = ?
+          AND reports.ticket_id > ?
+        )
+      )`
+    : 'reports.id > ?';
   let sql = `
-    SELECT
-      COUNT(*) AS new_count,
-      COALESCE(MAX(reports.id), ?) AS latest_report_id
     FROM reports
-    LEFT JOIN regions ON reports.current_region_id = regions.id
-    WHERE reports.id > ?
+    LEFT JOIN regions ON reports.reported_region_id = regions.id
+    LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
+    WHERE ${cursorPredicate}
       AND reports.source_channel = 'telegram'
   `;
-  const params = [normalizedSinceId, normalizedSinceId];
+  const params = sinceDate ? [sinceDate, sinceDate, sinceTicketId] : [normalizedSinceId];
   const scopedQuery = await applyReportListScope(
     sql,
     params,
@@ -461,12 +484,34 @@ async function getNewReportStats(
     scopedQuery.params,
     Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
   );
-  const [rows] = await pool.query(filteredQuery.sql, filteredQuery.params);
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS new_count,
+      COALESCE(MAX(reports.id), ?) AS latest_report_id
+    ${filteredQuery.sql}`,
+    [normalizedSinceId, ...filteredQuery.params]
+  );
   const stats = rows[0] || {};
+  const newCount = Number(stats.new_count) || 0;
+  let latestCursor = null;
+
+  if (newCount > 0) {
+    const [cursorRows] = await pool.query(
+      `SELECT
+        COALESCE(reports.received_at, reports.created_at) AS latest_received_at,
+        reports.ticket_id AS latest_ticket_id
+      ${filteredQuery.sql}
+      ORDER BY COALESCE(reports.received_at, reports.created_at) DESC, reports.ticket_id DESC
+      LIMIT 1`,
+      filteredQuery.params
+    );
+    latestCursor = cursorRows[0] || null;
+  }
 
   return {
-    newCount: Number(stats.new_count) || 0,
-    latestReportId: Number(stats.latest_report_id) || normalizedSinceId
+    newCount,
+    latestReportId: Number(stats.latest_report_id) || normalizedSinceId,
+    latest_received_at: latestCursor ? latestCursor.latest_received_at : sinceDate,
+    latest_ticket_id: latestCursor ? latestCursor.latest_ticket_id : (sinceDate ? sinceTicketId : '')
   };
 }
 
@@ -478,7 +523,8 @@ async function getLatestReportId(
   let sql = `
     SELECT COALESCE(MAX(reports.id), 0) AS latest_report_id
     FROM reports
-    LEFT JOIN regions ON reports.current_region_id = regions.id
+    LEFT JOIN regions ON reports.reported_region_id = regions.id
+    LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
     WHERE reports.source_channel = 'telegram'
   `;
   const params = [];
@@ -577,8 +623,6 @@ async function createTelegramReport(parsedData, telegramMeta) {
         status_andalas,
         status_internal,
         reported_region_id,
-        current_region_id,
-        current_assigned_user_id,
         telegram_chat_id,
         telegram_message_id,
         telegram_sender_id,
@@ -590,7 +634,7 @@ async function createTelegramReport(parsedData, telegramMeta) {
         updated_at
       )
       VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tersedia', ?, ?, NULL, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'tersedia', ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
       `,
       [
         'telegram',
@@ -610,7 +654,6 @@ async function createTelegramReport(parsedData, telegramMeta) {
         normalizeOptionalField(parsedData.status_wfm),
         normalizeOptionalField(parsedData.status_andalas),
         selectedRegion.id,
-        selectedRegion.id,
         String(meta.chat_id),
         String(meta.message_id),
         telegramSenderId,
@@ -620,17 +663,13 @@ async function createTelegramReport(parsedData, telegramMeta) {
       ]
     );
 
-    await connection.query(
-      `
-      INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-      VALUES (?, ?, 'create_telegram_report', ?, NOW())
-      `,
-      [
-        insertResult.insertId,
-        null,
-        `Laporan dari Telegram diterima dengan ticket_id ${ticketId}, order_id ${orderId}, source telegram, chat_id ${meta.chat_id}.`
-      ]
-    );
+    await createReportLog({
+      report_id: insertResult.insertId,
+      ticket_id: ticketId,
+      user_id: null,
+      action: 'create_telegram_report',
+      description: `Laporan dari Telegram diterima dengan ticket_id ${ticketId}, order_id ${orderId}, source telegram, chat_id ${meta.chat_id}.`
+    }, connection);
 
     await connection.commit();
 
@@ -664,8 +703,7 @@ async function findByTicketId(ticketId) {
       order_id,
       telegram_chat_id,
       telegram_message_id,
-      status_internal,
-      current_assigned_user_id
+      status_internal
     FROM reports
     WHERE UPPER(TRIM(ticket_id)) = UPPER(TRIM(?))
     LIMIT 1
@@ -701,13 +739,7 @@ async function getTelegramFeedbackPayloadByReportId(reportId) {
 }
 
 async function logTelegramFeedback(reportId, action, description, userId = null) {
-  await pool.query(
-    `
-    INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-    VALUES (?, ?, ?, ?, NOW())
-    `,
-    [reportId, userId, action, description]
-  );
+  await createReportLog({ report_id: reportId, user_id: userId, action, description });
 }
 
 async function storeTelegramAdditionalData(reportId, payload) {
@@ -727,13 +759,12 @@ async function storeTelegramAdditionalData(reportId, payload) {
     `Media Metadata: ${payload.media_metadata ? JSON.stringify(payload.media_metadata) : '-'}`
   ].join(' | ');
 
-  await pool.query(
-    `
-    INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-    VALUES (?, NULL, 'telegram_additional_data_received', ?, NOW())
-    `,
-    [reportId, description]
-  );
+  await createReportLog({
+    report_id: reportId,
+    user_id: null,
+    action: 'telegram_additional_data_received',
+    description
+  });
 
   return {
     success: true,
@@ -759,13 +790,12 @@ async function logTelegramTextEnrichmentFailure(reportId, payload) {
   }
 
   try {
-    await pool.query(
-      `
-      INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-      VALUES (?, NULL, 'telegram_text_enrichment_failed', ?, NOW())
-      `,
-      [reportId, description]
-    );
+    await createReportLog({
+      report_id: reportId,
+      user_id: null,
+      action: 'telegram_text_enrichment_failed',
+      description
+    });
   } catch (error) {
     console.error('Gagal mencatat log enrichment gagal:', error.message || error);
   }
@@ -873,13 +903,13 @@ async function applyTelegramTextEnrichment(reportId, payload) {
       telegramMeta: payload.telegram_meta
     });
 
-    await connection.query(
-      `
-      INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-      VALUES (?, NULL, ?, ?, NOW())
-      `,
-      [reportId, actionMap[status], description]
-    );
+    await createReportLog({
+      report_id: report.id,
+      ticket_id: report.ticket_id,
+      user_id: null,
+      action: actionMap[status],
+      description
+    }, connection);
 
     await connection.commit();
 
@@ -905,13 +935,14 @@ async function getReportById(reportId, currentUser) {
       reports.*,
       rr.code AS reported_region_code,
       rr.name AS reported_region_name,
-      cr.code AS current_region_code,
-      cr.name AS current_region_name,
+      rr.code AS region_code,
+      rr.name AS region_name,
+      ra.assigned_to_user_id,
       u.full_name AS assigned_user_name
     FROM reports
     LEFT JOIN regions rr ON reports.reported_region_id = rr.id
-    LEFT JOIN regions cr ON reports.current_region_id = cr.id
-    LEFT JOIN users u ON reports.current_assigned_user_id = u.id
+    LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
+    LEFT JOIN users u ON ra.assigned_to_user_id = u.id
     WHERE reports.id = ?
   `;
 
@@ -930,21 +961,27 @@ async function getReportById(reportId, currentUser) {
     if (allowedRegionIds.length > 0) {
       const placeholders = buildPlaceholders(allowedRegionIds);
       sql += ` AND (
-        reports.current_region_id IN (${placeholders})
-        OR reports.current_assigned_user_id = ?
+        reports.reported_region_id IN (${placeholders})
+        OR ra.assigned_to_user_id = ?
       ) `;
       params.push(...allowedRegionIds, currentUser.id);
     } else {
-      sql += ` AND reports.current_assigned_user_id = ? `;
+      sql += ` AND ra.assigned_to_user_id = ? `;
       params.push(currentUser.id);
     }
   }
 
   const [rows] = await pool.query(sql, params);
-  return rows[0] || null;
+  const row = rows[0] || null;
+  if (row) {
+    row.current_region_code = row.reported_region_code;
+    row.current_region_name = row.reported_region_name;
+    row.current_assigned_user_id = row.assigned_to_user_id;
+  }
+  return row;
 }
 
-async function takeReport(reportId, currentUser) {
+async function takeReport(ticketIdOrId, currentUser) {
   const connection = await pool.getConnection();
 
   try {
@@ -953,12 +990,17 @@ async function takeReport(reportId, currentUser) {
 
     const [rows] = await connection.query(
       `
-      SELECT id, ticket_id, status_internal, current_region_id, current_assigned_user_id
+      SELECT
+        id,
+        ticket_id,
+        status_internal,
+        reported_region_id
       FROM reports
-      WHERE id = ?
+      WHERE ticket_id = ? OR id = ?
+      LIMIT 1
       FOR UPDATE
       `,
-      [reportId]
+      [ticketIdOrId, ticketIdOrId]
     );
 
     if (rows.length === 0) {
@@ -971,18 +1013,29 @@ async function takeReport(reportId, currentUser) {
       throw new Error('Laporan sudah tidak tersedia untuk diambil.');
     }
 
-    if (report.current_assigned_user_id) {
+    const [activeAssignmentRows] = await connection.query(
+      `
+      SELECT id, assigned_to_user_id
+      FROM report_assignments
+      WHERE ticket_id = ? AND is_active = 1
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [report.ticket_id]
+    );
+
+    if (activeAssignmentRows.length > 0) {
       throw new Error('Laporan sudah memiliki penanggung jawab.');
     }
 
     if (currentUserRole === 'koordinator') {
-      await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
+      await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
     }
 
     if (currentUserRole === 'eksekutor') {
       const allowedRegionIds = await getExecutorAllowedRegionIds(currentUser);
       const canAccessReportRegion = allowedRegionIds.some(
-        (regionId) => Number(regionId) === Number(report.current_region_id)
+        (regionId) => Number(regionId) === Number(report.reported_region_id)
       );
 
       if (!canAccessReportRegion) {
@@ -990,7 +1043,6 @@ async function takeReport(reportId, currentUser) {
       }
     }
 
-    const assignmentRegionId = report.current_region_id;
     const assignmentNotes = currentUserRole === 'koordinator'
       ? 'Laporan diambil oleh koordinator untuk membantu penanganan.'
       : 'Laporan diambil sendiri oleh eksekutor.';
@@ -1000,12 +1052,11 @@ async function takeReport(reportId, currentUser) {
       UPDATE reports
       SET
         status_internal = 'diambil',
-        current_assigned_user_id = ?,
         taken_at = NOW(),
         updated_at = NOW()
       WHERE id = ?
       `,
-      [currentUser.id, reportId]
+      [report.id]
     );
 
     await connection.query(
@@ -1013,38 +1064,32 @@ async function takeReport(reportId, currentUser) {
       INSERT INTO report_assignments
       (
         report_id,
+        ticket_id,
         assigned_to_user_id,
         assigned_by_user_id,
-        from_region_id,
-        to_region_id,
         assignment_type,
         notes,
         is_active,
         assigned_at
       )
-      VALUES (?, ?, ?, ?, ?, 'self_take', ?, 1, NOW())
+      VALUES (?, ?, ?, ?, 'self_take', ?, 1, NOW())
       `,
       [
-        reportId,
+        report.id,
+        report.ticket_id,
         currentUser.id,
         currentUser.id,
-        assignmentRegionId,
-        assignmentRegionId,
         assignmentNotes
       ]
     );
 
-    await connection.query(
-      `
-      INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-      VALUES (?, ?, 'take_report', ?, NOW())
-      `,
-      [
-        reportId,
-        currentUser.id,
-        `Laporan diambil oleh ${currentUser.full_name}.`
-      ]
-    );
+    await createReportLog({
+      report_id: report.id,
+      ticket_id: report.ticket_id,
+      user_id: currentUser.id,
+      action: 'take_report',
+      description: `Laporan diambil oleh ${currentUser.full_name}.`
+    }, connection);
 
     await connection.commit();
 
@@ -1060,7 +1105,7 @@ async function takeReport(reportId, currentUser) {
   }
 }
 
-async function completeReport(reportId, currentUser, formData, fileData) {
+async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
   const connection = await pool.getConnection();
 
   try {
@@ -1068,12 +1113,17 @@ async function completeReport(reportId, currentUser, formData, fileData) {
 
     const [rows] = await connection.query(
       `
-      SELECT id, ticket_id, status_internal, current_region_id, current_assigned_user_id
+      SELECT
+        id,
+        ticket_id,
+        status_internal,
+        reported_region_id
       FROM reports
-      WHERE id = ?
+      WHERE ticket_id = ? OR id = ?
+      LIMIT 1
       FOR UPDATE
       `,
-      [reportId]
+      [ticketIdOrId, ticketIdOrId]
     );
 
     if (rows.length === 0) {
@@ -1087,9 +1137,27 @@ async function completeReport(reportId, currentUser, formData, fileData) {
     }
 
     if (getCurrentUserRole(currentUser) === 'koordinator') {
-      await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
-    } else if (Number(report.current_assigned_user_id) !== Number(currentUser.id)) {
-      throw new Error('Anda bukan penanggung jawab laporan ini.');
+      await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
+    } else {
+      const [assignmentRows] = await connection.query(
+        `
+        SELECT assigned_to_user_id
+        FROM report_assignments
+        WHERE ticket_id = ?
+          AND is_active = 1
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+        [report.ticket_id]
+      );
+
+      const activeAssignedUserId = assignmentRows.length > 0
+        ? assignmentRows[0].assigned_to_user_id
+        : null;
+
+      if (!activeAssignedUserId || Number(activeAssignedUserId) !== Number(currentUser.id)) {
+        throw new Error('Anda bukan penanggung jawab laporan ini.');
+      }
     }
 
     const completionNotes =
@@ -1146,52 +1214,33 @@ async function completeReport(reportId, currentUser, formData, fileData) {
         completionNotes,
         finalStatus,
         storedDiitCode,
-        reportId
+        report.id
       ]
     );
 
     const uploadedFiles = normalizeUploadedFiles(fileData);
 
     for (const uploadedFile of uploadedFiles) {
-      await connection.query(
-        `
-        INSERT INTO report_attachments
-        (
-          report_id,
-          source,
-          uploaded_by_user_id,
-          file_name,
-          file_path,
-          mime_type,
-          file_size,
-          created_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-        `,
-        [
-          reportId,
-          'manual',
-          currentUser.id,
-          sanitizeAttachmentFileName(uploadedFile),
-          buildPublicUploadPath(uploadedFile),
-          uploadedFile.mimetype,
-          uploadedFile.size
-        ]
-      );
+      await attachmentModel.createAttachment({
+        report_id: report.id,
+        ticket_id: report.ticket_id,
+        type_attachment_code: 'bukti_penanganan',
+        source: 'manual',
+        uploaded_by_user_id: currentUser.id,
+        file_name: sanitizeAttachmentFileName(uploadedFile),
+        file_path: buildPublicUploadPath(uploadedFile),
+        mime_type: uploadedFile.mimetype,
+        file_size: uploadedFile.size
+      }, connection);
     }
 
-    await connection.query(
-      `
-      INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-      VALUES (?, ?, ?, ?, NOW())
-      `,
-      [
-        reportId,
-        currentUser.id,
-        logMeta.action,
-        logDescription
-      ]
-    );
+    await createReportLog({
+      report_id: report.id,
+      ticket_id: report.ticket_id,
+      user_id: currentUser.id,
+      action: logMeta.action,
+      description: logDescription
+    }, connection);
 
     await connection.commit();
 
@@ -1215,7 +1264,7 @@ async function markReportInProgress(reportId, currentUser) {
 
     const [rows] = await connection.query(
       `
-      SELECT id, ticket_id, status_internal, current_region_id, current_assigned_user_id
+      SELECT id, ticket_id, status_internal, reported_region_id
       FROM reports
       WHERE id = ?
       FOR UPDATE
@@ -1234,9 +1283,27 @@ async function markReportInProgress(reportId, currentUser) {
     }
 
     if (getCurrentUserRole(currentUser) === 'koordinator') {
-      await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
-    } else if (Number(report.current_assigned_user_id) !== Number(currentUser.id)) {
-      throw new Error('Anda bukan penanggung jawab aktif laporan ini.');
+      await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
+    } else {
+      const [assignmentRows] = await connection.query(
+        `
+        SELECT assigned_to_user_id
+        FROM report_assignments
+        WHERE ticket_id = ?
+          AND is_active = 1
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+        [report.ticket_id]
+      );
+
+      const activeAssignedUserId = assignmentRows.length > 0
+        ? assignmentRows[0].assigned_to_user_id
+        : null;
+
+      if (!activeAssignedUserId || Number(activeAssignedUserId) !== Number(currentUser.id)) {
+        throw new Error('Anda bukan penanggung jawab aktif laporan ini.');
+      }
     }
 
     await connection.query(
@@ -1250,17 +1317,13 @@ async function markReportInProgress(reportId, currentUser) {
       [reportId]
     );
 
-    await connection.query(
-      `
-      INSERT INTO report_logs (report_id, user_id, action, description, created_at)
-      VALUES (?, ?, 'in_progress_report', ?, NOW())
-      `,
-      [
-        reportId,
-        currentUser.id,
-        `Laporan sedang dikerjakan oleh ${currentUser.full_name}.`
-      ]
-    );
+    await createReportLog({
+      report_id: report.id,
+      ticket_id: report.ticket_id,
+      user_id: currentUser.id,
+      action: 'in_progress_report',
+      description: `Laporan sedang dikerjakan oleh ${currentUser.full_name}.`
+    }, connection);
 
     await connection.commit();
 
@@ -1276,7 +1339,7 @@ async function markReportInProgress(reportId, currentUser) {
   }
 }
 
-async function delegateReport(reportId, currentUser, targetUserId, notes) {
+async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
   const connection = await pool.getConnection();
 
   try {
@@ -1285,16 +1348,16 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
     const [reportRows] = await connection.query(
       `
       SELECT
-        reports.id,
-        reports.ticket_id,
-        reports.status_internal,
-        reports.current_region_id,
-        reports.current_assigned_user_id
+        id,
+        ticket_id,
+        status_internal,
+        reported_region_id
       FROM reports
-      WHERE reports.id = ?
+      WHERE ticket_id = ? OR id = ?
+      LIMIT 1
       FOR UPDATE
       `,
-      [reportId]
+      [ticketIdOrId, ticketIdOrId]
     );
 
     if (reportRows.length === 0) {
@@ -1303,7 +1366,7 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
 
     const report = reportRows[0];
 
-    await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
+    await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
 
     if (!['tersedia', 'diambil', 'didelegasikan'].includes(report.status_internal)) {
       throw new Error('Delegasi hanya dapat dilakukan pada laporan yang tersedia atau sedang ditangani.');
@@ -1338,7 +1401,7 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
 
     const [reportRegionRows] = await connection.query(
       `SELECT code FROM regions WHERE id = ?`,
-      [report.current_region_id]
+      [report.reported_region_id]
     );
 
     if (reportRegionRows.length === 0) {
@@ -1356,9 +1419,24 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
       throw new Error(`Delegasi untuk laporan ${reportRegionCode} hanya boleh ke pegawai wilayah ${expectedTargetRegion}.`);
     }
 
+    const [activeAssignmentRows] = await connection.query(
+      `
+      SELECT assigned_to_user_id
+      FROM report_assignments
+      WHERE ticket_id = ? AND is_active = 1
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [report.ticket_id]
+    );
+
+    const currentActiveUserId = activeAssignmentRows.length > 0
+      ? activeAssignmentRows[0].assigned_to_user_id
+      : null;
+
     if (
-      report.current_assigned_user_id &&
-      Number(report.current_assigned_user_id) === Number(targetUserId)
+      currentActiveUserId &&
+      Number(currentActiveUserId) === Number(targetUserId)
     ) {
       throw new Error('Pegawai tujuan delegasi tidak boleh sama dengan penanggung jawab saat ini.');
     }
@@ -1367,10 +1445,10 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
       `
       UPDATE report_assignments
       SET is_active = 0
-      WHERE report_id = ?
+      WHERE (report_id = ? OR ticket_id = ?)
         AND is_active = 1
       `,
-      [reportId]
+      [report.id, report.ticket_id]
     );
 
     if (report.status_internal === 'tersedia') {
@@ -1379,12 +1457,11 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
         UPDATE reports
         SET
           status_internal = 'didelegasikan',
-          current_assigned_user_id = ?,
           taken_at = NOW(),
           updated_at = NOW()
         WHERE id = ?
         `,
-        [targetUser.id, reportId]
+        [report.id]
       );
     } else {
       await connection.query(
@@ -1392,11 +1469,10 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
         UPDATE reports
         SET
           status_internal = 'didelegasikan',
-          current_assigned_user_id = ?,
           updated_at = NOW()
         WHERE id = ?
         `,
-        [targetUser.id, reportId]
+        [report.id]
       );
     }
 
@@ -1405,39 +1481,32 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
       INSERT INTO report_assignments
       (
         report_id,
+        ticket_id,
         assigned_to_user_id,
         assigned_by_user_id,
-        from_region_id,
-        to_region_id,
         assignment_type,
         notes,
         is_active,
         assigned_at
       )
-      VALUES (?, ?, ?, ?, ?, 'delegation', ?, 1, NOW())
+      VALUES (?, ?, ?, ?, 'delegation', ?, 1, NOW())
       `,
       [
-        reportId,
+        report.id,
+        report.ticket_id,
         targetUser.id,
         currentUser.id,
-        report.current_region_id,
-        targetUser.region_id,
         notes || 'Delegasi oleh koordinator.'
       ]
     );
 
-    await connection.query(
-      `
-      INSERT INTO report_logs
-      (report_id, user_id, action, description, created_at)
-      VALUES (?, ?, 'delegate_report', ?, NOW())
-      `,
-      [
-        reportId,
-        currentUser.id,
-        `Laporan didelegasikan oleh ${currentUser.full_name} ke ${targetUser.full_name}. Alasan: ${notes || '-'}`
-      ]
-    );
+    await createReportLog({
+      report_id: report.id,
+      ticket_id: report.ticket_id,
+      user_id: currentUser.id,
+      action: 'delegate_report',
+      description: `Laporan didelegasikan oleh ${currentUser.full_name} ke ${targetUser.full_name}. Alasan: ${notes || '-'}`
+    }, connection);
 
     await connection.commit();
 
@@ -1453,7 +1522,7 @@ async function delegateReport(reportId, currentUser, targetUserId, notes) {
   }
 }
 
-async function cancelAssignment(reportId, currentUser, notes) {
+async function cancelAssignment(ticketIdOrId, currentUser, notes) {
   const connection = await pool.getConnection();
 
   try {
@@ -1462,16 +1531,16 @@ async function cancelAssignment(reportId, currentUser, notes) {
     const [reportRows] = await connection.query(
       `
       SELECT
-        reports.id,
-        reports.ticket_id,
-        reports.status_internal,
-        reports.current_region_id,
-        reports.current_assigned_user_id
+        id,
+        ticket_id,
+        status_internal,
+        reported_region_id
       FROM reports
-      WHERE reports.id = ?
+      WHERE ticket_id = ? OR id = ?
+      LIMIT 1
       FOR UPDATE
       `,
-      [reportId]
+      [ticketIdOrId, ticketIdOrId]
     );
 
     if (reportRows.length === 0) {
@@ -1480,13 +1549,24 @@ async function cancelAssignment(reportId, currentUser, notes) {
 
     const report = reportRows[0];
 
-    await ensureCoordinatorCanAccessReportRegion(report.current_region_id, connection);
+    await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
 
     if (!['diambil', 'didelegasikan'].includes(report.status_internal)) {
       throw new Error('Laporan tidak berada pada status yang bisa dibatalkan.');
     }
 
-    if (!report.current_assigned_user_id) {
+    const [activeAssignmentRows] = await connection.query(
+      `
+      SELECT id, assigned_to_user_id
+      FROM report_assignments
+      WHERE ticket_id = ? AND is_active = 1
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [report.ticket_id]
+    );
+
+    if (activeAssignmentRows.length === 0) {
       throw new Error('Laporan tidak memiliki penanggung jawab aktif.');
     }
 
@@ -1494,10 +1574,10 @@ async function cancelAssignment(reportId, currentUser, notes) {
       `
       UPDATE report_assignments
       SET is_active = 0
-      WHERE report_id = ?
+      WHERE (report_id = ? OR ticket_id = ?)
         AND is_active = 1
       `,
-      [reportId]
+      [report.id, report.ticket_id]
     );
 
     await connection.query(
@@ -1505,26 +1585,20 @@ async function cancelAssignment(reportId, currentUser, notes) {
       UPDATE reports
       SET
         status_internal = 'tersedia',
-        current_assigned_user_id = NULL,
         taken_at = NULL,
         updated_at = NOW()
       WHERE id = ?
       `,
-      [reportId]
+      [report.id]
     );
 
-    await connection.query(
-      `
-      INSERT INTO report_logs
-      (report_id, user_id, action, description, created_at)
-      VALUES (?, ?, 'cancel_assignment', ?, NOW())
-      `,
-      [
-        reportId,
-        currentUser.id,
-        `Penugasan dibatalkan oleh ${currentUser.full_name}. Alasan: ${notes || '-'}`
-      ]
-    );
+    await createReportLog({
+      report_id: report.id,
+      ticket_id: report.ticket_id,
+      user_id: currentUser.id,
+      action: 'cancel_assignment',
+      description: `Penugasan dibatalkan oleh ${currentUser.full_name}. Alasan: ${notes || '-'}`
+    }, connection);
 
     await connection.commit();
 
@@ -1540,16 +1614,20 @@ async function cancelAssignment(reportId, currentUser, notes) {
   }
 }
 
-async function getAttachmentsByReportId(reportId) {
-  const [rows] = await pool.query(
+async function getAttachmentsByReportId(reportId, trxConnection = null) {
+  const conn = trxConnection || pool;
+  const [rows] = await conn.query(
     `
     SELECT
-      report_attachments.*,
+      ra.*,
+      ta.code AS type_attachment_code,
+      ta.name AS type_attachment_name,
       users.full_name AS uploaded_by_name
-    FROM report_attachments
-    LEFT JOIN users ON report_attachments.uploaded_by_user_id = users.id
-    WHERE report_attachments.report_id = ?
-    ORDER BY report_attachments.created_at DESC
+    FROM report_attachments ra
+    LEFT JOIN type_attachment ta ON ra.type_attachment_id = ta.id
+    LEFT JOIN users ON ra.uploaded_by_user_id = users.id
+    WHERE ra.report_id = ?
+    ORDER BY ra.created_at DESC
     `,
     [reportId]
   );
@@ -1557,8 +1635,77 @@ async function getAttachmentsByReportId(reportId) {
   return rows;
 }
 
-async function getReportLogsByReportId(reportId) {
-  const [rows] = await pool.query(
+async function getAttachmentsByTicketId(ticketId, trxConnection = null) {
+  return attachmentModel.getAttachmentsByTicketId(ticketId, trxConnection);
+}
+
+
+async function resolveReportLogIdentity(logData, trxConnection = null) {
+  const conn = trxConnection || pool;
+  const hasReportId = logData.report_id !== undefined && logData.report_id !== null;
+  const hasTicketId = logData.ticket_id !== undefined && logData.ticket_id !== null;
+
+  if (!hasReportId && !hasTicketId) {
+    throw new Error('Identitas laporan wajib diisi untuk log.');
+  }
+
+  if (hasReportId && !/^[1-9]\d*$/.test(String(logData.report_id))) {
+    throw new Error('Report ID untuk log tidak valid.');
+  }
+
+  if (hasTicketId && (typeof logData.ticket_id !== 'string' || !logData.ticket_id.trim())) {
+    throw new Error('Ticket ID untuk log tidak valid.');
+  }
+
+  const conditions = [];
+  const params = [];
+
+  if (hasReportId) {
+    conditions.push('id = ?');
+    params.push(logData.report_id);
+  }
+
+  if (hasTicketId) {
+    conditions.push('ticket_id = ?');
+    params.push(logData.ticket_id);
+  }
+
+  const [rows] = await conn.query(
+    `SELECT id, ticket_id FROM reports WHERE ${conditions.join(' AND ')} LIMIT 1`,
+    params
+  );
+
+  return rows[0] || null;
+}
+
+async function createReportLog(logData, trxConnection = null) {
+  const conn = trxConnection || pool;
+  const report = await resolveReportLogIdentity(logData, conn);
+
+  if (!report || !report.id || !report.ticket_id) {
+    throw new Error('Identitas laporan untuk log tidak ditemukan atau tidak cocok.');
+  }
+
+  const [result] = await conn.query(
+    `
+    INSERT INTO report_logs (report_id, ticket_id, user_id, action, description, created_at)
+    VALUES (?, ?, ?, ?, ?, NOW())
+    `,
+    [report.id, report.ticket_id, logData.user_id ?? null, logData.action, logData.description ?? null]
+  );
+
+  return result.insertId;
+}
+
+async function getReportLogsByReportId(reportId, trxConnection = null) {
+  const report = await resolveReportLogIdentity({ report_id: reportId }, trxConnection);
+
+  return report ? getReportLogsByTicketId(report.ticket_id, trxConnection) : [];
+}
+
+async function getReportLogsByTicketId(ticketId, trxConnection = null) {
+  const conn = trxConnection || pool;
+  const [rows] = await conn.query(
     `
     SELECT
       report_logs.id,
@@ -1577,12 +1724,11 @@ async function getReportLogsByReportId(reportId) {
         ELSE 'Sistem'
       END AS actor_name
     FROM report_logs
-    JOIN reports ON reports.id = report_logs.report_id
     LEFT JOIN users ON report_logs.user_id = users.id
-    WHERE reports.id = ?
+    WHERE report_logs.ticket_id = ?
     ORDER BY report_logs.created_at ASC, report_logs.id ASC
     `,
-    [reportId]
+    [ticketId]
   );
 
   return rows;
@@ -1615,16 +1761,10 @@ function parseTelegramAdditionalLogDescription(description) {
 }
 
 async function getTelegramAdditionalMediaByReportId(reportId) {
-  const [rows] = await pool.query(
-    `
-    SELECT id, description, created_at
-    FROM report_logs
-    WHERE report_id = ?
-      AND action = 'telegram_additional_data_received'
-    ORDER BY created_at DESC
-    `,
-    [reportId]
-  );
+  const logs = await getReportLogsByReportId(reportId);
+  const rows = logs
+    .filter((log) => log.action === 'telegram_additional_data_received')
+    .reverse();
 
   const parsed = rows
     .map((row) => {
@@ -1666,6 +1806,9 @@ module.exports = {
   delegateReport,
   cancelAssignment,
   getAttachmentsByReportId,
+  getAttachmentsByTicketId,
+  createReportLog,
+  getReportLogsByTicketId,
   getReportLogsByReportId,
   getTelegramAdditionalMediaByReportId
 };

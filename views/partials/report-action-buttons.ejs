@@ -2,7 +2,9 @@
   const actionUser = (typeof currentUser !== 'undefined' && currentUser) ? currentUser : {};
   const actionRole = String(actionUser.role || '').trim().toLowerCase();
   const ticketStatus = String(report && report.status_internal ? report.status_internal : '').trim().toLowerCase();
-  const rawAssignedUserId = report ? report.current_assigned_user_id : null;
+  const rawAssignedUserId = report && report.assigned_to_user_id !== undefined
+    ? report.assigned_to_user_id
+    : null;
   const assignedUserId = rawAssignedUserId === null || rawAssignedUserId === undefined || rawAssignedUserId === ''
     ? null
     : Number(rawAssignedUserId);
@@ -21,19 +23,19 @@
 
 <div class="action-buttons">
   <a
-    href="/reports/<%= report.id %>"
+    href="/reports/<%= report.ticket_id %>"
     class="btn btn-sm btn-outline-secondary"
-    data-report-detail-url="/reports/<%= report.id %>/detail-json"
+    data-report-detail-url="/reports/<%= report.ticket_id %>/detail-json"
   >Detail</a>
 
   <% if (canTakeTicket) { %>
     <form
-      action="/reports/<%= report.id %>/take"
+      action="/reports/<%= report.ticket_id %>/take"
       method="POST"
       class="m-0"
       data-ticket-quick-action
       data-action-type="take"
-      data-report-id="<%= report.id %>"
+      data-ticket-id="<%= report.ticket_id %>"
       onsubmit="return confirm('Ambil laporan ini?');"
     >
       <button type="submit" class="btn btn-sm btn-primary">Ambil</button>
@@ -41,14 +43,14 @@
   <% } %>
 
   <% if (canContinueTicket) { %>
-    <a href="/reports/<%= report.id %>" class="btn btn-sm btn-primary">Kerjakan</a>
+    <a href="/reports/<%= report.ticket_id %>" class="btn btn-sm btn-primary">Kerjakan</a>
   <% } %>
 
   <% if (canDelegateTicket) { %>
-    <a href="/reports/<%= report.id %>" class="btn btn-sm btn-outline-primary">Delegasi</a>
+    <a href="/reports/<%= report.ticket_id %>" class="btn btn-sm btn-outline-primary">Delegasi</a>
   <% } %>
 
   <% if (canCancelAssignment) { %>
-    <a href="/reports/<%= report.id %>" class="btn btn-sm btn-outline-danger">Batalkan</a>
+    <a href="/reports/<%= report.ticket_id %>" class="btn btn-sm btn-outline-danger">Batalkan</a>
   <% } %>
 </div>

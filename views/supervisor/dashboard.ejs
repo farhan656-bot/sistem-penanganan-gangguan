@@ -409,9 +409,9 @@
                       <td><span class="text-muted"><%= formatDateTime(ticket.received_at) %></span></td>
                       <td class="app-table-actions">
                         <a
-                          href="/reports/<%= ticket.id %>"
+                          href="/reports/<%= ticket.ticket_id %>"
                           class="btn btn-sm btn-outline-secondary"
-                          data-report-detail-url="/reports/<%= ticket.id %>/detail-json"
+                          data-report-detail-url="/reports/<%= ticket.ticket_id %>/detail-json"
                         >Detail</a>
                       </td>
                     </tr>

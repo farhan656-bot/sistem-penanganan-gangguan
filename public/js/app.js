@@ -339,6 +339,11 @@
     var checkUrl = refreshRoot.getAttribute('data-check-url') || '/reports/check-new';
     var fragmentUrl = refreshRoot.getAttribute('data-fragment-url') || '/reports/queue-fragment';
     var sinceId = parseInt(refreshRoot.getAttribute('data-latest-report-id'), 10);
+    var cursor = readCursor(
+      refreshRoot.getAttribute('data-received-at'),
+      refreshRoot.getAttribute('data-ticket-id')
+    );
+    var pendingCursor = null;
     var activePollInterval = parseInt(
       refreshRoot.getAttribute('data-active-poll-interval'),
       10
@@ -365,12 +370,42 @@
 
     refreshRoot.dataset.pollingBound = '1';
 
+    function readCursor(receivedAt, ticketId) {
+      if (typeof receivedAt !== 'string' || !receivedAt.trim()) return null;
+      var timestamp = receivedAt.trim();
+      if (!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp)) return null;
+      var date = new Date(timestamp);
+      var calendarDate = new Date(timestamp.slice(0, 10) + 'T00:00:00.000Z');
+      if (!isFinite(date.getTime()) || !isFinite(calendarDate.getTime())
+        || calendarDate.toISOString().slice(0, 10) !== timestamp.slice(0, 10)) return null;
+      if (ticketId === null || ticketId === undefined) ticketId = '';
+      if (typeof ticketId !== 'string' || ticketId.length > 100) return null;
+      return { receivedAt: date.toISOString(), ticketId: ticketId };
+    }
+
+    function newerCursor(current, candidate) {
+      if (!candidate) return current;
+      if (!current || candidate.receivedAt > current.receivedAt
+        || (candidate.receivedAt === current.receivedAt && candidate.ticketId > current.ticketId)) {
+        return candidate;
+      }
+      return current;
+    }
+
     function buildCheckUrl() {
       var endpoint = new URL(checkUrl, window.location.origin);
       var currentQuery = new URLSearchParams(window.location.search);
       var filterNames = ['work_status', 'region', 'search', 'keyword'];
 
-      endpoint.searchParams.set('since_id', String(sinceId));
+      if (cursor) {
+        endpoint.searchParams.delete('since_id');
+        endpoint.searchParams.set('since_received_at', cursor.receivedAt);
+        endpoint.searchParams.set('since_ticket_id', cursor.ticketId);
+      } else {
+        endpoint.searchParams.delete('since_received_at');
+        endpoint.searchParams.delete('since_ticket_id');
+        endpoint.searchParams.set('since_id', String(sinceId));
+      }
 
       for (var i = 0; i < filterNames.length; i += 1) {
         var filterName = filterNames[i];
@@ -464,6 +499,17 @@
 
           tabsTarget.innerHTML = fragment.tabs.innerHTML;
           listTarget.innerHTML = fragment.list.innerHTML;
+          // Commit only after rendering succeeds; keep the timestamp and ticket together.
+          var fragmentCursor = readCursor(
+            fragment.list.getAttribute('data-received-at'),
+            fragment.list.getAttribute('data-ticket-id')
+          );
+          cursor = newerCursor(newerCursor(cursor, pendingCursor), fragmentCursor);
+          pendingCursor = null;
+          if (cursor) {
+            refreshRoot.setAttribute('data-received-at', cursor.receivedAt);
+            refreshRoot.setAttribute('data-ticket-id', cursor.ticketId);
+          }
           sinceId = Math.max(sinceId, pendingLatestReportId);
           pendingUpdate = false;
           refreshRoot.setAttribute('data-latest-report-id', String(sinceId));
@@ -480,8 +526,9 @@
         });
     }
 
-    function queueFragmentRefresh(latestReportId) {
-      var normalizedLatestReportId = Number(latestReportId);
+    function queueFragmentRefresh(payload) {
+      var normalizedLatestReportId = Number(payload.latestReportId);
+      pendingCursor = newerCursor(pendingCursor, readCursor(payload.latest_received_at, payload.latest_ticket_id));
 
       if (isFinite(normalizedLatestReportId) && normalizedLatestReportId >= 0) {
         pendingLatestReportId = Math.max(pendingLatestReportId, normalizedLatestReportId);
@@ -492,7 +539,11 @@
     }
 
     function checkForNewReports() {
-      if (isChecking) return;
+      if (isChecking || isRefreshing) return;
+      if (pendingUpdate) {
+        refreshQueueFragment();
+        return;
+      }
       isChecking = true;
 
       window.fetch(buildCheckUrl(), {
@@ -515,7 +566,7 @@
 
           var newCount = Number(payload.newCount);
           if (payload.hasNewReports && isFinite(newCount) && newCount > 0) {
-            queueFragmentRefresh(payload.latestReportId);
+            queueFragmentRefresh(payload);
           }
         })
         .catch(function () {
@@ -765,9 +816,16 @@
   }
 
   function isTelegramMediaItem(item) {
+    if (item && item.type_attachment_code === 'bukti_pelapor') {
+      return true;
+    }
+    if (item && item.type_attachment_code === 'bukti_penanganan') {
+      return false;
+    }
     var source = String(item && item.source ? item.source : '').trim().toLowerCase();
     return source === 'telegram' || source === 'bot_telegram';
   }
+
 
   function getCompletionAttachments(payload) {
     return asArray(payload.attachments).filter(function (item) {
@@ -911,11 +969,11 @@
 
     return {
       info: infoHtml,
-      proof: renderDetailSection('Bukti Penyelesaian', [
-        '<div class="col-12">' + renderMediaList(proofAttachments, 'Belum ada file bukti penyelesaian.', 'Bukti Penyelesaian') + '</div>'
+      proof: renderDetailSection('Bukti Penanganan (Sistem)', [
+        '<div class="col-12">' + renderMediaList(proofAttachments, 'Belum ada file bukti penyelesaian.', 'Bukti Penanganan (Sistem)') + '</div>'
       ]),
-      telegram: renderDetailSection('Media Telegram', [
-        '<div class="col-12">' + renderMediaList(telegramMedia, 'Belum ada media tambahan Telegram yang terhubung ke tiket ini.', 'Media Telegram') + '</div>'
+      telegram: renderDetailSection('Bukti Pelapor (Telegram)', [
+        '<div class="col-12">' + renderMediaList(telegramMedia, 'Belum ada media tambahan Telegram yang terhubung ke tiket ini.', 'Bukti Pelapor (Telegram)') + '</div>'
       ]),
       activity: renderDetailSection('Riwayat Aktivitas', [
         '<div class="col-12">' + renderActivityLogList(activityLogs) + '</div>'

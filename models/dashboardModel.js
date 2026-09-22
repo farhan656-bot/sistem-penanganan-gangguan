@@ -58,17 +58,12 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
   ]);
   const safeAssignedLimit = normalizeLimit(assignedLimit, 5, 10);
 
-  let availableAccessSql = 'current_assigned_user_id = ?';
+  let availableAccessSql = '1=0';
   const summaryParams = [];
 
   if (accessibleRegionIds.length > 0) {
-    availableAccessSql = `(
-      current_region_id IN (${buildPlaceholders(accessibleRegionIds)})
-      OR current_assigned_user_id = ?
-    )`;
-    summaryParams.push(...accessibleRegionIds, userId);
-  } else {
-    summaryParams.push(userId);
+    availableAccessSql = `reports.reported_region_id IN (${buildPlaceholders(accessibleRegionIds)})`;
+    summaryParams.push(...accessibleRegionIds);
   }
 
   summaryParams.push(userId);
@@ -90,18 +85,19 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
         UNION ALL
 
         SELECT
-          status_internal AS metric,
+          reports.status_internal AS metric,
           COUNT(*) AS total
         FROM reports
-        WHERE current_assigned_user_id = ?
-          AND status_internal IN (
+        JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
+        WHERE ra.assigned_to_user_id = ?
+          AND reports.status_internal IN (
             'diambil',
             'didelegasikan',
             'selesai',
             'perlu_tindak_lanjut',
             'eskalasi'
           )
-        GROUP BY status_internal
+        GROUP BY reports.status_internal
       ) dashboard_counts
       `,
       summaryParams
@@ -118,10 +114,13 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
         reports.taken_at,
         reports.updated_at,
         regions.code AS region_code,
-        regions.name AS region_name
+        regions.name AS region_name,
+        u.region_id AS assigned_user_region_id
       FROM reports
-      LEFT JOIN regions ON reports.current_region_id = regions.id
-      WHERE reports.current_assigned_user_id = ?
+      JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
+      JOIN users u ON ra.assigned_to_user_id = u.id
+      LEFT JOIN regions ON reports.reported_region_id = regions.id
+      WHERE ra.assigned_to_user_id = ?
         AND reports.status_internal IN (
           'diambil',
           'didelegasikan',
@@ -193,7 +192,7 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
         COALESCE(SUM(reports.status_internal = 'perlu_tindak_lanjut'), 0) AS total_follow_up,
         COALESCE(SUM(reports.status_internal = 'eskalasi'), 0) AS total_escalated
       FROM regions
-      LEFT JOIN reports ON reports.current_region_id = regions.id
+      LEFT JOIN reports ON reports.reported_region_id = regions.id
       WHERE regions.id IN (${placeholders})
       GROUP BY regions.id, regions.code, regions.name
       ORDER BY FIELD(regions.code, 'PDG', 'BKT')
@@ -221,10 +220,10 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
           ELSE 'Sistem'
         END AS actor_name
       FROM report_logs
-      JOIN reports ON reports.id = report_logs.report_id
-      LEFT JOIN regions ON reports.current_region_id = regions.id
+      JOIN reports ON reports.ticket_id = report_logs.ticket_id
+      LEFT JOIN regions ON reports.reported_region_id = regions.id
       LEFT JOIN users ON users.id = report_logs.user_id
-      WHERE reports.current_region_id IN (${placeholders})
+      WHERE reports.reported_region_id IN (${placeholders})
       ORDER BY report_logs.created_at DESC, report_logs.id DESC
       LIMIT ?
       `,
