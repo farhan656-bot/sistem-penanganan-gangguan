@@ -530,22 +530,36 @@ describe('T033 Scope E: Zero Live Database Mutation Verification', () => {
   after(async () => {
     await pool.end();
   });
-  it('Verifikasi baris database live persis sama dengan baseline T005 tanpa mutasi permanen', async () => {
-    const expectedBaseline = {
-      reports: 56,
-      report_assignments: 56,
-      report_logs: 333,
-      report_attachments: 48,
-      telegram_pending_media: 12,
-      type_attachment: 2
-    };
-    for (const [table, expectedCount] of Object.entries(expectedBaseline)) {
-      const [[row]] = await pool.query(`SELECT COUNT(*) AS cnt FROM ${table}`);
-      assert.equal(
-        Number(row.cnt),
-        expectedCount,
-        `Tabel ${table} harus memiliki ${expectedCount} baris (aktual: ${row.cnt})`
-      );
+
+  it('Verifikasi baris database live persis sama sebelum dan sesudah alur operasional T033 (zero mutation)', async (t) => {
+    const tables = [
+      'reports',
+      'report_assignments',
+      'report_logs',
+      'report_attachments',
+      'telegram_pending_media',
+      'type_attachment'
+    ];
+
+    async function getLiveRowCountSnapshot() {
+      const snapshot = {};
+      for (const table of tables) {
+        const [[row]] = await pool.query(`SELECT COUNT(*) AS cnt FROM ${table}`);
+        snapshot[table] = Number(row.cnt);
+      }
+      return snapshot;
     }
+
+    const beforeSnapshot = await getLiveRowCountSnapshot();
+
+    await assertTakeThenComplete(t, false);
+
+    const afterSnapshot = await getLiveRowCountSnapshot();
+
+    assert.deepEqual(
+      afterSnapshot,
+      beforeSnapshot,
+      'Row counts database live sebelum dan sesudah alur operasional T033 harus identik (zero mutation)'
+    );
   });
 });

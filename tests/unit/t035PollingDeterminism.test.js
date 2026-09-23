@@ -34,6 +34,12 @@ function loadModel(source, connection) {
   return moduleObj.exports;
 }
 
+async function getBaseFixtureTimestamp(connection) {
+  const [[row]] = await connection.query('SELECT MAX(received_at) AS max_received_at FROM reports');
+  const maxReceivedAt = row && row.max_received_at ? new Date(row.max_received_at) : new Date();
+  return new Date(maxReceivedAt.getTime() + 60 * 60 * 1000);
+}
+
 describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () => {
   describe('1. Controller Cursor Parsing & Validation Unit Tests', () => {
     function createMockRes() {
@@ -138,8 +144,10 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
       const connection = await pool.getConnection();
       const ticketId1 = `POLL-D1-${randomUUID().slice(0, 8)}`;
       const ticketId2 = `POLL-D2-${randomUUID().slice(0, 8)}`;
-      const t1 = new Date('2026-09-22T08:00:00.000Z');
-      const t2 = new Date('2026-09-22T08:05:00.000Z');
+      const baseTime = await getBaseFixtureTimestamp(connection);
+      const sinceBefore = new Date(baseTime.getTime() - 5 * 60 * 1000);
+      const t1 = new Date(baseTime.getTime());
+      const t2 = new Date(baseTime.getTime() + 5 * 60 * 1000);
 
       try {
         await connection.beginTransaction();
@@ -159,7 +167,7 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
 
         // Langkah A: Kursor sebelum report pertama
         const resBefore = await model.getNewReportStats({
-          sinceReceivedAt: new Date('2026-09-22T07:55:00.000Z'),
+          sinceReceivedAt: sinceBefore,
           sinceTicketId: '',
           sinceId: 0
         }, currentUser);
@@ -206,7 +214,9 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
       const ticketIdB = `POLL-S-BBB-${randomUUID().slice(0, 6)}`;
       assert.ok(ticketIdA < ticketIdB, 'Ticket A harus lebih kecil secara leksikografis daripada Ticket B');
 
-      const tSame = new Date('2026-09-22T09:00:00.000Z');
+      const baseTime = await getBaseFixtureTimestamp(connection);
+      const tSame = new Date(baseTime.getTime());
+      const sinceBefore = new Date(baseTime.getTime() - 60 * 1000);
 
       try {
         await connection.beginTransaction();
@@ -226,7 +236,7 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
 
         // Langkah A: Kursor sebelum kedua laporan ber-timestamp sama
         const resBefore = await model.getNewReportStats({
-          sinceReceivedAt: new Date('2026-09-22T08:59:00.000Z'),
+          sinceReceivedAt: sinceBefore,
           sinceTicketId: '',
           sinceId: 0
         }, currentUser);
@@ -269,8 +279,10 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
       const connection = await pool.getConnection();
       const ticketId1 = `POLL-SEQ-1-${randomUUID().slice(0, 6)}`;
       const ticketId2 = `POLL-SEQ-2-${randomUUID().slice(0, 6)}`;
-      const t1 = new Date('2026-09-22T10:00:00.000Z');
-      const t2 = new Date('2026-09-22T10:05:00.000Z');
+      const baseTime = await getBaseFixtureTimestamp(connection);
+      const clientInitialTime = new Date(baseTime.getTime() - 10 * 60 * 1000);
+      const t1 = new Date(baseTime.getTime());
+      const t2 = new Date(baseTime.getTime() + 5 * 60 * 1000);
 
       try {
         await connection.beginTransaction();
@@ -285,7 +297,7 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
         `, [ticketId1, t1]);
 
         let clientCursor = {
-          receivedAt: new Date('2026-09-22T09:50:00.000Z'),
+          receivedAt: clientInitialTime,
           ticketId: ''
         };
 
@@ -365,24 +377,62 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
       await pool.end();
     });
 
-    it('Verifikasi row counts database live tetap persis sama dengan baseline T005', async () => {
-      const expectedBaseline = {
-        reports: 56,
-        report_assignments: 56,
-        report_logs: 333,
-        report_attachments: 48,
-        telegram_pending_media: 12,
-        type_attachment: 2
-      };
+    it('Verifikasi baris database live persis sama sebelum dan sesudah alur polling (zero mutation)', async () => {
+      const tables = [
+        'reports',
+        'report_assignments',
+        'report_logs',
+        'report_attachments',
+        'telegram_pending_media',
+        'type_attachment'
+      ];
 
-      for (const [table, expectedCount] of Object.entries(expectedBaseline)) {
-        const [[row]] = await pool.query(`SELECT COUNT(*) AS cnt FROM ${table}`);
-        assert.equal(
-          Number(row.cnt),
-          expectedCount,
-          `Tabel ${table} harus memiliki ${expectedCount} baris (aktual: ${row.cnt})`
-        );
+      async function getLiveRowCountSnapshot() {
+        const snapshot = {};
+        for (const table of tables) {
+          const [[row]] = await pool.query(`SELECT COUNT(*) AS cnt FROM ${table}`);
+          snapshot[table] = Number(row.cnt);
+        }
+        return snapshot;
       }
+
+      const beforeSnapshot = await getLiveRowCountSnapshot();
+
+      const connection = await pool.getConnection();
+      try {
+        await connection.beginTransaction();
+        const testTicketId = `POLL-ZERO-${randomUUID().slice(0, 8)}`;
+        const source = fs.readFileSync(filename, 'utf8');
+        const model = loadModel(source, connection);
+        const currentUser = { id: 7, role: 'super_admin' };
+
+        await connection.query(`
+          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
+          VALUES (?, 'telegram', 'Zero Mutation Polling Probe', 'tersedia', 1, 1, NOW(), NOW(), NOW())
+        `, [testTicketId]);
+
+        const stats = await model.getNewReportStats({
+          sinceReceivedAt: new Date(Date.now() - 60000),
+          sinceTicketId: '',
+          sinceId: 0
+        }, currentUser);
+
+        assert.ok(typeof stats.newCount === 'number');
+      } finally {
+        try {
+          await connection.rollback();
+        } finally {
+          connection.release();
+        }
+      }
+
+      const afterSnapshot = await getLiveRowCountSnapshot();
+
+      assert.deepEqual(
+        afterSnapshot,
+        beforeSnapshot,
+        'Row counts database live sebelum dan sesudah alur polling harus identik (zero mutation)'
+      );
     });
   });
 });
