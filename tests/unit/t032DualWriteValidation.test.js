@@ -410,10 +410,31 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
           `
           INSERT INTO telegram_pending_media
           (
-            chat_id, telegram_message_id, file_type, mime_type, file_path,
-            status, linked_report_id, linked_ticket_id, created_at
+            chat_id,
+            telegram_message_id,
+            telegram_file_id,
+            file_type,
+            mime_type,
+            stored_name,
+            file_path,
+            status,
+            linked_report_id,
+            linked_ticket_id,
+            created_at
           )
-          VALUES ('12345678', '99999', 'photo', 'image/jpeg', '/tmp/photo.jpg', 'pending', NULL, NULL, NOW())
+          VALUES (
+            '12345678',
+            '99999',
+            'TEST_FILE_ID_99999',
+            'photo',
+            'image/jpeg',
+            'test-photo.jpg',
+            '/tmp/photo.jpg',
+            'pending',
+            NULL,
+            NULL,
+            NOW()
+          )
           `
         );
         const pendingMediaId = mediaResult.insertId;
