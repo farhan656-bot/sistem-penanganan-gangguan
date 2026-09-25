@@ -169,8 +169,8 @@ describe('T033 Scope A: Telegram Integration & Processing', () => {
       assert.ok(report.received_at !== null);
       assert.equal(report.telegram_chat_id, '99887766');
       const [logs] = await connection.query(
-        'SELECT action FROM report_logs WHERE report_id = ?',
-        [reportId]
+        'SELECT action FROM report_logs WHERE ticket_id = ?',
+        [ticketId]
       );
       assert.ok(logs.some((l) => l.action === 'create_telegram_report'));
     } finally {
@@ -212,8 +212,8 @@ describe('T033 Scope A: Telegram Integration & Processing', () => {
       assert.equal(updated.branch_name, 'Padang Kota');
       assert.equal(updated.ticket_id, ticketId);
       const [logs] = await connection.query(
-        'SELECT action FROM report_logs WHERE report_id = ? AND action = "telegram_text_enrichment_applied"',
-        [reportId]
+        'SELECT action FROM report_logs WHERE ticket_id = ? AND action = "telegram_text_enrichment_applied"',
+        [ticketId]
       );
       assert.equal(logs.length, 1);
     } finally {
@@ -286,8 +286,8 @@ describe('T033 Scope A: Telegram Integration & Processing', () => {
       assert.equal(payload.telegram_message_id, '8899');
       await model.logTelegramFeedback(reportId, 'telegram_feedback_sent', 'Notifikasi terkirim');
       const [logs] = await connection.query(
-        'SELECT action, description FROM report_logs WHERE report_id = ? AND action = "telegram_feedback_sent"',
-        [reportId]
+        'SELECT action, description FROM report_logs WHERE ticket_id = ? AND action = "telegram_feedback_sent"',
+        [ticketId]
       );
       assert.equal(logs.length, 1);
     } finally {

@@ -39,31 +39,19 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
       assert.equal(Number(mismatch[0].count), 0, 'Mismatch assignments harus 0');
     });
 
-    it('report_logs: 0 orphans dan 0 mismatch terhadap reports', async () => {
-      const [orphanReportId] = await pool.query(`
-        SELECT COUNT(*) AS count
-        FROM report_logs rl
-        LEFT JOIN reports r ON r.id = rl.report_id
-        WHERE r.id IS NULL
-      `);
-      assert.equal(Number(orphanReportId[0].count), 0, 'Orphan logs report_id harus 0');
-
+    it('report_logs: 0 orphan ticket_id terhadap reports', async () => {
       const [orphanTicketId] = await pool.query(`
         SELECT COUNT(*) AS count
         FROM report_logs rl
         LEFT JOIN reports r ON r.ticket_id = rl.ticket_id
         WHERE r.ticket_id IS NULL
       `);
-      assert.equal(Number(orphanTicketId[0].count), 0, 'Orphan logs ticket_id harus 0');
 
-      const [mismatch] = await pool.query(`
-        SELECT COUNT(*) AS count
-        FROM report_logs rl
-        JOIN reports r ON r.id = rl.report_id
-        WHERE rl.ticket_id <> r.ticket_id
-           OR rl.ticket_id IS NULL
-      `);
-      assert.equal(Number(mismatch[0].count), 0, 'Mismatch logs harus 0');
+      assert.equal(
+        Number(orphanTicketId[0].count),
+        0,
+        'Orphan logs ticket_id harus 0'
+      );
     });
 
     it('report_attachments: 0 orphans, 0 mismatch, dan type_attachment_id valid', async () => {
@@ -322,13 +310,12 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
 
         // 4. Verifikasi di dalam transaksi: report_logs dual-write cocok
         const [logRows] = await conn.query(
-          'SELECT report_id, ticket_id FROM report_logs WHERE ticket_id = ?',
+          'SELECT ticket_id FROM report_logs WHERE ticket_id = ?',
           [testTicketId]
         );
+
         assert.equal(logRows.length, 2);
-        assert.equal(logRows[0].report_id, testReportId);
         assert.equal(logRows[0].ticket_id, testTicketId);
-        assert.equal(logRows[1].report_id, testReportId);
         assert.equal(logRows[1].ticket_id, testTicketId);
 
         // 5. ROLLBACK PENUH
