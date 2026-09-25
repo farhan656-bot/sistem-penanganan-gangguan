@@ -221,18 +221,16 @@ describe('T033 Scope A: Telegram Integration & Processing', () => {
       connection.release();
     }
   });
-  it('Pending media: markPendingMediaLinked establishes dual-write on report_id and ticket_id', async () => {
+  it('Pending media: markPendingMediaLinked links pending media to ticket_id', async () => {
     const connection = await pool.getConnection();
     const ticketId = `TEL-MED-${randomUUID()}`;
-    let reportId;
     let mediaId;
     try {
       await connection.beginTransaction();
-      const [insert] = await connection.query(`
+      await connection.query(`
         INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
         VALUES (?, 'telegram', 'Media test', 'tersedia', 1, 1, NOW(), NOW(), NOW())
       `, [ticketId]);
-      reportId = insert.insertId;
       mediaId = await pendingMediaModel.createPendingMedia({
         chat_id: '99887766',
         telegram_message_id: '12347',
@@ -242,13 +240,12 @@ describe('T033 Scope A: Telegram Integration & Processing', () => {
         file_path: 'public/uploads/reports/test-pending.jpg',
         caption: 'Foto bukti gangguan'
       }, connection);
-      await pendingMediaModel.markPendingMediaLinked(mediaId, reportId, ticketId, connection);
+      await pendingMediaModel.markPendingMediaLinked(mediaId, ticketId, null, connection);
       const [[media]] = await connection.query(
-        'SELECT status, linked_report_id, linked_ticket_id FROM telegram_pending_media WHERE id = ?',
+        'SELECT status, linked_ticket_id FROM telegram_pending_media WHERE id = ?',
         [mediaId]
       );
       assert.equal(media.status, 'linked');
-      assert.equal(Number(media.linked_report_id), reportId);
       assert.equal(media.linked_ticket_id, ticketId);
     } finally {
       await connection.rollback();

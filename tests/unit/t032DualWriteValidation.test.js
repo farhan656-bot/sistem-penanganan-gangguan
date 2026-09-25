@@ -91,15 +91,6 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
     });
 
     it('telegram_pending_media: linked rows konsisten dan unlinked rows tetap valid NULL', async () => {
-      const [orphanLinkedReport] = await pool.query(`
-        SELECT COUNT(*) AS count
-        FROM telegram_pending_media tpm
-        LEFT JOIN reports r ON r.id = tpm.linked_report_id
-        WHERE tpm.linked_report_id IS NOT NULL
-          AND r.id IS NULL
-      `);
-      assert.equal(Number(orphanLinkedReport[0].count), 0, 'Orphan linked_report_id harus 0');
-
       const [orphanLinkedTicket] = await pool.query(`
         SELECT COUNT(*) AS count
         FROM telegram_pending_media tpm
@@ -109,22 +100,22 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
       `);
       assert.equal(Number(orphanLinkedTicket[0].count), 0, 'Orphan linked_ticket_id harus 0');
 
-      const [mismatchLinked] = await pool.query(`
+      const [invalidLinked] = await pool.query(`
         SELECT COUNT(*) AS count
         FROM telegram_pending_media tpm
-        JOIN reports r ON r.id = tpm.linked_report_id
-        WHERE tpm.linked_ticket_id <> r.ticket_id
-           OR tpm.linked_ticket_id IS NULL
+        LEFT JOIN reports r ON r.ticket_id = tpm.linked_ticket_id
+        WHERE tpm.status = 'linked'
+          AND (tpm.linked_ticket_id IS NULL OR r.ticket_id IS NULL)
       `);
-      assert.equal(Number(mismatchLinked[0].count), 0, 'Mismatch linked media harus 0');
+      assert.equal(Number(invalidLinked[0].count), 0, 'Linked media tanpa valid linked_ticket_id harus 0');
 
       const [unlinkedRows] = await pool.query(`
         SELECT COUNT(*) AS count
         FROM telegram_pending_media
-        WHERE linked_report_id IS NULL
+        WHERE status = 'pending'
           AND linked_ticket_id IS NULL
       `);
-      assert.ok(Number(unlinkedRows[0].count) >= 1, 'Harus ada minimal 1 pending unlinked media dengan kedua identifier NULL');
+      assert.ok(Number(unlinkedRows[0].count) >= 1, 'Harus ada minimal 1 pending unlinked media dengan linked_ticket_id NULL');
     });
 
     it('Foreign keys existing tetap aktif dan mereferensikan reports.id', async () => {
@@ -206,13 +197,16 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
       assert.equal(manualItem, 'bukti_penanganan');
     });
 
-    it('pendingMediaModel.markPendingMediaLinked: auto-resolve kedua ID dan menolak jika mismatch', async () => {
+    it('pendingMediaModel.markPendingMediaLinked: menautkan media ke ticket_id yang valid', async () => {
       let executedSql = '';
       let executedParams = [];
       const fakeConn = {
         query: async (sql, params) => {
           if (String(sql).includes('FROM reports')) {
-            return [[{ id: 10, ticket_id: 'T-PDG-MATCH' }]];
+            if (params[0] === 'T-UNKNOWN') {
+              return [[]];
+            }
+            return [[{ ticket_id: 'T-PDG-MATCH' }]];
           }
           if (String(sql).includes('UPDATE telegram_pending_media')) {
             executedSql = sql;
@@ -223,19 +217,20 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
         }
       };
 
-      // 1. Sukses dengan auto-resolve dari report_id saja
-      await pendingMediaModel.markPendingMediaLinked(100, 10, null, fakeConn);
+      // 1. Sukses menautkan dengan ticket_id
+      await pendingMediaModel.markPendingMediaLinked(100, 'T-PDG-MATCH', null, fakeConn);
       assert.ok(executedSql.includes('UPDATE telegram_pending_media'));
-      assert.equal(executedParams[0], 10);
-      assert.equal(executedParams[1], 'T-PDG-MATCH');
-      assert.equal(executedParams[2], 100);
+      assert.ok(executedSql.includes('linked_ticket_id = ?'));
+      assert.ok(!executedSql.includes('linked_report_id'));
+      assert.equal(executedParams[0], 'T-PDG-MATCH');
+      assert.equal(executedParams[1], 100);
 
-      // 2. Error jika ada mismatch eksplisit antara report_id dan ticket_id
+      // 2. Error jika laporan tidak ditemukan
       await assert.rejects(
         async () => {
-          await pendingMediaModel.markPendingMediaLinked(100, 10, 'T-DIFFERENT-TICKET', fakeConn);
+          await pendingMediaModel.markPendingMediaLinked(100, 'T-UNKNOWN', null, fakeConn);
         },
-        /tidak merujuk ke laporan yang sama/
+        /Laporan tidak ditemukan untuk menautkan pending media/
       );
     });
   });
@@ -405,7 +400,6 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
             stored_name,
             file_path,
             status,
-            linked_report_id,
             linked_ticket_id,
             created_at
           )
@@ -419,32 +413,29 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
             '/tmp/photo.jpg',
             'pending',
             NULL,
-            NULL,
             NOW()
           )
           `
         );
         const pendingMediaId = mediaResult.insertId;
 
-        // Verifikasi unlinked state memiliki linked_report_id=NULL dan linked_ticket_id=NULL
+        // Verifikasi unlinked state memiliki linked_ticket_id=NULL
         const [pendingRows] = await conn.query(
-          'SELECT status, linked_report_id, linked_ticket_id FROM telegram_pending_media WHERE id = ?',
+          'SELECT status, linked_ticket_id FROM telegram_pending_media WHERE id = ?',
           [pendingMediaId]
         );
         assert.equal(pendingRows[0].status, 'pending');
-        assert.equal(pendingRows[0].linked_report_id, null);
         assert.equal(pendingRows[0].linked_ticket_id, null);
 
         // 5. Link Pending Media ke Report
-        await pendingMediaModel.markPendingMediaLinked(pendingMediaId, testReportId, testTicketId, conn);
+        await pendingMediaModel.markPendingMediaLinked(pendingMediaId, testTicketId, null, conn);
 
-        // Verifikasi linked state memiliki linked_report_id dan linked_ticket_id terisi konsisten
+        // Verifikasi linked state memiliki linked_ticket_id terisi konsisten
         const [linkedRows] = await conn.query(
-          'SELECT status, linked_report_id, linked_ticket_id FROM telegram_pending_media WHERE id = ?',
+          'SELECT status, linked_ticket_id FROM telegram_pending_media WHERE id = ?',
           [pendingMediaId]
         );
         assert.equal(linkedRows[0].status, 'linked');
-        assert.equal(linkedRows[0].linked_report_id, testReportId);
         assert.equal(linkedRows[0].linked_ticket_id, testTicketId);
 
         // 6. ROLLBACK PENUH
