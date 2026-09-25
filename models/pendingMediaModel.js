@@ -18,12 +18,11 @@ async function createPendingMedia(data, trxConnection = null) {
       file_size,
       caption,
       status,
-      linked_report_id,
       linked_ticket_id,
       created_at,
       linked_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NOW(), NULL)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NOW(), NULL)
     `,
     [
       String(data.chat_id),
@@ -61,19 +60,16 @@ async function getLatestPendingMediaByChatId(chatId, trxConnection = null) {
 }
 
 async function resolveReportIdentity(identifierOrData, optionalTicketId, conn) {
-  let reportId = null;
   let ticketId = null;
 
   if (identifierOrData && typeof identifierOrData === 'object' && !Array.isArray(identifierOrData)) {
     if (optionalTicketId !== null) {
       throw new Error('Gunakan field ticket_id saat memberikan object identitas laporan.');
     }
-    reportId = identifierOrData.report_id ?? null;
     ticketId = identifierOrData.ticket_id ?? null;
   } else if (typeof identifierOrData === 'number'
     || (typeof identifierOrData === 'string' && /^\d+$/.test(identifierOrData.trim()))) {
-    reportId = identifierOrData;
-    ticketId = optionalTicketId;
+    ticketId = optionalTicketId || String(identifierOrData).trim();
   } else {
     if (optionalTicketId !== null) {
       throw new Error('Pasangan identitas laporan harus berisi report_id dan ticket_id.');
@@ -81,29 +77,17 @@ async function resolveReportIdentity(identifierOrData, optionalTicketId, conn) {
     ticketId = identifierOrData;
   }
 
-  if (reportId !== null) {
-    if ((typeof reportId !== 'number' && typeof reportId !== 'string')
-      || (typeof reportId === 'number' && !Number.isSafeInteger(reportId))
-      || !/^0*[1-9]\d*$/.test(String(reportId).trim())) {
-      throw new Error('report_id harus berupa bilangan bulat positif yang valid.');
-    }
-    // Keep BIGINT strings intact instead of converting them to an imprecise Number.
-    reportId = String(reportId).trim();
-  }
-
   if (ticketId !== null && (typeof ticketId !== 'string' || !ticketId.trim())) {
     throw new Error('ticket_id harus berupa string yang tidak kosong.');
   }
 
-  if (reportId === null && ticketId === null) {
+  if (!ticketId) {
     throw new Error('Identitas laporan diperlukan untuk menautkan pending media.');
   }
 
   const [rows] = await conn.query(
-    reportId !== null
-      ? 'SELECT id, ticket_id FROM reports WHERE id = ? LIMIT 1'
-      : 'SELECT id, ticket_id FROM reports WHERE UPPER(TRIM(ticket_id)) = UPPER(TRIM(?)) LIMIT 1',
-    [reportId !== null ? reportId : ticketId]
+    'SELECT ticket_id FROM reports WHERE UPPER(TRIM(ticket_id)) = UPPER(TRIM(?)) LIMIT 1',
+    [ticketId]
   );
   const report = rows[0];
 
@@ -111,7 +95,7 @@ async function resolveReportIdentity(identifierOrData, optionalTicketId, conn) {
     throw new Error('Laporan tidak ditemukan untuk menautkan pending media.');
   }
 
-  if (report.id == null || typeof report.ticket_id !== 'string' || !report.ticket_id.trim()) {
+  if (typeof report.ticket_id !== 'string' || !report.ticket_id.trim()) {
     throw new Error('Identitas laporan tidak lengkap untuk menautkan pending media.');
   }
 
@@ -119,24 +103,23 @@ async function resolveReportIdentity(identifierOrData, optionalTicketId, conn) {
     throw new Error('report_id dan ticket_id tidak merujuk ke laporan yang sama.');
   }
 
-  return { reportId: report.id, ticketId: report.ticket_id };
+  return { ticketId: report.ticket_id };
 }
 
 async function markPendingMediaLinked(id, identifierOrData, optionalTicketId = null, trxConnection = null) {
   const conn = trxConnection || pool;
-  const { reportId, ticketId } = await resolveReportIdentity(identifierOrData, optionalTicketId, conn);
+  const { ticketId } = await resolveReportIdentity(identifierOrData, optionalTicketId, conn);
 
   await conn.query(
     `
     UPDATE telegram_pending_media
     SET
       status = 'linked',
-      linked_report_id = ?,
       linked_ticket_id = ?,
       linked_at = NOW()
     WHERE id = ?
     `,
-    [reportId, ticketId, id]
+    [ticketId, id]
   );
 }
 
