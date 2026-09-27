@@ -108,7 +108,7 @@ async function handleTextEnrichment(bot, message, text, enrichmentParsed) {
   }
 
   if (!enrichmentParsed.isValid) {
-    await reportModel.logTelegramTextEnrichmentFailure(report.id, {
+    await reportModel.logTelegramTextEnrichmentFailure(report.ticket_id, {
       raw_text: enrichmentParsed.rawText || text,
       telegram_meta: telegramMeta
     });
@@ -116,7 +116,7 @@ async function handleTextEnrichment(bot, message, text, enrichmentParsed) {
     return true;
   }
 
-  const result = await reportModel.applyTelegramTextEnrichment(report.id, {
+  const result = await reportModel.applyTelegramTextEnrichment(report.ticket_id, {
     fields: enrichmentParsed.fields,
     raw_text: enrichmentParsed.rawText || text,
     telegram_meta: telegramMeta
@@ -335,8 +335,8 @@ async function persistMediaFile(bot, message, mediaMetadata) {
 
 async function linkPendingMediaToReport(report, pendingMedia) {
   await attachmentModel.createAttachment({
-    report_id: report.id,
     ticket_id: report.ticket_id,
+    report_id: report.id || null,
     type_attachment_code: 'bukti_pelapor',
     source: 'telegram',
     telegram_file_id: pendingMedia.telegram_file_id,
@@ -351,7 +351,7 @@ async function linkPendingMediaToReport(report, pendingMedia) {
     uploaded_by_user_id: null
   });
 
-  await pendingMediaModel.markPendingMediaLinked(pendingMedia.id, report.id, report.ticket_id);
+  await pendingMediaModel.markPendingMediaLinked(pendingMedia.id, report.ticket_id);
 }
 
 async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
@@ -367,8 +367,8 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
     }
 
     await attachmentModel.createAttachment({
-      report_id: report.id,
       ticket_id: report.ticket_id,
+      report_id: report.id || null,
       type_attachment_code: 'bukti_pelapor',
       source: 'telegram',
       telegram_file_id: persistedMedia.telegram_file_id,

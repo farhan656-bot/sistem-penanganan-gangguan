@@ -166,12 +166,12 @@ describe('T034 — Legacy Dependency Remediation Validation', () => {
       }
     });
 
-    it('getReportById mengembalikan detail laporan dengan assigned_to_user_id dan reported_region_id', async () => {
+    it('getReportByTicketId mengembalikan detail laporan dengan assigned_to_user_id dan reported_region_id', async () => {
       // Ambil salah satu tiket dari database
-      const [rows] = await pool.query('SELECT id, ticket_id FROM reports LIMIT 1');
+      const [rows] = await pool.query('SELECT ticket_id FROM reports LIMIT 1');
       if (rows.length > 0) {
-        const { id, ticket_id } = rows[0];
-        const report = await reportModel.getReportById(id);
+        const { ticket_id } = rows[0];
+        const report = await reportModel.getReportByTicketId(ticket_id);
         assert.ok(report, 'Laporan harus ditemukan');
         assert.equal(report.ticket_id, ticket_id);
         assert.ok('reported_region_id' in report, 'Detail harus memiliki reported_region_id');

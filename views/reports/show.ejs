@@ -215,12 +215,12 @@
         <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
           <p class="mb-0 text-muted">Gunakan tombol ini saat tiket sudah mulai dikerjakan agar pelapor menerima update status.</p>
           <form
-            action="/reports/<%= report.id %>/in-progress"
+            action="/reports/<%= report.ticket_id %>/in-progress"
             method="POST"
             class="m-0"
             data-ticket-quick-action
             data-action-type="in-progress"
-            data-report-id="<%= report.id %>"
+            data-ticket-id="<%= report.ticket_id %>"
           >
             <button type="submit" class="btn btn-warning" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
               Tandai In Progress
@@ -232,7 +232,7 @@
       <div class="card app-card mb-3">
         <div class="card-header fw-semibold">Konfirmasi Penyelesaian</div>
         <div class="card-body">
-          <form action="/reports/<%= report.id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
+          <form action="/reports/<%= report.ticket_id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
             <div class="mb-3">
               <label class="form-label" for="completion_notes">
                 Catatan
@@ -332,7 +332,7 @@
       <div class="card app-card mb-3">
         <div class="card-header fw-semibold">Delegasi Penanggung Jawab Lintas Wilayah</div>
         <div class="card-body">
-          <form action="/reports/<%= report.id %>/delegate" method="POST">
+          <form action="/reports/<%= report.ticket_id %>/delegate" method="POST">
             <div class="mb-3">
               <label class="form-label">Pilih Pegawai Tujuan <span class="app-required">*</span></label>
               <select name="target_user_id" class="form-select" required>
@@ -377,7 +377,7 @@
       <div class="card app-card">
         <div class="card-header fw-semibold">Batalkan Penugasan</div>
         <div class="card-body">
-          <form action="/reports/<%= report.id %>/cancel-assignment" method="POST">
+          <form action="/reports/<%= report.ticket_id %>/cancel-assignment" method="POST">
             <div class="mb-3">
               <label class="form-label">Alasan Pembatalan <span class="app-required">*</span></label>
               <textarea name="cancel_notes" class="form-control" rows="3" required></textarea>

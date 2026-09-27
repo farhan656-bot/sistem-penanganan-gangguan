@@ -105,7 +105,6 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
     pool.query(
       `
       SELECT
-        reports.id,
         reports.ticket_id,
         reports.order_id,
         reports.summary,
@@ -130,7 +129,7 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
         )
       ORDER BY
         COALESCE(reports.taken_at, reports.updated_at, reports.received_at) DESC,
-        reports.id DESC
+        reports.ticket_id DESC
       LIMIT ?
       `,
       [userId, safeAssignedLimit]
@@ -184,7 +183,7 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
         regions.id AS region_id,
         regions.code AS region_code,
         regions.name AS region_name,
-        COUNT(reports.id) AS total_reports,
+        COUNT(reports.ticket_id) AS total_reports,
         COALESCE(SUM(reports.status_internal = 'tersedia'), 0) AS total_available,
         COALESCE(SUM(reports.status_internal = 'diambil'), 0) AS total_in_progress,
         COALESCE(SUM(reports.status_internal = 'didelegasikan'), 0) AS total_delegated,
@@ -206,7 +205,7 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
         report_logs.action,
         LEFT(report_logs.description, 240) AS description,
         report_logs.created_at,
-        reports.id AS report_id,
+        reports.ticket_id AS report_id,
         reports.ticket_id,
         reports.order_id,
         reports.status_internal,

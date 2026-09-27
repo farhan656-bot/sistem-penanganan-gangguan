@@ -320,7 +320,6 @@ async function getReports(
 ) {
   let sql = `
     SELECT
-      reports.id,
       reports.ticket_id,
       reports.received_at,
       reports.order_id,
@@ -360,7 +359,7 @@ async function getReports(
     ? Number(offset)
     : 0;
 
-  sql = `${filteredQuery.sql} ORDER BY reports.received_at DESC, reports.id DESC LIMIT ? OFFSET ? `;
+  sql = `${filteredQuery.sql} ORDER BY reports.received_at DESC, reports.ticket_id DESC LIMIT ? OFFSET ? `;
   filteredQuery.params.push(normalizedLimit, normalizedOffset);
 
   const [rows] = await pool.query(sql, filteredQuery.params);
@@ -455,15 +454,15 @@ async function getNewReportStats(
   if (typeof sinceTicketId !== 'string' || sinceTicketId.length > 100) {
     throw new Error('Cursor ticket_id tidak valid.');
   }
-  const cursorPredicate = sinceDate
-    ? `(
-        COALESCE(reports.received_at, reports.created_at) > ?
-        OR (
-          COALESCE(reports.received_at, reports.created_at) = ?
-          AND reports.ticket_id > ?
-        )
-      )`
-    : 'reports.id > ?';
+  const cursorDate = sinceDate || new Date(0);
+  const cursorTicketId = typeof sinceTicketId === 'string' ? sinceTicketId : '';
+  const cursorPredicate = `(
+    COALESCE(reports.received_at, reports.created_at) > ?
+    OR (
+      COALESCE(reports.received_at, reports.created_at) = ?
+      AND reports.ticket_id > ?
+    )
+  )`;
   let sql = `
     FROM reports
     LEFT JOIN regions ON reports.reported_region_id = regions.id
@@ -471,7 +470,7 @@ async function getNewReportStats(
     WHERE ${cursorPredicate}
       AND reports.source_channel = 'telegram'
   `;
-  const params = sinceDate ? [sinceDate, sinceDate, sinceTicketId] : [normalizedSinceId];
+  const params = [cursorDate, cursorDate, cursorTicketId];
   const scopedQuery = await applyReportListScope(
     sql,
     params,
@@ -485,10 +484,9 @@ async function getNewReportStats(
     Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
   );
   const [rows] = await pool.query(
-    `SELECT COUNT(*) AS new_count,
-      COALESCE(MAX(reports.id), ?) AS latest_report_id
+    `SELECT COUNT(*) AS new_count
     ${filteredQuery.sql}`,
-    [normalizedSinceId, ...filteredQuery.params]
+    filteredQuery.params
   );
   const stats = rows[0] || {};
   const newCount = Number(stats.new_count) || 0;
@@ -509,7 +507,7 @@ async function getNewReportStats(
 
   return {
     newCount,
-    latestReportId: Number(stats.latest_report_id) || normalizedSinceId,
+    latestReportId: 0,
     latest_received_at: latestCursor ? latestCursor.latest_received_at : sinceDate,
     latest_ticket_id: latestCursor ? latestCursor.latest_ticket_id : (sinceDate ? sinceTicketId : '')
   };
@@ -520,29 +518,7 @@ async function getLatestReportId(
   currentUser,
   accessContext = null
 ) {
-  let sql = `
-    SELECT COALESCE(MAX(reports.id), 0) AS latest_report_id
-    FROM reports
-    LEFT JOIN regions ON reports.reported_region_id = regions.id
-    LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
-    WHERE reports.source_channel = 'telegram'
-  `;
-  const params = [];
-  const scopedQuery = await applyReportListScope(
-    sql,
-    params,
-    { search, region },
-    currentUser,
-    accessContext
-  );
-  const filteredQuery = applyWorkStatusFilter(
-    scopedQuery.sql,
-    scopedQuery.params,
-    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
-  );
-  const [rows] = await pool.query(filteredQuery.sql, filteredQuery.params);
-
-  return Number(rows[0] && rows[0].latest_report_id) || 0;
+  return 0;
 }
 
 async function createTelegramReport(parsedData, telegramMeta) {
@@ -563,7 +539,7 @@ async function createTelegramReport(parsedData, telegramMeta) {
 
     const [duplicateRows] = await connection.query(
       `
-      SELECT id
+      SELECT ticket_id
       FROM reports
       WHERE ticket_id = ?
       LIMIT 1
@@ -664,7 +640,6 @@ async function createTelegramReport(parsedData, telegramMeta) {
     );
 
     await createReportLog({
-      report_id: insertResult.insertId,
       ticket_id: ticketId,
       user_id: null,
       action: 'create_telegram_report',
@@ -675,7 +650,8 @@ async function createTelegramReport(parsedData, telegramMeta) {
 
     return {
       success: true,
-      reportId: insertResult.insertId,
+      reportId: insertResult.insertId || ticketId,
+      id: insertResult.insertId || null,
       ticketId,
       orderId,
       regionCode: selectedRegion.code
@@ -698,7 +674,6 @@ async function findByTicketId(ticketId) {
   const [rows] = await pool.query(
     `
     SELECT
-      id,
       ticket_id,
       order_id,
       telegram_chat_id,
@@ -714,35 +689,38 @@ async function findByTicketId(ticketId) {
   return rows[0] || null;
 }
 
-async function getReportByTicketId(ticketId) {
-  return findByTicketId(ticketId);
-}
 
-async function getTelegramFeedbackPayloadByReportId(reportId) {
+async function getTelegramFeedbackPayload(ticketIdOrId) {
+  const normalizedTicketId = typeof ticketIdOrId === 'string' ? ticketIdOrId.trim() : String(ticketIdOrId || '').trim();
+
   const [rows] = await pool.query(
     `
     SELECT
-      reports.id,
       reports.ticket_id,
       reports.order_id,
       reports.diit_code,
       reports.telegram_chat_id,
       reports.telegram_message_id
     FROM reports
-    WHERE reports.id = ?
+    WHERE reports.ticket_id = ?
     LIMIT 1
     `,
-    [reportId]
+    [normalizedTicketId]
   );
 
   return rows[0] || null;
 }
 
-async function logTelegramFeedback(reportId, action, description, userId = null) {
-  await createReportLog({ report_id: reportId, user_id: userId, action, description });
+async function getTelegramFeedbackPayloadByReportId(reportId) {
+  return getTelegramFeedbackPayload(reportId);
 }
 
-async function storeTelegramAdditionalData(reportId, payload) {
+async function logTelegramFeedback(ticketIdOrId, action, description, userId = null) {
+  const logData = { ticket_id: String(ticketIdOrId).trim(), user_id: userId, action, description };
+  await createReportLog(logData);
+}
+
+async function storeTelegramAdditionalData(ticketIdOrId, payload) {
   const rawText = typeof payload.raw_text === 'string' ? payload.raw_text.trim() : '';
 
   if (!rawText && !payload.media_metadata) {
@@ -759,20 +737,17 @@ async function storeTelegramAdditionalData(reportId, payload) {
     `Media Metadata: ${payload.media_metadata ? JSON.stringify(payload.media_metadata) : '-'}`
   ].join(' | ');
 
-  await createReportLog({
-    report_id: reportId,
-    user_id: null,
-    action: 'telegram_additional_data_received',
-    description
-  });
+  const logData = { ticket_id: String(ticketIdOrId).trim(), user_id: null, action: 'telegram_additional_data_received', description };
+
+  await createReportLog(logData);
 
   return {
     success: true,
-    reportId
+    reportId: ticketIdOrId
   };
 }
 
-async function logTelegramTextEnrichmentFailure(reportId, payload) {
+async function logTelegramTextEnrichmentFailure(ticketIdOrId, payload) {
   const description = buildTelegramTextEnrichmentDescription({
     rawText: payload.raw_text,
     updates: {},
@@ -781,27 +756,24 @@ async function logTelegramTextEnrichmentFailure(reportId, payload) {
     telegramMeta: payload.telegram_meta
   });
 
-  if (!reportId) {
+  if (!ticketIdOrId) {
     console.warn(
-      'Skip report_logs insert: telegram enrichment gagal untuk ticket yang belum terdaftar (report_id null).',
+      'Skip report_logs insert: telegram enrichment gagal untuk ticket yang belum terdaftar.',
       description
     );
     return;
   }
 
   try {
-    await createReportLog({
-      report_id: reportId,
-      user_id: null,
-      action: 'telegram_text_enrichment_failed',
-      description
-    });
+    const logData = { ticket_id: String(ticketIdOrId).trim(), user_id: null, action: 'telegram_text_enrichment_failed', description };
+
+    await createReportLog(logData);
   } catch (error) {
     console.error('Gagal mencatat log enrichment gagal:', error.message || error);
   }
 }
 
-async function applyTelegramTextEnrichment(reportId, payload) {
+async function applyTelegramTextEnrichment(ticketIdOrId, payload) {
   const connection = await pool.getConnection();
 
   try {
@@ -810,7 +782,6 @@ async function applyTelegramTextEnrichment(reportId, payload) {
     const [rows] = await connection.query(
       `
       SELECT
-        id,
         ticket_id,
         branch_name,
         cluster_name,
@@ -825,10 +796,11 @@ async function applyTelegramTextEnrichment(reportId, payload) {
         wo_number,
         fallout_type
       FROM reports
-      WHERE id = ?
+      WHERE ticket_id = ?
+      LIMIT 1
       FOR UPDATE
       `,
-      [reportId]
+      [String(ticketIdOrId).trim()]
     );
 
     if (rows.length === 0) {
@@ -876,9 +848,9 @@ async function applyTelegramTextEnrichment(reportId, payload) {
         `
         UPDATE reports
         SET ${setClauses.join(', ')}, updated_at = NOW()
-        WHERE id = ?
+        WHERE ticket_id = ?
         `,
-        [...values, reportId]
+        [...values, report.ticket_id]
       );
     }
 
@@ -904,7 +876,6 @@ async function applyTelegramTextEnrichment(reportId, payload) {
     });
 
     await createReportLog({
-      report_id: report.id,
       ticket_id: report.ticket_id,
       user_id: null,
       action: actionMap[status],
@@ -928,7 +899,7 @@ async function applyTelegramTextEnrichment(reportId, payload) {
   }
 }
 
-async function getReportById(reportId, currentUser) {
+async function getReportByTicketId(ticketId, currentUser) {
   const currentUserRole = getCurrentUserRole(currentUser);
   let sql = `
     SELECT
@@ -943,10 +914,10 @@ async function getReportById(reportId, currentUser) {
     LEFT JOIN regions rr ON reports.reported_region_id = rr.id
     LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
     LEFT JOIN users u ON ra.assigned_to_user_id = u.id
-    WHERE reports.id = ?
+    WHERE reports.ticket_id = ?
   `;
 
-  const params = [reportId];
+  const params = [ticketId];
 
   if (currentUserRole === 'koordinator') {
     const allowedRegionIds = await getCoordinatorAllowedRegionIds();
@@ -981,26 +952,42 @@ async function getReportById(reportId, currentUser) {
   return row;
 }
 
+async function getReportById(reportIdOrTicketId, currentUser) {
+  const isNumeric = /^\d+$/.test(String(reportIdOrTicketId).trim());
+  if (!isNumeric) {
+    return getReportByTicketId(reportIdOrTicketId, currentUser);
+  }
+
+  const [rows] = await pool.query(
+    'SELECT ticket_id FROM reports WHERE id = ? LIMIT 1',
+    [reportIdOrTicketId]
+  );
+  if (rows.length === 0) {
+    return null;
+  }
+  return getReportByTicketId(rows[0].ticket_id, currentUser);
+}
+
 async function takeReport(ticketIdOrId, currentUser) {
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
     const currentUserRole = getCurrentUserRole(currentUser);
+    const normalizedTicketId = typeof ticketIdOrId === 'string' ? ticketIdOrId.trim() : String(ticketIdOrId || '').trim();
 
     const [rows] = await connection.query(
       `
       SELECT
-        id,
         ticket_id,
         status_internal,
         reported_region_id
       FROM reports
-      WHERE ticket_id = ? OR id = ?
+      WHERE ticket_id = ?
       LIMIT 1
       FOR UPDATE
       `,
-      [ticketIdOrId, ticketIdOrId]
+      [normalizedTicketId]
     );
 
     if (rows.length === 0) {
@@ -1054,16 +1041,15 @@ async function takeReport(ticketIdOrId, currentUser) {
         status_internal = 'diambil',
         taken_at = NOW(),
         updated_at = NOW()
-      WHERE id = ?
+      WHERE ticket_id = ?
       `,
-      [report.id]
+      [report.ticket_id]
     );
 
     await connection.query(
       `
       INSERT INTO report_assignments
       (
-        report_id,
         ticket_id,
         assigned_to_user_id,
         assigned_by_user_id,
@@ -1072,10 +1058,9 @@ async function takeReport(ticketIdOrId, currentUser) {
         is_active,
         assigned_at
       )
-      VALUES (?, ?, ?, ?, 'self_take', ?, 1, NOW())
+      VALUES (?, ?, ?, 'self_take', ?, 1, NOW())
       `,
       [
-        report.id,
         report.ticket_id,
         currentUser.id,
         currentUser.id,
@@ -1084,7 +1069,6 @@ async function takeReport(ticketIdOrId, currentUser) {
     );
 
     await createReportLog({
-      report_id: report.id,
       ticket_id: report.ticket_id,
       user_id: currentUser.id,
       action: 'take_report',
@@ -1111,19 +1095,19 @@ async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
   try {
     await connection.beginTransaction();
 
+    const normalizedTicketId = typeof ticketIdOrId === 'string' ? ticketIdOrId.trim() : String(ticketIdOrId || '').trim();
     const [rows] = await connection.query(
       `
       SELECT
-        id,
         ticket_id,
         status_internal,
         reported_region_id
       FROM reports
-      WHERE ticket_id = ? OR id = ?
+      WHERE ticket_id = ?
       LIMIT 1
       FOR UPDATE
       `,
-      [ticketIdOrId, ticketIdOrId]
+      [normalizedTicketId]
     );
 
     if (rows.length === 0) {
@@ -1207,14 +1191,14 @@ async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
         resolved_at = NOW(),
         closed_at = NOW(),
         updated_at = NOW()
-      WHERE id = ?
+      WHERE ticket_id = ?
       `,
       [
         finalStatus,
         completionNotes,
         finalStatus,
         storedDiitCode,
-        report.id
+        report.ticket_id
       ]
     );
 
@@ -1222,7 +1206,6 @@ async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
 
     for (const uploadedFile of uploadedFiles) {
       await attachmentModel.createAttachment({
-        report_id: report.id,
         ticket_id: report.ticket_id,
         type_attachment_code: 'bukti_penanganan',
         source: 'manual',
@@ -1235,7 +1218,6 @@ async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
     }
 
     await createReportLog({
-      report_id: report.id,
       ticket_id: report.ticket_id,
       user_id: currentUser.id,
       action: logMeta.action,
@@ -1256,20 +1238,22 @@ async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
   }
 }
 
-async function markReportInProgress(reportId, currentUser) {
+async function markReportInProgress(ticketIdOrId, currentUser) {
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
+    const normalizedTicketId = typeof ticketIdOrId === 'string' ? ticketIdOrId.trim() : String(ticketIdOrId || '').trim();
     const [rows] = await connection.query(
       `
-      SELECT id, ticket_id, status_internal, reported_region_id
+      SELECT ticket_id, status_internal, reported_region_id
       FROM reports
-      WHERE id = ?
+      WHERE ticket_id = ?
+      LIMIT 1
       FOR UPDATE
       `,
-      [reportId]
+      [normalizedTicketId]
     );
 
     if (rows.length === 0) {
@@ -1312,13 +1296,12 @@ async function markReportInProgress(reportId, currentUser) {
       SET
         status_wfm = 'In Progress',
         updated_at = NOW()
-      WHERE id = ?
+      WHERE ticket_id = ?
       `,
-      [reportId]
+      [report.ticket_id]
     );
 
     await createReportLog({
-      report_id: report.id,
       ticket_id: report.ticket_id,
       user_id: currentUser.id,
       action: 'in_progress_report',
@@ -1345,19 +1328,19 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
   try {
     await connection.beginTransaction();
 
+    const normalizedTicketId = typeof ticketIdOrId === 'string' ? ticketIdOrId.trim() : String(ticketIdOrId || '').trim();
     const [reportRows] = await connection.query(
       `
       SELECT
-        id,
         ticket_id,
         status_internal,
         reported_region_id
       FROM reports
-      WHERE ticket_id = ? OR id = ?
+      WHERE ticket_id = ?
       LIMIT 1
       FOR UPDATE
       `,
-      [ticketIdOrId, ticketIdOrId]
+      [normalizedTicketId]
     );
 
     if (reportRows.length === 0) {
@@ -1445,10 +1428,10 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
       `
       UPDATE report_assignments
       SET is_active = 0
-      WHERE (report_id = ? OR ticket_id = ?)
+      WHERE ticket_id = ?
         AND is_active = 1
       `,
-      [report.id, report.ticket_id]
+      [report.ticket_id]
     );
 
     if (report.status_internal === 'tersedia') {
@@ -1459,9 +1442,9 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
           status_internal = 'didelegasikan',
           taken_at = NOW(),
           updated_at = NOW()
-        WHERE id = ?
+        WHERE ticket_id = ?
         `,
-        [report.id]
+        [report.ticket_id]
       );
     } else {
       await connection.query(
@@ -1470,9 +1453,9 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
         SET
           status_internal = 'didelegasikan',
           updated_at = NOW()
-        WHERE id = ?
+        WHERE ticket_id = ?
         `,
-        [report.id]
+        [report.ticket_id]
       );
     }
 
@@ -1480,7 +1463,6 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
       `
       INSERT INTO report_assignments
       (
-        report_id,
         ticket_id,
         assigned_to_user_id,
         assigned_by_user_id,
@@ -1489,10 +1471,9 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
         is_active,
         assigned_at
       )
-      VALUES (?, ?, ?, ?, 'delegation', ?, 1, NOW())
+      VALUES (?, ?, ?, 'delegation', ?, 1, NOW())
       `,
       [
-        report.id,
         report.ticket_id,
         targetUser.id,
         currentUser.id,
@@ -1501,7 +1482,6 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
     );
 
     await createReportLog({
-      report_id: report.id,
       ticket_id: report.ticket_id,
       user_id: currentUser.id,
       action: 'delegate_report',
@@ -1528,19 +1508,19 @@ async function cancelAssignment(ticketIdOrId, currentUser, notes) {
   try {
     await connection.beginTransaction();
 
+    const normalizedTicketId = typeof ticketIdOrId === 'string' ? ticketIdOrId.trim() : String(ticketIdOrId || '').trim();
     const [reportRows] = await connection.query(
       `
       SELECT
-        id,
         ticket_id,
         status_internal,
         reported_region_id
       FROM reports
-      WHERE ticket_id = ? OR id = ?
+      WHERE ticket_id = ?
       LIMIT 1
       FOR UPDATE
       `,
-      [ticketIdOrId, ticketIdOrId]
+      [normalizedTicketId]
     );
 
     if (reportRows.length === 0) {
@@ -1574,10 +1554,10 @@ async function cancelAssignment(ticketIdOrId, currentUser, notes) {
       `
       UPDATE report_assignments
       SET is_active = 0
-      WHERE (report_id = ? OR ticket_id = ?)
+      WHERE ticket_id = ?
         AND is_active = 1
       `,
-      [report.id, report.ticket_id]
+      [report.ticket_id]
     );
 
     await connection.query(
@@ -1587,13 +1567,12 @@ async function cancelAssignment(ticketIdOrId, currentUser, notes) {
         status_internal = 'tersedia',
         taken_at = NULL,
         updated_at = NOW()
-      WHERE id = ?
+      WHERE ticket_id = ?
       `,
-      [report.id]
+      [report.ticket_id]
     );
 
     await createReportLog({
-      report_id: report.id,
       ticket_id: report.ticket_id,
       user_id: currentUser.id,
       action: 'cancel_assignment',
@@ -1614,25 +1593,8 @@ async function cancelAssignment(ticketIdOrId, currentUser, notes) {
   }
 }
 
-async function getAttachmentsByReportId(reportId, trxConnection = null) {
-  const conn = trxConnection || pool;
-  const [rows] = await conn.query(
-    `
-    SELECT
-      ra.*,
-      ta.code AS type_attachment_code,
-      ta.name AS type_attachment_name,
-      users.full_name AS uploaded_by_name
-    FROM report_attachments ra
-    LEFT JOIN type_attachment ta ON ra.type_attachment_id = ta.id
-    LEFT JOIN users ON ra.uploaded_by_user_id = users.id
-    WHERE ra.report_id = ?
-    ORDER BY ra.created_at DESC
-    `,
-    [reportId]
-  );
-
-  return rows;
+async function getAttachmentsByReportId(reportIdOrTicketId, trxConnection = null) {
+  return attachmentModel.getAttachmentsByTicketId(reportIdOrTicketId, trxConnection);
 }
 
 async function getAttachmentsByTicketId(ticketId, trxConnection = null) {
@@ -1642,37 +1604,15 @@ async function getAttachmentsByTicketId(ticketId, trxConnection = null) {
 
 async function resolveReportLogIdentity(logData, trxConnection = null) {
   const conn = trxConnection || pool;
-  const hasReportId = logData.report_id !== undefined && logData.report_id !== null;
-  const hasTicketId = logData.ticket_id !== undefined && logData.ticket_id !== null;
+  const ticketId = logData.ticket_id ? String(logData.ticket_id).trim() : '';
 
-  if (!hasReportId && !hasTicketId) {
-    throw new Error('Identitas laporan wajib diisi untuk log.');
-  }
-
-  if (hasReportId && !/^[1-9]\d*$/.test(String(logData.report_id))) {
-    throw new Error('Report ID untuk log tidak valid.');
-  }
-
-  if (hasTicketId && (typeof logData.ticket_id !== 'string' || !logData.ticket_id.trim())) {
-    throw new Error('Ticket ID untuk log tidak valid.');
-  }
-
-  const conditions = [];
-  const params = [];
-
-  if (hasReportId) {
-    conditions.push('id = ?');
-    params.push(logData.report_id);
-  }
-
-  if (hasTicketId) {
-    conditions.push('ticket_id = ?');
-    params.push(logData.ticket_id);
+  if (!ticketId) {
+    throw new Error('Identitas laporan (ticket_id) wajib diisi untuk log.');
   }
 
   const [rows] = await conn.query(
-    `SELECT id, ticket_id FROM reports WHERE ${conditions.join(' AND ')} LIMIT 1`,
-    params
+    'SELECT ticket_id FROM reports WHERE ticket_id = ? LIMIT 1',
+    [ticketId]
   );
 
   return rows[0] || null;
@@ -1682,25 +1622,23 @@ async function createReportLog(logData, trxConnection = null) {
   const conn = trxConnection || pool;
   const report = await resolveReportLogIdentity(logData, conn);
 
-  if (!report || !report.id || !report.ticket_id) {
+  if (!report || !report.ticket_id) {
     throw new Error('Identitas laporan untuk log tidak ditemukan atau tidak cocok.');
   }
 
   const [result] = await conn.query(
     `
-    INSERT INTO report_logs (report_id, ticket_id, user_id, action, description, created_at)
-    VALUES (?, ?, ?, ?, ?, NOW())
+    INSERT INTO report_logs (ticket_id, user_id, action, description, created_at)
+    VALUES (?, ?, ?, ?, NOW())
     `,
-    [report.id, report.ticket_id, logData.user_id ?? null, logData.action, logData.description ?? null]
+    [report.ticket_id, logData.user_id ?? null, logData.action, logData.description ?? null]
   );
 
   return result.insertId;
 }
 
 async function getReportLogsByReportId(reportId, trxConnection = null) {
-  const report = await resolveReportLogIdentity({ report_id: reportId }, trxConnection);
-
-  return report ? getReportLogsByTicketId(report.ticket_id, trxConnection) : [];
+  return getReportLogsByTicketId(reportId, trxConnection);
 }
 
 async function getReportLogsByTicketId(ticketId, trxConnection = null) {
@@ -1709,7 +1647,7 @@ async function getReportLogsByTicketId(ticketId, trxConnection = null) {
     `
     SELECT
       report_logs.id,
-      report_logs.report_id,
+      report_logs.ticket_id,
       report_logs.user_id,
       report_logs.action,
       report_logs.description,
@@ -1760,8 +1698,36 @@ function parseTelegramAdditionalLogDescription(description) {
   }
 }
 
-async function getTelegramAdditionalMediaByReportId(reportId) {
-  const logs = await getReportLogsByReportId(reportId);
+async function getTelegramAdditionalMediaByTicketId(ticketId) {
+  const logs = await getReportLogsByTicketId(ticketId);
+  const rows = logs
+    .filter((log) => log.action === 'telegram_additional_data_received')
+    .reverse();
+
+  const parsed = rows
+    .map((row) => {
+      const media = parseTelegramAdditionalLogDescription(row.description);
+      if (!media) {
+        return null;
+      }
+
+      return {
+        log_id: row.id,
+        created_at: row.created_at,
+        media
+      };
+    })
+    .filter(Boolean);
+
+  return parsed;
+}
+
+async function getTelegramAdditionalMediaByReportId(reportIdOrTicketId) {
+  const isNumeric = /^\d+$/.test(String(reportIdOrTicketId).trim());
+  if (!isNumeric) {
+    return getTelegramAdditionalMediaByTicketId(reportIdOrTicketId);
+  }
+  const logs = await getReportLogsByReportId(reportIdOrTicketId);
   const rows = logs
     .filter((log) => log.action === 'telegram_additional_data_received')
     .reverse();
@@ -1788,6 +1754,7 @@ module.exports = {
   createTelegramReport,
   findByTicketId,
   getReportByTicketId,
+  getTelegramFeedbackPayload,
   getTelegramFeedbackPayloadByReportId,
   logTelegramFeedback,
   storeTelegramAdditionalData,
@@ -1810,5 +1777,6 @@ module.exports = {
   createReportLog,
   getReportLogsByTicketId,
   getReportLogsByReportId,
-  getTelegramAdditionalMediaByReportId
+  getTelegramAdditionalMediaByReportId,
+  getTelegramAdditionalMediaByTicketId
 };

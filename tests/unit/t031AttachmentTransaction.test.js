@@ -14,6 +14,9 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
       const fakeConn = {
         query: async (sql) => {
           customConnUsed = true;
+          if (String(sql).includes('SELECT ticket_id FROM reports')) {
+            return [[{ ticket_id: 'INF000001' }]];
+          }
           if (String(sql).includes('FROM type_attachment')) {
             return [[{ id: 2 }]];
           }
@@ -21,7 +24,6 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
         }
       };
       const id = await attachmentModel.createAttachment({
-        report_id: 1,
         ticket_id: 'INF000001',
         type_attachment_code: 'bukti_penanganan',
         file_name: 'test.jpg'
@@ -44,7 +46,7 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
     });
     it('attachmentModel.getAttachmentsByReportId menyertakan type_attachment_code dan type_attachment_name', async () => {
       assert.equal(typeof attachmentModel.getAttachmentsByReportId, 'function');
-      const rows = await attachmentModel.getAttachmentsByReportId(1);
+      const rows = await attachmentModel.getAttachmentsByReportId('INF000001');
       assert.ok(Array.isArray(rows));
       assert.ok(rows.length > 0);
       const first = rows[0];
@@ -55,7 +57,7 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
     });
     it('reportModel.getAttachmentsByReportId melakukan LEFT JOIN type_attachment', async () => {
       assert.equal(typeof reportModel.getAttachmentsByReportId, 'function');
-      const rows = await reportModel.getAttachmentsByReportId(1);
+      const rows = await reportModel.getAttachmentsByReportId('INF000001');
       assert.ok(Array.isArray(rows));
       assert.ok(rows.length > 0);
       const first = rows[0];
@@ -110,8 +112,8 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
           if (String(sql).includes('INSERT INTO report_attachments')) {
             return [{ insertId: 8888 }];
           }
-          if (String(sql).includes('SELECT id, ticket_id FROM reports')) {
-            return [[{ id: 9999, ticket_id: 'TEST-TRX-001' }]];
+          if (String(sql).includes('SELECT ticket_id FROM reports')) {
+            return [[{ ticket_id: 'TEST-TRX-001' }]];
           }
           if (String(sql).includes('INSERT INTO report_logs')) {
             return [{ insertId: 7777 }];
@@ -170,6 +172,9 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
           if (String(sql).includes('UPDATE reports')) {
             return [{ affectedRows: 1 }];
           }
+          if (String(sql).includes('SELECT ticket_id FROM reports')) {
+            return [[{ ticket_id: 'TEST-TRX-ERR' }]];
+          }
           if (String(sql).includes('SELECT id FROM type_attachment')) {
             // Simulasi error saat menyimpan attachment
             throw new Error('SIMULASI_GAGAL_ATTACHMENT: Disk IO failure saat menyimpan berkas');
@@ -224,31 +229,29 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
         const userId = users[0].id;
         const testTicketId = 'T031-TEST-ISOLATED';
         // 3. Insert report sementara di dalam transaksi yang akan di-rollback
-        const [repResult] = await conn.query(
+        await conn.query(
           `
           INSERT INTO reports
           (
             ticket_id, source_channel, summary, status_internal,
-            reported_region_id, current_region_id, current_assigned_user_id,
+            reported_region_id,
             created_at, updated_at
           )
-          VALUES (?, 'telegram', 'T031 Atomic Test Report', 'diambil', ?, ?, ?, NOW(), NOW())
+          VALUES (?, 'telegram', 'T031 Atomic Test Report', 'diambil', ?, NOW(), NOW())
           `,
-          [testTicketId, regionId, regionId, userId]
+          [testTicketId, regionId]
         );
-        const testReportId = repResult.insertId;
         // 4. Update status ke 'selesai' di dalam transaksi
         await conn.query(
           `
           UPDATE reports
           SET status_internal = 'selesai', completion_status = 'selesai', updated_at = NOW()
-          WHERE id = ?
+          WHERE ticket_id = ?
           `,
-          [testReportId]
+          [testTicketId]
         );
         // 5. Simpan attachment penanganan dengan type_attachment_code = 'bukti_penanganan'
         const attachmentId = await attachmentModel.createAttachment({
-          report_id: testReportId,
           ticket_id: testTicketId,
           type_attachment_code: 'bukti_penanganan',
           source: 'manual',
@@ -261,7 +264,6 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
         assert.ok(attachmentId > 0);
         // 6. Simpan log laporan di dalam transaksi
         await reportModel.createReportLog({
-          report_id: testReportId,
           ticket_id: testTicketId,
           user_id: userId,
           action: 'complete_report',
@@ -285,7 +287,7 @@ describe('T031 — Validate Attachment Transaction & Read Integrity', () => {
         await conn.rollback();
         // 9. Verifikasi di luar transaksi pada connection baru: data uji TIDAK tertinggal di database live!
         const [outerReports] = await pool.query(
-          'SELECT id FROM reports WHERE ticket_id = ?',
+          'SELECT ticket_id FROM reports WHERE ticket_id = ?',
           [testTicketId]
         );
         assert.equal(outerReports.length, 0, 'Report uji harus 0 setelah rollback');

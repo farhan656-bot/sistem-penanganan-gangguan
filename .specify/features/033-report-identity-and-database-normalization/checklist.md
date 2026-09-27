@@ -427,18 +427,18 @@ Checklist kepatuhan aturan tata kelola lampiran yang wajib dipatuhi di seluruh f
   - **Rollback**: Perbaiki klausa tie-breaker leksikografis jika urutan kursor melompat.
   - **Status**: PENDING [ ]
 
-- [ ] **[T036] GATE 3 — PRE-SWITCH GATE**
+- [x] **[T036] GATE 3 — PRE-SWITCH GATE**
   - **Action**: Verifikasi menyeluruh terhadap seluruh gerbang pra-pengalihan kunci:
-    - [ ] Zero orphan rows
-    - [ ] 48 attachments terklasifikasi secara sah (Stop Gate 1 lolos)
-    - [ ] Active assignment invariant PASS (Gate 2 lolos)
-    - [ ] Dual-write pointer consistency & NOT NULL PASS
-    - [ ] Nol referensi kode operasional ke kolom legacy
-    - [ ] Full backup snapshot T003 tersedia dan terverifikasi
-  - **Validation**: Persetujuan formal arsitektur untuk memulai Fase 5 (*Switch FK/PK*).
-  - **Evidence**: Lembar otorisasi Gate 3 ditandatangani.
+    - [x] Zero orphan rows (Gate 3.1: 0 orphan rows pada seluruh child table)
+    - [x] 48 attachments terklasifikasi secara sah (Gate 3.2: 48/48 terklasifikasi valid, 27 bukti_penanganan, 21 bukti_pelapor)
+    - [x] Active assignment invariant PASS (Gate 3.3: 0 duplicate active assignment, tepat 1 per tiket non-tersedia)
+    - [x] Dual-write pointer consistency & NOT NULL PASS (Gate 3.4: 0 pointer mismatch, 0 invalid NULL)
+    - [x] Nol referensi kode operasional ke kolom legacy (Gate 3.5: 0 operational query references ke current_region_id, from_region_id, to_region_id, current_assigned_user_id)
+    - [x] Fresh verified backup snapshot tersedia dan terverifikasi (Gate 3.6: `C:\F033_Backup\backup_pre_f033_phase5_2026-09-23.sql`, 125.756 bytes, timestamp 2026-09-23 18:16:41, memuat tiket live INF770106)
+  - **Validation**: Seluruh kriteria Gate 3.1–3.6 terverifikasi lulus (PASS); siap untuk peninjauan dan persetujuan formal arsitektur sebelum memulai Fase 5 (*Switch FK/PK*).
+  - **Evidence**: Laporan audit T036 (Gate 3.1–3.6 PASS) dan fresh backup `C:\F033_Backup\backup_pre_f033_phase5_2026-09-23.sql`.
   - **Rollback**: Jika belum siap, tunda migrasi; sistem tetap aman berjalan dalam mode Dual Compatibility.
-  - **Status**: PENDING [ ]
+  - **Status**: COMPLETED [x]
 
 ---
 

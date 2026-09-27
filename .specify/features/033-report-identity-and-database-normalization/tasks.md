@@ -781,12 +781,13 @@ Maka selama Phase 3 (Dual Compatibility) hingga sebelum Phase 6 (Contract Phase)
 - **Files/Schema Affected**: Seluruh arsitektur.
 - **Exact Work to Perform**:
   - Verifikasi ceklist:
-    - [ ] Zero orphan rows
-    - [ ] 48 attachments terklasifikasi
-    - [ ] Active assignment invariant PASS
-    - [ ] Nol referensi legacy
-    - [ ] Full backup tersedia
-- **Validation/Acceptance Criteria**: Persetujuan formal untuk beralih ke Fase 5 (*Switch FK/PK*) mensyaratkan seluruh kriteria ceklist di atas berstatus PASS.
+    - [x] Zero orphan rows (Gate 3.1: 0 orphan pada report_assignments, report_logs, report_attachments, telegram_pending_media)
+    - [x] 48 attachments terklasifikasi (Gate 3.2: 48/48 valid, 27 bukti_penanganan, 21 bukti_pelapor)
+    - [x] Active assignment invariant PASS (Gate 3.3: 0 duplicate active assignment, tepat 1 active assignment per tiket non-tersedia)
+    - [x] Dual-write pointer consistency (Gate 3.4: 0 mismatch pointer, 0 illegal NULL)
+    - [x] Nol referensi legacy (Gate 3.5: 0 operational query references ke current_region_id, from_region_id, to_region_id, current_assigned_user_id)
+    - [x] Fresh verified backup snapshot tersedia (`C:\F033_Backup\backup_pre_f033_phase5_2026-09-23.sql`, 125.756 bytes, timestamp 2026-09-23 18:16:41, memuat tiket live INF770106, Gate 3.6 PASS)
+- **Validation/Acceptance Criteria**: Seluruh kriteria ceklist pra-pengalihan kunci berstatus PASS. Persetujuan formal arsitektur diperlukan sebelum mengeksekusi Fase 5 (*Switch FK/PK*).
 - **Rollback Requirement**: Jika belum siap, tunda migrasi; sistem tetap berjalan normal dalam mode *Dual Compatibility*.
 
 ---

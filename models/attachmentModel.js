@@ -17,29 +17,38 @@ async function getTypeIdByCode(code, trxConnection = null) {
 async function resolveAttachmentReportIdentity(data, trxConnection = null) {
   const conn = trxConnection || pool;
   const hasReportId = data.report_id !== undefined && data.report_id !== null;
-  const hasTicketId = data.ticket_id !== undefined && data.ticket_id !== null;
+  const hasTicketId = data.ticket_id !== undefined && data.ticket_id !== null && String(data.ticket_id).trim() !== '';
 
   if (!hasReportId && !hasTicketId) {
-    throw new Error('Identitas laporan (report_id atau ticket_id) wajib diisi untuk lampiran.');
+    throw new Error('Identitas laporan (ticket_id) wajib diisi untuk lampiran.');
   }
 
-  // If only one identifier is provided, resolve the counterpart from database
-  if (!hasReportId || !hasTicketId) {
-    const queryCol = hasReportId ? 'id = ?' : 'ticket_id = ?';
-    const queryVal = hasReportId ? data.report_id : data.ticket_id;
+  if (hasTicketId && hasReportId) {
+    return { id: data.report_id, ticket_id: String(data.ticket_id).trim() };
+  }
+
+  if (hasTicketId) {
+    const normalizedTicketId = String(data.ticket_id).trim();
     const [rows] = await conn.query(
-      `SELECT id, ticket_id FROM reports WHERE ${queryCol} LIMIT 1`,
-      [queryVal]
+      'SELECT ticket_id FROM reports WHERE ticket_id = ? LIMIT 1',
+      [normalizedTicketId]
     );
     const report = rows[0];
-    if (!report || !report.id || !report.ticket_id) {
+    if (!report || !report.ticket_id) {
       throw new Error('Identitas laporan untuk lampiran tidak ditemukan di database.');
     }
-    return { id: report.id, ticket_id: report.ticket_id };
+    return { id: null, ticket_id: report.ticket_id };
   }
 
-  // If both are provided, return as is
-  return { id: data.report_id, ticket_id: data.ticket_id };
+  const [rows] = await conn.query(
+    'SELECT ticket_id FROM reports WHERE id = ? LIMIT 1',
+    [String(data.report_id).trim()]
+  );
+  const report = rows[0];
+  if (!report || !report.ticket_id) {
+    throw new Error('Identitas laporan untuk lampiran tidak ditemukan di database.');
+  }
+  return { id: data.report_id, ticket_id: report.ticket_id };
 }
 
 function resolveAttachmentTypeCode(data) {
@@ -67,7 +76,6 @@ async function createAttachment(data, trxConnection = null) {
     `
     INSERT INTO report_attachments
     (
-      report_id,
       ticket_id,
       type_attachment_id,
       source,
@@ -84,10 +92,9 @@ async function createAttachment(data, trxConnection = null) {
       uploaded_by_user_id,
       created_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `,
     [
-      reportIdentity.id,
       reportIdentity.ticket_id,
       typeAttachmentId,
       data.source || 'telegram',
@@ -115,7 +122,6 @@ async function getAttachmentsByTicketId(ticketId, trxConnection = null) {
     `
     SELECT
       ra.id,
-      ra.report_id,
       ra.ticket_id,
       ra.type_attachment_id,
       ta.code AS type_attachment_code,
@@ -146,41 +152,20 @@ async function getAttachmentsByTicketId(ticketId, trxConnection = null) {
   return rows;
 }
 
-async function getAttachmentsByReportId(reportId, trxConnection = null) {
+async function getAttachmentsByReportId(reportIdOrTicketId, trxConnection = null) {
+  const isNumeric = /^\d+$/.test(String(reportIdOrTicketId).trim());
+  if (!isNumeric) {
+    return getAttachmentsByTicketId(reportIdOrTicketId, trxConnection);
+  }
   const conn = trxConnection || pool;
   const [rows] = await conn.query(
-    `
-    SELECT
-      ra.id,
-      ra.report_id,
-      ra.ticket_id,
-      ra.type_attachment_id,
-      ta.code AS type_attachment_code,
-      ta.name AS type_attachment_name,
-      ra.source,
-      ra.telegram_file_id,
-      ra.telegram_file_unique_id,
-      ra.file_type,
-      ra.mime_type,
-      ra.original_name,
-      ra.file_name,
-      ra.stored_name,
-      ra.file_path,
-      ra.file_size,
-      ra.caption,
-      ra.uploaded_by_user_id,
-      ra.created_at,
-      u.full_name AS uploaded_by_name
-    FROM report_attachments ra
-    LEFT JOIN type_attachment ta ON ra.type_attachment_id = ta.id
-    LEFT JOIN users u ON ra.uploaded_by_user_id = u.id
-    WHERE ra.report_id = ?
-    ORDER BY ra.created_at DESC
-    `,
-    [reportId]
+    'SELECT ticket_id FROM reports WHERE id = ? LIMIT 1',
+    [reportIdOrTicketId]
   );
-
-  return rows;
+  if (rows.length > 0 && rows[0].ticket_id) {
+    return getAttachmentsByTicketId(rows[0].ticket_id, trxConnection);
+  }
+  return getAttachmentsByTicketId(reportIdOrTicketId, trxConnection);
 }
 
 module.exports = {

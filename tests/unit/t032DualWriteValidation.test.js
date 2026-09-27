@@ -12,15 +12,7 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
 
   describe('1. Database Invariant & Orphan Checks (Live DB Read-Only)', () => {
 
-    it('report_assignments: 0 orphans dan 0 mismatch terhadap reports', async () => {
-      const [orphanReportId] = await pool.query(`
-        SELECT COUNT(*) AS count
-        FROM report_assignments ra
-        LEFT JOIN reports r ON r.id = ra.report_id
-        WHERE r.id IS NULL
-      `);
-      assert.equal(Number(orphanReportId[0].count), 0, 'Orphan report_id harus 0');
-
+    it('report_assignments: 0 orphans terhadap reports', async () => {
       const [orphanTicketId] = await pool.query(`
         SELECT COUNT(*) AS count
         FROM report_assignments ra
@@ -28,15 +20,6 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
         WHERE r.ticket_id IS NULL
       `);
       assert.equal(Number(orphanTicketId[0].count), 0, 'Orphan ticket_id harus 0');
-
-      const [mismatch] = await pool.query(`
-        SELECT COUNT(*) AS count
-        FROM report_assignments ra
-        JOIN reports r ON r.id = ra.report_id
-        WHERE ra.ticket_id <> r.ticket_id
-           OR ra.ticket_id IS NULL
-      `);
-      assert.equal(Number(mismatch[0].count), 0, 'Mismatch assignments harus 0');
     });
 
     it('report_logs: 0 orphan ticket_id terhadap reports', async () => {
@@ -54,15 +37,7 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
       );
     });
 
-    it('report_attachments: 0 orphans, 0 mismatch, dan type_attachment_id valid', async () => {
-      const [orphanReportId] = await pool.query(`
-        SELECT COUNT(*) AS count
-        FROM report_attachments ra
-        LEFT JOIN reports r ON r.id = ra.report_id
-        WHERE r.id IS NULL
-      `);
-      assert.equal(Number(orphanReportId[0].count), 0, 'Orphan attachments report_id harus 0');
-
+    it('report_attachments: 0 orphans dan type_attachment_id valid', async () => {
       const [orphanTicketId] = await pool.query(`
         SELECT COUNT(*) AS count
         FROM report_attachments ra
@@ -70,15 +45,6 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
         WHERE r.ticket_id IS NULL
       `);
       assert.equal(Number(orphanTicketId[0].count), 0, 'Orphan attachments ticket_id harus 0');
-
-      const [mismatch] = await pool.query(`
-        SELECT COUNT(*) AS count
-        FROM report_attachments ra
-        JOIN reports r ON r.id = ra.report_id
-        WHERE ra.ticket_id <> r.ticket_id
-           OR ra.ticket_id IS NULL
-      `);
-      assert.equal(Number(mismatch[0].count), 0, 'Mismatch attachments harus 0');
 
       const [invalidType] = await pool.query(`
         SELECT COUNT(*) AS count
@@ -118,7 +84,7 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
       assert.ok(Number(unlinkedRows[0].count) >= 1, 'Harus ada minimal 1 pending unlinked media dengan linked_ticket_id NULL');
     });
 
-    it('Foreign keys existing tetap aktif dan mereferensikan reports.id', async () => {
+    it('Foreign keys aktif mereferensikan reports.ticket_id', async () => {
       const [fkRows] = await pool.query(`
         SELECT
           CONSTRAINT_NAME,
@@ -127,53 +93,46 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
           REFERENCED_TABLE_NAME,
           REFERENCED_COLUMN_NAME
         FROM information_schema.KEY_COLUMN_USAGE
-        WHERE TABLE_SCHEMA = 'db_penanganan_gangguan'
-          AND CONSTRAINT_NAME IN ('fk_assign_report', 'fk_logs_report', 'fk_attach_report')
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND CONSTRAINT_NAME IN ('fk_assignments_ticket', 'fk_logs_ticket', 'fk_attachments_ticket', 'fk_pending_media_ticket')
       `);
 
-      assert.equal(fkRows.length, 3, 'Ketiga FK harus terdaftar di information_schema');
-      const assignFk = fkRows.find(fk => fk.CONSTRAINT_NAME === 'fk_assign_report');
+      assert.equal(fkRows.length, 4, 'Keempat FK harus terdaftar di information_schema');
+      const assignFk = fkRows.find(fk => fk.CONSTRAINT_NAME === 'fk_assignments_ticket');
       assert.ok(assignFk);
       assert.equal(assignFk.TABLE_NAME, 'report_assignments');
-      assert.equal(assignFk.COLUMN_NAME, 'report_id');
+      assert.equal(assignFk.COLUMN_NAME, 'ticket_id');
       assert.equal(assignFk.REFERENCED_TABLE_NAME, 'reports');
-      assert.equal(assignFk.REFERENCED_COLUMN_NAME, 'id');
+      assert.equal(assignFk.REFERENCED_COLUMN_NAME, 'ticket_id');
 
-      const logsFk = fkRows.find(fk => fk.CONSTRAINT_NAME === 'fk_logs_report');
+      const logsFk = fkRows.find(fk => fk.CONSTRAINT_NAME === 'fk_logs_ticket');
       assert.ok(logsFk);
       assert.equal(logsFk.TABLE_NAME, 'report_logs');
-      assert.equal(logsFk.COLUMN_NAME, 'report_id');
+      assert.equal(logsFk.COLUMN_NAME, 'ticket_id');
+      assert.equal(logsFk.REFERENCED_TABLE_NAME, 'reports');
+      assert.equal(logsFk.REFERENCED_COLUMN_NAME, 'ticket_id');
 
-      const attachFk = fkRows.find(fk => fk.CONSTRAINT_NAME === 'fk_attach_report');
+      const attachFk = fkRows.find(fk => fk.CONSTRAINT_NAME === 'fk_attachments_ticket');
       assert.ok(attachFk);
       assert.equal(attachFk.TABLE_NAME, 'report_attachments');
-      assert.equal(attachFk.COLUMN_NAME, 'report_id');
+      assert.equal(attachFk.COLUMN_NAME, 'ticket_id');
+      assert.equal(attachFk.REFERENCED_TABLE_NAME, 'reports');
+      assert.equal(attachFk.REFERENCED_COLUMN_NAME, 'ticket_id');
+
+      const mediaFk = fkRows.find(fk => fk.CONSTRAINT_NAME === 'fk_pending_media_ticket');
+      assert.ok(mediaFk);
+      assert.equal(mediaFk.TABLE_NAME, 'telegram_pending_media');
+      assert.equal(mediaFk.COLUMN_NAME, 'linked_ticket_id');
+      assert.equal(mediaFk.REFERENCED_TABLE_NAME, 'reports');
+      assert.equal(mediaFk.REFERENCED_COLUMN_NAME, 'ticket_id');
     });
   });
 
   describe('2. Dual-Write Contract & Resolution Helpers Unit Testing', () => {
-    it('attachmentModel.resolveAttachmentReportIdentity: konsisten saat kedua ID cocok', async () => {
-      const result = await attachmentModel.resolveAttachmentReportIdentity({
-        report_id: 1,
-        ticket_id: 'INF000001'
-      });
-      assert.equal(result.id, 1);
-      assert.equal(result.ticket_id, 'INF000001');
-    });
-
-    it('attachmentModel.resolveAttachmentReportIdentity: auto-resolve ticket_id saat hanya report_id diberikan', async () => {
-      const result = await attachmentModel.resolveAttachmentReportIdentity({
-        report_id: 1
-      });
-      assert.equal(result.id, 1);
-      assert.equal(result.ticket_id, 'INF000001');
-    });
-
-    it('attachmentModel.resolveAttachmentReportIdentity: auto-resolve report_id saat hanya ticket_id diberikan', async () => {
+    it('attachmentModel.resolveAttachmentReportIdentity: auto-resolve saat ticket_id diberikan', async () => {
       const result = await attachmentModel.resolveAttachmentReportIdentity({
         ticket_id: 'INF000001'
       });
-      assert.equal(result.id, 1);
       assert.equal(result.ticket_id, 'INF000001');
     });
 
@@ -236,7 +195,7 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
   });
 
   describe('3. Application Flow Isolated Transaction Tests (Zero Live DB Mutation)', () => {
-    it('Flow 1 & 2: create report dan self_take assignment menghasilkan dual-write identik pada child', async () => {
+    it('Flow 1 & 2: create report dan self_take assignment menghasilkan referential integrity pada child', async () => {
       const conn = await pool.getConnection();
 
       try {
@@ -250,23 +209,21 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
         const testTicketId = 'T032-TEST-FLOW-1';
 
         // 1. Create Report
-        const [repResult] = await conn.query(
+        await conn.query(
           `
           INSERT INTO reports
           (
             ticket_id, source_channel, summary, status_internal,
-            reported_region_id, current_region_id,
+            reported_region_id,
             created_at, updated_at
           )
-          VALUES (?, 'telegram', 'T032 Flow Validation Report', 'tersedia', ?, ?, NOW(), NOW())
+          VALUES (?, 'telegram', 'T032 Flow Validation Report', 'tersedia', ?, NOW(), NOW())
           `,
-          [testTicketId, regionId, regionId]
+          [testTicketId, regionId]
         );
-        const testReportId = repResult.insertId;
 
         // Create Report Log for creation
         await reportModel.createReportLog({
-          report_id: testReportId,
           ticket_id: testTicketId,
           user_id: user.id,
           action: 'create_telegram_report',
@@ -278,32 +235,32 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
           `
           INSERT INTO report_assignments
           (
-            report_id, ticket_id, assigned_to_user_id, assigned_by_user_id,
+            ticket_id, assigned_to_user_id, assigned_by_user_id,
             assignment_type, notes, is_active, assigned_at
           )
-          VALUES (?, ?, ?, ?, 'self_take', 'Ambil mandiri test.', 1, NOW())
+          VALUES (?, ?, ?, 'self_take', 'Ambil mandiri test.', 1, NOW())
           `,
-          [testReportId, testTicketId, user.id, user.id]
+          [testTicketId, user.id, user.id]
         );
 
         await reportModel.createReportLog({
-          report_id: testReportId,
           ticket_id: testTicketId,
           user_id: user.id,
           action: 'take_report',
           description: 'Laporan diambil.'
         }, conn);
 
-        // 3. Verifikasi di dalam transaksi: report_assignments dual-write cocok
+        // 3. Verifikasi di dalam transaksi: report_assignments berelasi via ticket_id
         const [assignRows] = await conn.query(
-          'SELECT report_id, ticket_id FROM report_assignments WHERE ticket_id = ?',
+          'SELECT ticket_id, assigned_to_user_id, is_active FROM report_assignments WHERE ticket_id = ?',
           [testTicketId]
         );
         assert.equal(assignRows.length, 1);
-        assert.equal(assignRows[0].report_id, testReportId);
         assert.equal(assignRows[0].ticket_id, testTicketId);
+        assert.equal(assignRows[0].assigned_to_user_id, user.id);
+        assert.equal(assignRows[0].is_active, 1);
 
-        // 4. Verifikasi di dalam transaksi: report_logs dual-write cocok
+        // 4. Verifikasi di dalam transaksi: report_logs berelasi via ticket_id
         const [logRows] = await conn.query(
           'SELECT ticket_id FROM report_logs WHERE ticket_id = ?',
           [testTicketId]
@@ -317,7 +274,7 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
         await conn.rollback();
 
         // 6. Verifikasi di luar transaksi: 0 mutasi permanen
-        const [checkReports] = await pool.query('SELECT id FROM reports WHERE ticket_id = ?', [testTicketId]);
+        const [checkReports] = await pool.query('SELECT ticket_id FROM reports WHERE ticket_id = ?', [testTicketId]);
         assert.equal(checkReports.length, 0);
 
         const [checkAssign] = await pool.query('SELECT id FROM report_assignments WHERE ticket_id = ?', [testTicketId]);
@@ -347,23 +304,22 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
         const testTicketId = 'T032-TEST-FLOW-2';
 
         // 1. Create Report
-        const [repResult] = await conn.query(
+        await conn.query(
           `
           INSERT INTO reports
           (
             ticket_id, source_channel, summary, status_internal,
-            reported_region_id, current_region_id,
+            reported_region_id,
             created_at, updated_at
           )
-          VALUES (?, 'telegram', 'T032 Flow 2 Report', 'diambil', ?, ?, NOW(), NOW())
+          VALUES (?, 'telegram', 'T032 Flow 2 Report', 'diambil', ?, NOW(), NOW())
           `,
-          [testTicketId, regionId, regionId]
+          [testTicketId, regionId]
         );
-        const testReportId = repResult.insertId;
 
-        // 2. Upload attachment dengan auto-resolve (hanya oper report_id)
+        // 2. Upload attachment dengan ticket_id
         const attachmentId = await attachmentModel.createAttachment({
-          report_id: testReportId,
+          ticket_id: testTicketId,
           source: 'manual',
           file_name: 'flow-evidence.jpg',
           file_path: '/uploads/flow-evidence.jpg',
@@ -372,7 +328,7 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
           uploaded_by_user_id: userId
         }, conn);
 
-        // 3. Verifikasi attachment memiliki ticket_id terisi secara dual-write dan type_attachment_id valid
+        // 3. Verifikasi attachment memiliki ticket_id terisi konsisten dan type_attachment_id valid
         const [attRows] = await conn.query(
           `
           SELECT ra.*, ta.code AS type_attachment_code
@@ -383,7 +339,6 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
           [attachmentId]
         );
         assert.equal(attRows.length, 1);
-        assert.equal(attRows[0].report_id, testReportId);
         assert.equal(attRows[0].ticket_id, testTicketId, 'ticket_id harus terisi identik dengan reports');
         assert.equal(attRows[0].type_attachment_code, 'bukti_penanganan');
 
@@ -442,7 +397,7 @@ describe('T032 — Dual-Write / FK / Orphan Validation', () => {
         await conn.rollback();
 
         // 7. Verifikasi di luar transaksi: 0 mutasi permanen
-        const [checkReports] = await pool.query('SELECT id FROM reports WHERE ticket_id = ?', [testTicketId]);
+        const [checkReports] = await pool.query('SELECT ticket_id FROM reports WHERE ticket_id = ?', [testTicketId]);
         assert.equal(checkReports.length, 0);
 
         const [checkAttachments] = await pool.query('SELECT id FROM report_attachments WHERE ticket_id = ?', [testTicketId]);

@@ -41,6 +41,12 @@ async function getBaseFixtureTimestamp(connection) {
 }
 
 describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () => {
+  after(async () => {
+    try {
+      await pool.end();
+    } catch (_) {}
+  });
+
   describe('1. Controller Cursor Parsing & Validation Unit Tests', () => {
     function createMockRes() {
       const res = {
@@ -156,13 +162,13 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
         const currentUser = { id: 7, role: 'super_admin' };
 
         await connection.query(`
-          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
-          VALUES (?, 'telegram', 'Polling Diff Time 1', 'tersedia', 1, 1, ?, NOW(), NOW())
+          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, received_at, created_at, updated_at)
+          VALUES (?, 'telegram', 'Polling Diff Time 1', 'tersedia', 1, ?, NOW(), NOW())
         `, [ticketId1, t1]);
 
         await connection.query(`
-          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
-          VALUES (?, 'telegram', 'Polling Diff Time 2', 'tersedia', 1, 1, ?, NOW(), NOW())
+          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, received_at, created_at, updated_at)
+          VALUES (?, 'telegram', 'Polling Diff Time 2', 'tersedia', 1, ?, NOW(), NOW())
         `, [ticketId2, t2]);
 
         // Langkah A: Kursor sebelum report pertama
@@ -225,13 +231,13 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
         const currentUser = { id: 7, role: 'super_admin' };
 
         await connection.query(`
-          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
-          VALUES (?, 'telegram', 'Same Time Report A', 'tersedia', 1, 1, ?, NOW(), NOW())
+          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, received_at, created_at, updated_at)
+          VALUES (?, 'telegram', 'Same Time Report A', 'tersedia', 1, ?, NOW(), NOW())
         `, [ticketIdA, tSame]);
 
         await connection.query(`
-          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
-          VALUES (?, 'telegram', 'Same Time Report B', 'tersedia', 1, 1, ?, NOW(), NOW())
+          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, received_at, created_at, updated_at)
+          VALUES (?, 'telegram', 'Same Time Report B', 'tersedia', 1, ?, NOW(), NOW())
         `, [ticketIdB, tSame]);
 
         // Langkah A: Kursor sebelum kedua laporan ber-timestamp sama
@@ -292,8 +298,8 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
 
         // Insert report pertama
         await connection.query(`
-          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
-          VALUES (?, 'telegram', 'Sequential Report 1', 'tersedia', 1, 1, ?, NOW(), NOW())
+          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, received_at, created_at, updated_at)
+          VALUES (?, 'telegram', 'Sequential Report 1', 'tersedia', 1, ?, NOW(), NOW())
         `, [ticketId1, t1]);
 
         let clientCursor = {
@@ -329,8 +335,8 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
 
         // Insert report kedua
         await connection.query(`
-          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
-          VALUES (?, 'telegram', 'Sequential Report 2', 'tersedia', 1, 1, ?, NOW(), NOW())
+          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, received_at, created_at, updated_at)
+          VALUES (?, 'telegram', 'Sequential Report 2', 'tersedia', 1, ?, NOW(), NOW())
         `, [ticketId2, t2]);
 
         // Poll 2: Deteksi report 2, tanpa menduplikasi report 1
@@ -373,10 +379,6 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
   });
 
   describe('3. Zero Live Database Mutation Verification', () => {
-    after(async () => {
-      await pool.end();
-    });
-
     it('Verifikasi baris database live persis sama sebelum dan sesudah alur polling (zero mutation)', async () => {
       const tables = [
         'reports',
@@ -407,8 +409,8 @@ describe('T035 — Validate Polling Determinism (GET /reports/check-new)', () =>
         const currentUser = { id: 7, role: 'super_admin' };
 
         await connection.query(`
-          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, current_region_id, received_at, created_at, updated_at)
-          VALUES (?, 'telegram', 'Zero Mutation Polling Probe', 'tersedia', 1, 1, NOW(), NOW(), NOW())
+          INSERT INTO reports (ticket_id, source_channel, summary, status_internal, reported_region_id, received_at, created_at, updated_at)
+          VALUES (?, 'telegram', 'Zero Mutation Polling Probe', 'tersedia', 1, NOW(), NOW(), NOW())
         `, [testTicketId]);
 
         const stats = await model.getNewReportStats({

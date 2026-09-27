@@ -159,7 +159,7 @@ async function getRegionSummary(filters = {}) {
       r.id AS region_id,
       r.code AS region_code,
       r.name AS region_name,
-      COUNT(rep.id) AS total_reports,
+      COUNT(rep.ticket_id) AS total_reports,
       COALESCE(SUM(CASE WHEN rep.status_internal = 'tersedia' THEN 1 ELSE 0 END), 0) AS total_available,
       COALESCE(SUM(CASE WHEN rep.status_internal IN ('diambil', 'didelegasikan') THEN 1 ELSE 0 END), 0) AS total_in_progress,
       COALESCE(SUM(CASE WHEN rep.status_internal = 'selesai' THEN 1 ELSE 0 END), 0) AS total_completed,
@@ -202,7 +202,7 @@ async function getUserPerformance(filters = {}) {
       u.full_name,
       reg.code AS region_code,
       reg.name AS region_name,
-      COUNT(rep.id) AS total_handled,
+      COUNT(rep.ticket_id) AS total_handled,
       COALESCE(SUM(CASE WHEN rep.status_internal = 'selesai' THEN 1 ELSE 0 END), 0) AS total_completed,
       ROUND(AVG(
         CASE
@@ -292,7 +292,7 @@ async function getRegionComparisonChartData(filters = {}) {
       r.id AS region_id,
       r.code AS region_code,
       r.name AS region_name,
-      COUNT(rep.id) AS total
+      COUNT(rep.ticket_id) AS total
     FROM regions r
     LEFT JOIN reports rep
       ON rep.reported_region_id = r.id
@@ -336,7 +336,6 @@ async function getAttentionTickets(filters = {}, { limit = 15 } = {}) {
   const [rows] = await pool.query(
     `
     SELECT
-      rep.id,
       rep.ticket_id,
       rep.order_id,
       rep.summary,

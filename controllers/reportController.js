@@ -239,14 +239,14 @@ function sendQuickActionError(req, res, error, fallbackMessage, redirectPath) {
 
 function buildReportDetailPayload(report) {
   return {
-    id: normalizeJsonValue(report.id),
+    ticket_id: normalizeJsonValue(report.ticket_id),
+    id: normalizeJsonValue(report.ticket_id || report.id),
     source_channel: normalizeJsonValue(report.source_channel),
     telegram_sender_id: normalizeJsonValue(report.telegram_sender_id),
     telegram_sender_username: normalizeJsonValue(report.telegram_sender_username),
     telegram_sender_first_name: normalizeJsonValue(report.telegram_sender_first_name),
     telegram_sender_last_name: normalizeJsonValue(report.telegram_sender_last_name),
     fallout_type: normalizeJsonValue(report.fallout_type),
-    ticket_id: normalizeJsonValue(report.ticket_id),
     order_id: normalizeJsonValue(report.order_id),
     wo_number: normalizeJsonValue(report.wo_number),
     service_type: normalizeJsonValue(report.service_type),
@@ -315,7 +315,8 @@ function buildTelegramLogMediaPayload(item) {
 function buildReportLogPayload(log) {
   return {
     id: normalizeJsonValue(log.id),
-    report_id: normalizeJsonValue(log.report_id),
+    ticket_id: normalizeJsonValue(log.ticket_id),
+    report_id: normalizeJsonValue(log.ticket_id || log.report_id),
     user_id: normalizeJsonValue(log.user_id),
     user_name: normalizeJsonValue(log.user_name),
     actor_name: normalizeJsonValue(log.actor_name),
@@ -400,16 +401,15 @@ async function redirectCompleteWithError(req, res, ticketId, message) {
   return res.redirect(`/reports/${ticketId}`);
 }
 
-async function triggerTelegramFeedback(reportId, currentUser, feedbackType, options = {}) {
-  const payload = await reportModel.getTelegramFeedbackPayloadByReportId(reportId);
+async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, options = {}) {
+  const payload = await reportModel.getTelegramFeedbackPayload(ticketId);
 
   if (!payload) {
     return;
   }
 
   if (!payload.telegram_chat_id) {
-    await reportModel.logTelegramFeedback(
-      reportId,
+    await reportModel.logTelegramFeedback(ticketId,
       'telegram_feedback_failed',
       `Feedback ${feedbackType} tidak dikirim karena telegram_chat_id kosong.`,
       currentUser.id
@@ -426,8 +426,7 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType, opti
         executorName: currentUser.full_name
       });
 
-      await reportModel.logTelegramFeedback(
-        reportId,
+      await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_assigned',
         `Feedback assigned terkirim ke chat ${payload.telegram_chat_id}.`,
         currentUser.id
@@ -443,8 +442,7 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType, opti
         executorName: currentUser.full_name
       });
 
-      await reportModel.logTelegramFeedback(
-        reportId,
+      await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_in_progress',
         `Feedback in-progress terkirim ke chat ${payload.telegram_chat_id}.`,
         currentUser.id
@@ -459,8 +457,7 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType, opti
         orderId: payload.order_id || '-'
       });
 
-      await reportModel.logTelegramFeedback(
-        reportId,
+      await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_completed',
         `Feedback completed terkirim ke chat ${payload.telegram_chat_id}.`,
         currentUser.id
@@ -475,8 +472,7 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType, opti
         notes: options.notes
       });
 
-      await reportModel.logTelegramFeedback(
-        reportId,
+      await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_return_evidence',
         `Feedback return evidence terkirim ke chat ${payload.telegram_chat_id}.`,
         currentUser.id
@@ -491,16 +487,14 @@ async function triggerTelegramFeedback(reportId, currentUser, feedbackType, opti
         diitCode: options.diitCode || payload.diit_code
       });
 
-      await reportModel.logTelegramFeedback(
-        reportId,
+      await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_escalation',
         `Feedback escalation DIIT terkirim ke chat ${payload.telegram_chat_id}.`,
         currentUser.id
       );
     }
   } catch (error) {
-    await reportModel.logTelegramFeedback(
-      reportId,
+    await reportModel.logTelegramFeedback(ticketId,
       'telegram_feedback_failed',
       `Gagal kirim feedback ${feedbackType}: ${error.message || error}`,
       currentUser.id
@@ -658,15 +652,19 @@ async function resolveReportForController(param, currentUser) {
     return null;
   }
 
+  let report = await reportModel.getReportByTicketId(identifier, currentUser);
+  if (report) {
+    return report;
+  }
+
   if (/^\d+$/.test(identifier)) {
-    const report = await reportModel.getReportById(identifier, currentUser);
+    report = await reportModel.getReportById(identifier, currentUser);
     if (report) {
       return report;
     }
   }
 
-  const report = await reportModel.findByTicketId(identifier);
-  return report ? reportModel.getReportById(report.id, currentUser) : null;
+  return null;
 }
 
 async function showReportDetail(req, res) {
@@ -679,7 +677,7 @@ async function showReportDetail(req, res) {
       return res.redirect('/reports');
     }
 
-    const attachments = await reportModel.getAttachmentsByReportId(report.id);
+    const attachments = await reportModel.getAttachmentsByTicketId(report.ticket_id);
     const {
       completionAttachments,
       telegramAttachments
@@ -726,9 +724,9 @@ async function showReportDetailJson(req, res) {
       });
     }
 
-    const attachments = await reportModel.getAttachmentsByReportId(report.id);
-    const telegramAttachments = await attachmentModel.getAttachmentsByReportId(report.id);
-    const telegramLogMedia = await reportModel.getTelegramAdditionalMediaByReportId(report.id);
+    const attachments = await reportModel.getAttachmentsByTicketId(report.ticket_id);
+    const telegramAttachments = await attachmentModel.getAttachmentsByTicketId(report.ticket_id);
+    const telegramLogMedia = await reportModel.getTelegramAdditionalMediaByTicketId(report.ticket_id);
     const reportLogs = await reportModel.getReportLogsByTicketId(report.ticket_id);
 
     return res.json({
@@ -766,7 +764,7 @@ async function takeReport(req, res) {
 
     redirectPath = normalizeReportReturnPath(req, `/reports/${report.ticket_id}`);
     const result = await reportModel.takeReport(report.ticket_id, req.session.user);
-    await triggerTelegramFeedback(report.id, req.session.user, 'assigned');
+    await triggerTelegramFeedback(report.ticket_id, req.session.user, 'assigned');
 
     return sendQuickActionSuccess(req, res, result, redirectPath);
   } catch (error) {
@@ -788,8 +786,8 @@ async function markReportInProgress(req, res) {
 
     const fallbackPath = `/reports/${report.ticket_id}`;
     redirectPath = normalizeReportReturnPath(req, fallbackPath);
-    const result = await reportModel.markReportInProgress(report.id, req.session.user);
-    await triggerTelegramFeedback(report.id, req.session.user, 'in_progress');
+    const result = await reportModel.markReportInProgress(report.ticket_id, req.session.user);
+    await triggerTelegramFeedback(report.ticket_id, req.session.user, 'in_progress');
 
     return sendQuickActionSuccess(req, res, result, redirectPath);
   } catch (error) {
@@ -858,15 +856,15 @@ async function completeReport(req, res) {
     );
 
     if (completionStatus === 'perlu_tindak_lanjut') {
-      await triggerTelegramFeedback(report.id, req.session.user, 'return_evidence', {
+      await triggerTelegramFeedback(report.ticket_id, req.session.user, 'return_evidence', {
         notes: req.body.completion_notes
       });
     } else if (completionStatus === 'eskalasi') {
-      await triggerTelegramFeedback(report.id, req.session.user, 'escalation', {
+      await triggerTelegramFeedback(report.ticket_id, req.session.user, 'escalation', {
         diitCode
       });
     } else {
-      await triggerTelegramFeedback(report.id, req.session.user, 'completed');
+      await triggerTelegramFeedback(report.ticket_id, req.session.user, 'completed');
     }
 
     req.flash('success_msg', result.message);

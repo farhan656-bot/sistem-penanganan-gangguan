@@ -206,12 +206,12 @@
               <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <p class="mb-0 text-muted">Ambil tiket ini agar Koordinator menjadi penanggung jawab aktif dan dapat membantu proses pengerjaan.</p>
                 <form
-                  action="/reports/<%= report.id %>/take"
+                  action="/reports/<%= report.ticket_id %>/take"
                   method="POST"
                   class="m-0"
                   data-ticket-quick-action
                   data-action-type="take"
-                  data-report-id="<%= report.id %>"
+                  data-ticket-id="<%= report.ticket_id %>"
                 >
                   <button type="submit" class="btn btn-primary" onclick="return confirm('Ambil tugas ini?');">
                     Ambil Tugas
@@ -230,12 +230,12 @@
               <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
                 <p class="mb-0 text-muted">Gunakan tombol ini saat tiket sudah mulai dikerjakan agar pelapor menerima update status.</p>
                 <form
-                  action="/reports/<%= report.id %>/in-progress"
+                  action="/reports/<%= report.ticket_id %>/in-progress"
                   method="POST"
                   class="m-0"
                   data-ticket-quick-action
                   data-action-type="in-progress"
-                  data-report-id="<%= report.id %>"
+                  data-ticket-id="<%= report.ticket_id %>"
                 >
                   <button type="submit" class="btn btn-warning" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
                     Tandai In Progress
@@ -247,7 +247,7 @@
             <div class="card app-card mt-3">
               <div class="card-header fw-semibold">Konfirmasi Penyelesaian</div>
               <div class="card-body">
-                <form action="/reports/<%= report.id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
+                <form action="/reports/<%= report.ticket_id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
                   <div class="mb-3">
                     <label class="form-label" for="completion_notes">
                       Catatan
@@ -354,7 +354,7 @@
                   Gunakan delegasi hanya jika memang dibutuhkan untuk penanganan lintas wilayah. Akses region sementara digunakan untuk mendukung kebutuhan operasional lintas region berdasarkan persetujuan Koordinator.
                 </div>
 
-                <form action="/reports/<%= report.id %>/delegate" method="POST">
+                <form action="/reports/<%= report.ticket_id %>/delegate" method="POST">
                   <div class="row g-3">
                     <div class="col-12 col-lg-6">
                       <label class="form-label">Pilih Pegawai Tujuan</label>
@@ -399,7 +399,7 @@
               <div class="card-body">
                 <div class="text-muted mb-3">Gunakan pembatalan penugasan bila penanggung jawab aktif perlu diganti dan tiket harus kembali tersedia sesuai rule yang ada.</div>
 
-                <form action="/reports/<%= report.id %>/cancel-assignment" method="POST">
+                <form action="/reports/<%= report.ticket_id %>/cancel-assignment" method="POST">
                   <div class="mb-3">
                     <label class="form-label">Alasan Pembatalan</label>
                     <textarea name="cancel_notes" class="form-control" rows="3" required></textarea>
