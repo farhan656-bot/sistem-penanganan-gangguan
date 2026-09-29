@@ -20,71 +20,212 @@
 
           <%- include('../../partials/page-header', {
             pageTitle: 'Approval Switch Region',
-            pageSubtitle: 'Akses region sementara digunakan untuk mendukung kebutuhan operasional lintas region berdasarkan persetujuan Koordinator. Approve/Reject tetap mengikuti aturan yang sudah ada.'
+            pageSubtitle: 'Persetujuan permohonan akses wilayah operasional sementara bagi teknisi eksekutor lintas region.'
           }) %>
 
-          <div class="card app-card">
-            <div class="card-body">
+          <div class="card app-card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <strong>Daftar Permohonan Menunggu Persetujuan</strong>
+                <div class="text-muted small">Tinjau permohonan akses wilayah sementara dari teknisi eksekutor.</div>
+              </div>
+              <span class="badge text-bg-warning">Pending: <%= (requests || []).length %></span>
+            </div>
+            <div class="card-body p-0">
               <% if (!requests || requests.length === 0) { %>
-                <div class="text-muted">Tidak ada pengajuan pending.</div>
+                <div class="text-center text-muted p-4 app-table-empty">Tidak ada pengajuan switch region yang menunggu persetujuan.</div>
               <% } else { %>
                 <div class="table-responsive">
-                  <table class="table table-hover align-middle">
+                  <table class="table table-hover align-middle mb-0">
                     <thead>
                       <tr>
-                        <th style="width: 64px">No</th>
-                        <th>Requester</th>
+                        <th class="app-col-num">No</th>
+                        <th>Pemohon (Requester)</th>
                         <th>Region Asal</th>
                         <th>Region Tujuan</th>
-                        <th>Alasan</th>
-                        <th class="text-nowrap">Requested At</th>
-                        <th class="text-nowrap" style="width: 260px">Aksi</th>
+                        <th>Alasan Pengajuan</th>
+                        <th class="app-col-time">Waktu Pengajuan</th>
+                        <th class="app-table-actions">Keputusan</th>
                       </tr>
                     </thead>
                     <tbody>
                       <% (requests || []).forEach((request, index) => { %>
                         <tr>
-                          <td><%= index + 1 %></td>
+                          <td class="app-col-num text-muted"><%= index + 1 %></td>
                           <td>
-                            <div class="fw-semibold"><%= request.requester_name || '-' %></div>
+                            <div class="fw-semibold text-dark"><%= request.requester_name || '-' %></div>
                           </td>
-                          <td><%= request.home_region_name || '-' %></td>
-                          <td><%= request.target_region_name || '-' %></td>
+                          <td>
+                            <% if (request.home_region_code) { %>
+                              <span class="badge text-bg-light border font-monospace me-1"><%= request.home_region_code %></span>
+                            <% } %>
+                            <span class="text-dark"><%= request.home_region_name || '-' %></span>
+                          </td>
+                          <td>
+                            <% if (request.target_region_code) { %>
+                              <span class="badge text-bg-primary font-monospace me-1"><%= request.target_region_code %></span>
+                            <% } %>
+                            <span class="fw-semibold text-dark"><%= request.target_region_name || '-' %></span>
+                          </td>
                           <td>
                             <div class="app-truncate" title="<%= request.reason || '-' %>"><%= request.reason || '-' %></div>
                           </td>
                           <td class="text-nowrap">
-                            <span class="text-muted"><%= formatDateTime(request.requested_at) %></span>
+                            <span class="text-muted small"><%= formatDateTime(request.requested_at) %></span>
                           </td>
-                          <td class="text-nowrap">
-                            <div class="d-flex flex-wrap gap-2">
-                              <form action="/region-switch/<%= request.id %>/approve" method="POST" class="m-0" onsubmit="return confirm('Approve pengajuan ini?');">
-                                <button type="submit" class="btn btn-sm btn-success">Approve</button>
-                              </form>
-
-                              <form action="/region-switch/<%= request.id %>/reject" method="POST" class="m-0 d-flex gap-2 align-items-start flex-wrap">
-                                <input
-                                  type="text"
-                                  name="rejection_reason"
-                                  class="form-control form-control-sm"
-                                  placeholder="Alasan penolakan"
-                                  required
-                                  style="min-width: 180px"
-                                >
-                                <button
-                                  type="submit"
-                                  class="btn btn-sm btn-danger"
-                                  onclick="return confirm('Reject pengajuan ini?')"
-                                >Reject</button>
-                              </form>
+                          <td class="app-table-actions text-nowrap">
+                            <div class="d-flex gap-2">
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-success"
+                                data-bs-toggle="modal"
+                                data-bs-target="#approveModal<%= request.id %>"
+                              >
+                                Setujui
+                              </button>
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-outline-danger"
+                                data-bs-toggle="modal"
+                                data-bs-target="#rejectModal<%= request.id %>"
+                              >
+                                Tolak
+                              </button>
                             </div>
-                            <div class="form-text mt-2">Reject wajib menyertakan alasan.</div>
                           </td>
                         </tr>
                       <% }) %>
                     </tbody>
                   </table>
                 </div>
+
+                <!-- Modal Konfirmasi Persetujuan & Penolakan untuk Setiap Request -->
+                <% (requests || []).forEach((request) => { %>
+                  <!-- Modal Setujui (Approve) -->
+                  <div
+                    class="modal fade"
+                    id="approveModal<%= request.id %>"
+                    tabindex="-1"
+                    aria-labelledby="approveModalLabel<%= request.id %>"
+                    aria-hidden="true"
+                  >
+                    <div class="modal-dialog modal-dialog-centered">
+                      <div class="modal-content">
+                        <div class="modal-header">
+                          <h5 class="modal-title fs-6 fw-bold" id="approveModalLabel<%= request.id %>">
+                            Konfirmasi Persetujuan Switch Region
+                          </h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                        </div>
+                        <div class="modal-body">
+                          <p class="text-muted small mb-3">
+                            Pastikan rincian permohonan akses wilayah sementara telah sesuai dengan kebutuhan operasional sebelum menyetujui.
+                          </p>
+
+                          <div class="border rounded p-3 bg-light mb-3">
+                            <div class="row g-2 small">
+                              <div class="col-4 text-muted">Pemohon</div>
+                              <div class="col-8 fw-semibold text-dark"><%= request.requester_name || '-' %></div>
+
+                              <div class="col-4 text-muted">Region Asal</div>
+                              <div class="col-8">
+                                <% if (request.home_region_code) { %>
+                                  <span class="badge text-bg-light border font-monospace me-1"><%= request.home_region_code %></span>
+                                <% } %>
+                                <%= request.home_region_name || '-' %>
+                              </div>
+
+                              <div class="col-4 text-muted">Region Tujuan</div>
+                              <div class="col-8">
+                                <% if (request.target_region_code) { %>
+                                  <span class="badge text-bg-primary font-monospace me-1"><%= request.target_region_code %></span>
+                                <% } %>
+                                <span class="fw-semibold text-dark"><%= request.target_region_name || '-' %></span>
+                              </div>
+
+                              <div class="col-4 text-muted">Waktu Pengajuan</div>
+                              <div class="col-8 text-secondary"><%= formatDateTime(request.requested_at) %></div>
+
+                              <div class="col-4 text-muted">Alasan Pengajuan</div>
+                              <div class="col-8 text-break"><%= request.reason || '-' %></div>
+                            </div>
+                          </div>
+
+                          <div class="small text-secondary">
+                            Akses sementara akan segera diaktifkan untuk teknisi pemohon setelah persetujuan ini diproses.
+                          </div>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                          <form action="/region-switch/<%= request.id %>/approve" method="POST" class="m-0">
+                            <button type="submit" class="btn btn-success">Ya, Setujui Pengajuan</button>
+                          </form>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Modal Tolak (Reject) -->
+                  <div
+                    class="modal fade"
+                    id="rejectModal<%= request.id %>"
+                    tabindex="-1"
+                    aria-labelledby="rejectModalLabel<%= request.id %>"
+                    aria-hidden="true"
+                  >
+                    <div class="modal-dialog modal-dialog-centered">
+                      <div class="modal-content">
+                        <form action="/region-switch/<%= request.id %>/reject" method="POST" class="m-0">
+                          <div class="modal-header">
+                            <h5 class="modal-title fs-6 fw-bold text-danger" id="rejectModalLabel<%= request.id %>">
+                              Konfirmasi Penolakan Switch Region
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                          </div>
+                          <div class="modal-body">
+                            <p class="text-muted small mb-3">
+                              Permohonan yang ditolak tidak dapat diproses kembali. Berikan alasan penolakan yang jelas agar dapat dipahami oleh teknisi pemohon.
+                            </p>
+
+                            <div class="border rounded p-3 bg-light mb-3">
+                              <div class="row g-2 small">
+                                <div class="col-4 text-muted">Pemohon</div>
+                                <div class="col-8 fw-semibold text-dark"><%= request.requester_name || '-' %></div>
+
+                                <div class="col-4 text-muted">Pengalihan</div>
+                                <div class="col-8">
+                                  <%= request.home_region_name || '-' %> &rarr; <span class="fw-semibold"><%= request.target_region_name || '-' %></span>
+                                </div>
+
+                                <div class="col-4 text-muted">Alasan Awal</div>
+                                <div class="col-8 text-break text-muted"><%= request.reason || '-' %></div>
+                              </div>
+                            </div>
+
+                            <div class="mb-2">
+                              <label for="rejectionReason<%= request.id %>" class="form-label small fw-semibold text-secondary">
+                                Alasan Penolakan <span class="app-required">*</span>
+                              </label>
+                              <textarea
+                                id="rejectionReason<%= request.id %>"
+                                name="rejection_reason"
+                                class="form-control"
+                                rows="3"
+                                placeholder="Tuliskan alasan penolakan permohonan..."
+                                required
+                              ></textarea>
+                              <div class="form-text">Alasan penolakan wajib dicantumkan dan akan tampil pada riwayat pemohon.</div>
+                            </div>
+                          </div>
+                          <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+                            <button type="submit" class="btn btn-danger">Tolak Pengajuan</button>
+                          </div>
+                        </form>
+                      </div>
+                    </div>
+                  </div>
+                <% }) %>
               <% } %>
             </div>
           </div>

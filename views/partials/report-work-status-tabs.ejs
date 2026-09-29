@@ -12,7 +12,7 @@
           <% if (tab.active) { %>aria-current="page"<% } %>
         >
           <span><%= tab.label %></span>
-          <span class="badge rounded-pill <%= tab.active ? 'text-bg-primary' : 'text-bg-light' %>">
+          <span class="badge <%= tab.active ? 'text-bg-primary' : 'text-bg-light' %>">
             <%= tab.count %>
           </span>
         </a>

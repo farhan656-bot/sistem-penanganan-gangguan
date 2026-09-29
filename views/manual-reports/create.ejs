@@ -20,21 +20,30 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Tambah Laporan Manual',
-            pageSubtitle: 'Input pekerjaan non-ticketing ke tabel laporan manual.',
+            pageSubtitle: 'Perekaman aktivitas pekerjaan dan gangguan non-ticketing ke dalam sistem.',
             pageActions: `
-              <a href="/manual-reports" class="btn btn-outline-secondary">Kembali</a>
+              <div class="d-flex gap-2 flex-wrap">
+                <a href="/manual-reports" class="btn btn-outline-secondary">Kembali</a>
+              </div>
             `
           }) %>
 
           <form action="/manual-reports" method="POST">
+            <!-- Bagian 1: Informasi Utama & Rincian Pekerjaan -->
             <div class="card app-card mb-3">
-              <div class="card-header fw-semibold">Informasi Utama</div>
+              <div class="card-header">
+                <strong>1. Informasi Utama & Rincian Pekerjaan</strong>
+                <div class="text-muted small">Waktu pelaksanaan, jenis pengerjaan, dan detail deskripsi pekerjaan.</div>
+              </div>
               <div class="card-body">
                 <div class="row g-3">
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Tanggal <span class="app-required">*</span></label>
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary" for="reportDateInput">
+                      Tanggal Laporan <span class="app-required">*</span>
+                    </label>
                     <input
                       type="date"
+                      id="reportDateInput"
                       name="report_date"
                       class="form-control"
                       value="<%= formData.report_date %>"
@@ -42,139 +51,196 @@
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Aktivitas</label>
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary" for="activityInput">
+                      Aktivitas
+                    </label>
                     <input
                       type="text"
+                      id="activityInput"
                       name="activity"
                       class="form-control"
+                      placeholder="contoh: Preventive Maintenance"
                       value="<%= formData.activity %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Pengerjaan</label>
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary" for="workTypeInput">
+                      Tipe Pengerjaan
+                    </label>
                     <input
                       type="text"
+                      id="workTypeInput"
                       name="work_type"
                       class="form-control"
+                      placeholder="contoh: Fisik / Logic"
                       value="<%= formData.work_type %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">S/E</label>
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary" for="seStatusInput">
+                      Status S/E
+                    </label>
                     <input
                       type="text"
+                      id="seStatusInput"
                       name="se_status"
                       class="form-control"
+                      placeholder="contoh: S / E"
                       value="<%= formData.se_status %>"
                     >
                   </div>
 
                   <div class="col-12">
-                    <label class="form-label">Details <span class="app-required">*</span></label>
+                    <label class="form-label small fw-semibold text-secondary" for="detailsTextarea">
+                      Rincian Pekerjaan (Details) <span class="app-required">*</span>
+                    </label>
                     <textarea
+                      id="detailsTextarea"
                       name="details"
                       class="form-control"
                       rows="4"
+                      placeholder="Uraikan detail pekerjaan, kendala, atau tindakan perbaikan yang dilakukan..."
                       required
                     ><%= formData.details %></textarea>
+                    <div class="form-text">Jelaskan secara ringkas dan runtut mengenai pekerjaan non-ticketing ini.</div>
                   </div>
                 </div>
               </div>
             </div>
 
+            <!-- Bagian 2: Data Order & Pelanggan -->
             <div class="card app-card mb-3">
-              <div class="card-header fw-semibold">Data Order dan Pelanggan</div>
+              <div class="card-header">
+                <strong>2. Data Order & Pelanggan</strong>
+                <div class="text-muted small">Nomor order sistem, identitas pelanggan, dan lokasi STO/Witel.</div>
+              </div>
               <div class="card-body">
                 <div class="row g-3">
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">OrderID OSM</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="customerNameInput">
+                      Nama Pelanggan (Customer)
+                    </label>
                     <input
                       type="text"
-                      name="osm_order_id"
+                      id="customerNameInput"
+                      name="customer_name"
                       class="form-control"
-                      value="<%= formData.osm_order_id %>"
+                      placeholder="Nama pelanggan"
+                      value="<%= formData.customer_name %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">STO</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="ncliInput">
+                      Nomor NCLI
+                    </label>
                     <input
                       type="text"
-                      name="sto"
-                      class="form-control"
-                      value="<%= formData.sto %>"
-                    >
-                  </div>
-
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">SC</label>
-                    <input
-                      type="text"
-                      name="sc"
-                      class="form-control"
-                      value="<%= formData.sc %>"
-                    >
-                  </div>
-
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">OrderID / NCX-ID</label>
-                    <input
-                      type="text"
-                      name="order_ncx_id"
-                      class="form-control"
-                      value="<%= formData.order_ncx_id %>"
-                    >
-                  </div>
-
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">NCLI</label>
-                    <input
-                      type="text"
+                      id="ncliInput"
                       name="ncli"
-                      class="form-control"
+                      class="form-control font-monospace"
+                      placeholder="Nomor identitas NCLI"
                       value="<%= formData.ncli %>"
                     >
                   </div>
 
                   <div class="col-12 col-md-4">
-                    <label class="form-label">Nama Customer</label>
+                    <label class="form-label small fw-semibold text-secondary" for="stoInput">
+                      STO
+                    </label>
                     <input
                       type="text"
-                      name="customer_name"
+                      id="stoInput"
+                      name="sto"
                       class="form-control"
-                      value="<%= formData.customer_name %>"
+                      placeholder="contoh: KBL / PDG"
+                      value="<%= formData.sto %>"
                     >
                   </div>
 
                   <div class="col-12 col-md-4">
-                    <label class="form-label">Witel</label>
+                    <label class="form-label small fw-semibold text-secondary" for="witelInput">
+                      Witel
+                    </label>
                     <input
                       type="text"
+                      id="witelInput"
                       name="witel"
                       class="form-control"
+                      placeholder="contoh: Sumbar"
                       value="<%= formData.witel %>"
                     >
                   </div>
 
                   <div class="col-12 col-md-4">
-                    <label class="form-label">K-Kontak</label>
+                    <label class="form-label small fw-semibold text-secondary" for="scInput">
+                      SC
+                    </label>
                     <input
                       type="text"
+                      id="scInput"
+                      name="sc"
+                      class="form-control"
+                      placeholder="Nomor SC"
+                      value="<%= formData.sc %>"
+                    >
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="osmOrderIdInput">
+                      Order ID OSM
+                    </label>
+                    <input
+                      type="text"
+                      id="osmOrderIdInput"
+                      name="osm_order_id"
+                      class="form-control font-monospace"
+                      placeholder="Nomor order OSM"
+                      value="<%= formData.osm_order_id %>"
+                    >
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="orderNcxIdInput">
+                      Order ID / NCX-ID
+                    </label>
+                    <input
+                      type="text"
+                      id="orderNcxIdInput"
+                      name="order_ncx_id"
+                      class="form-control font-monospace"
+                      placeholder="Nomor order NCX"
+                      value="<%= formData.order_ncx_id %>"
+                    >
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="kKontakInput">
+                      K-Kontak
+                    </label>
+                    <input
+                      type="text"
+                      id="kKontakInput"
                       name="k_kontak"
                       class="form-control"
+                      placeholder="Informasi kontak"
                       value="<%= formData.k_kontak %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">User ID</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="userIdTextInput">
+                      User ID / Petugas
+                    </label>
                     <input
                       type="text"
+                      id="userIdTextInput"
                       name="user_id_text"
                       class="form-control"
+                      placeholder="Identitas teknisi atau penginput"
                       value="<%= formData.user_id_text %>"
                     >
                   </div>
@@ -182,92 +248,132 @@
               </div>
             </div>
 
+            <!-- Bagian 3: Data Alpro & Insiden Lapangan -->
             <div class="card app-card mb-3">
-              <div class="card-header fw-semibold">Data Alpro dan Incident</div>
+              <div class="card-header">
+                <strong>3. Data Alpro & Insiden Lapangan</strong>
+                <div class="text-muted small">Perangkat jaringan (alpro) dan catatan insiden terkait.</div>
+              </div>
               <div class="card-body">
                 <div class="row g-3">
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Nama Alpro Before</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="alproBeforeInput">
+                      Nama Alpro Sebelum (Before)
+                    </label>
                     <input
                       type="text"
+                      id="alproBeforeInput"
                       name="alpro_before"
                       class="form-control"
+                      placeholder="Alpro awal / sebelum penanganan"
                       value="<%= formData.alpro_before %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Nama Alpro</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="alproNameInput">
+                      Nama Alpro Sesudah
+                    </label>
                     <input
                       type="text"
+                      id="alproNameInput"
                       name="alpro_name"
                       class="form-control"
+                      placeholder="Alpro akhir / pengganti"
                       value="<%= formData.alpro_name %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Ticket Incident</label>
+                  <div class="col-12">
+                    <label class="form-label small fw-semibold text-secondary" for="ticketIncidentInput">
+                      Nomor Ticket Incident
+                    </label>
                     <input
                       type="text"
+                      id="ticketIncidentInput"
                       name="ticket_incident"
-                      class="form-control"
+                      class="form-control font-monospace"
+                      placeholder="Nomor tiket insiden bila ada"
                       value="<%= formData.ticket_incident %>"
                     >
                   </div>
 
                   <div class="col-12">
-                    <label class="form-label">Incident</label>
+                    <label class="form-label small fw-semibold text-secondary" for="incidentTextarea">
+                      Deskripsi Insiden (Incident)
+                    </label>
                     <textarea
+                      id="incidentTextarea"
                       name="incident"
                       class="form-control"
                       rows="3"
+                      placeholder="Catatan kendala teknis atau kondisi anomali..."
                     ><%= formData.incident %></textarea>
                   </div>
                 </div>
               </div>
             </div>
 
+            <!-- Bagian 4: Transaksi & Status Penyelesaian (Resolved) -->
             <div class="card app-card mb-3">
-              <div class="card-header fw-semibold">Transaksi dan Resolved</div>
+              <div class="card-header">
+                <strong>4. Transaksi & Status Penyelesaian (Resolved)</strong>
+                <div class="text-muted small">Klasifikasi transaksi fallout dan nomor rujukan penyelesaian.</div>
+              </div>
               <div class="card-body">
                 <div class="row g-3">
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Tipe Transaksi</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="transactionTypeInput">
+                      Tipe Transaksi
+                    </label>
                     <input
                       type="text"
+                      id="transactionTypeInput"
                       name="transaction_type"
                       class="form-control"
+                      placeholder="Tipe transaksi"
                       value="<%= formData.transaction_type %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Jenis Fallout</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="falloutTypeInput">
+                      Jenis Fallout
+                    </label>
                     <input
                       type="text"
+                      id="falloutTypeInput"
                       name="fallout_type"
                       class="form-control"
+                      placeholder="Jenis fallout"
                       value="<%= formData.fallout_type %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Ticket Resolved</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="ticketResolvedInput">
+                      Ticket Resolved
+                    </label>
                     <input
                       type="text"
+                      id="ticketResolvedInput"
                       name="ticket_resolved"
-                      class="form-control"
+                      class="form-control font-monospace"
+                      placeholder="Nomor rujukan tiket resolved"
                       value="<%= formData.ticket_resolved %>"
                     >
                   </div>
 
-                  <div class="col-12 col-md-4">
-                    <label class="form-label">Ticket Resolved 2</label>
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="ticketResolved2Input">
+                      Ticket Resolved 2
+                    </label>
                     <input
                       type="text"
+                      id="ticketResolved2Input"
                       name="ticket_resolved_2"
-                      class="form-control"
+                      class="form-control font-monospace"
+                      placeholder="Nomor rujukan tiket resolved tambahan"
                       value="<%= formData.ticket_resolved_2 %>"
                     >
                   </div>
@@ -275,11 +381,13 @@
               </div>
             </div>
 
-            <div class="d-flex gap-2 flex-wrap">
-              <button type="submit" class="btn btn-primary">Simpan Laporan Manual</button>
+            <!-- Tombol Aksi Form -->
+            <div class="d-flex gap-2 justify-content-end mb-4">
               <a href="/manual-reports" class="btn btn-outline-secondary">Batal</a>
+              <button type="submit" class="btn btn-primary">Simpan Laporan Manual</button>
             </div>
           </form>
+
         </div>
       </main>
     </div>

@@ -18,9 +18,9 @@
 
     <div class="d-flex align-items-center gap-2">
       <% if (user) { %>
-        <div class="text-end me-1">
-          <div class="fw-semibold" style="line-height: 1.1"><%= user.full_name || user.username || 'User' %></div>
-          <div class="small text-muted" style="line-height: 1.1">
+        <div class="app-user-info text-end me-1">
+          <div class="app-user-name"><%= user.full_name || user.username || 'User' %></div>
+          <div class="app-user-role">
             <span class="badge <%= roleBadge.cls %>"><%= roleBadge.label %></span>
           </div>
         </div>

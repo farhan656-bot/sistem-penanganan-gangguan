@@ -12,7 +12,7 @@
       <input type="hidden" name="region" value="<%= selectedFilters.region || '' %>">
       <input type="hidden" name="page" value="1">
 
-      <label for="reportPerPage" class="form-label mb-0 text-nowrap">Tiket per halaman</label>
+      <label for="reportPerPage" class="form-label mb-0 text-nowrap small text-secondary">Tiket per halaman:</label>
       <select
         id="reportPerPage"
         name="per_page"
@@ -28,7 +28,7 @@
     </form>
 
     <div class="small text-muted text-nowrap">
-      Menampilkan <strong><%= pageData.from %>-<%= pageData.to %></strong>
+      Menampilkan <strong><%= pageData.from %>–<%= pageData.to %></strong>
       dari <strong><%= pageData.totalItems %></strong> tiket
     </div>
   </div>

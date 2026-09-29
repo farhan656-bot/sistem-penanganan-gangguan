@@ -19,8 +19,8 @@
           <%- include('../partials/flash') %>
 
           <%- include('../partials/page-header', {
-            pageTitle: 'Tambah User',
-            pageSubtitle: 'Tambahkan akun internal sesuai role dan wilayah kerja.',
+            pageTitle: 'Tambah User Baru',
+            pageSubtitle: 'Pembuatan akun internal baru dengan penetapan peran dan wilayah operasional.',
             pageActions: `
               <div class="d-flex gap-2 flex-wrap">
                 <a href="/users" class="btn btn-outline-secondary">Kembali</a>
@@ -31,48 +31,79 @@
           <div class="row justify-content-center">
             <div class="col-12 col-lg-10 col-xl-8">
               <div class="card app-card">
+                <div class="card-header">
+                  <strong>Form Pendaftaran Akun</strong>
+                  <div class="text-muted small">Lengkapi informasi identitas, kredensial, dan otorisasi pengguna.</div>
+                </div>
                 <div class="card-body">
                   <form action="/users" method="POST">
                     <div class="row g-3">
+                      <!-- Subseksi 1: Kredensial & Identitas -->
                       <div class="col-12">
-                        <div class="fw-semibold">Informasi Akun</div>
-                        <div class="text-muted small">Pastikan username unik dan password disimpan dengan aman.</div>
-                        <hr class="my-3">
+                        <div class="fw-semibold text-dark">Informasi Akun & Kredensial</div>
+                        <div class="text-muted small">Username harus unik dalam sistem. Password disimpan terenkripsi.</div>
+                        <hr class="my-2">
                       </div>
 
-                      <div class="col-md-6">
-                        <label class="form-label">Nama Lengkap <span class="app-required">*</span></label>
+                      <div class="col-12 col-md-6">
+                        <label class="form-label small fw-semibold text-secondary" for="fullNameInput">
+                          Nama Lengkap <span class="app-required">*</span>
+                        </label>
                         <input
                           type="text"
+                          id="fullNameInput"
                           name="full_name"
                           class="form-control"
                           value="<%= formData.full_name %>"
+                          placeholder="Masukkan nama lengkap"
                           required
                         >
                       </div>
 
-                      <div class="col-md-6">
-                        <label class="form-label">Username <span class="app-required">*</span></label>
+                      <div class="col-12 col-md-6">
+                        <label class="form-label small fw-semibold text-secondary" for="usernameInput">
+                          Username <span class="app-required">*</span>
+                        </label>
                         <input
                           type="text"
+                          id="usernameInput"
                           name="username"
-                          class="form-control"
+                          class="form-control font-monospace"
                           value="<%= formData.username %>"
+                          placeholder="contoh: nama.tlkm"
                           required
                         >
-                        <div class="form-text">Gunakan format singkat dan konsisten (contoh: nama.tlkm).</div>
+                        <div class="form-text">Gunakan format singkat tanpa spasi.</div>
                       </div>
 
-                      <div class="col-md-6">
-                        <label class="form-label">Password <span class="app-required">*</span></label>
-                        <input type="password" name="password" class="form-control" required>
-                        <div class="form-text">Minimal 1 karakter sesuai aturan existing. Disarankan gunakan password kuat.</div>
+                      <div class="col-12 col-md-6">
+                        <label class="form-label small fw-semibold text-secondary" for="passwordInput">
+                          Password <span class="app-required">*</span>
+                        </label>
+                        <input
+                          type="password"
+                          id="passwordInput"
+                          name="password"
+                          class="form-control"
+                          placeholder="Masukkan password"
+                          required
+                        >
+                        <div class="form-text">Disarankan menggunakan kombinasi karakter yang kuat.</div>
                       </div>
 
-                      <div class="col-md-6">
-                        <label class="form-label">Role <span class="app-required">*</span></label>
-                        <select name="role_id" class="form-select" required>
-                          <option value="">Pilih role</option>
+                      <!-- Subseksi 2: Otorisasi & Wilayah Penugasan -->
+                      <div class="col-12 mt-4">
+                        <div class="fw-semibold text-dark">Otorisasi & Wilayah Penugasan</div>
+                        <div class="text-muted small">Tentukan hak akses operasional dan batasan wilayah kerja.</div>
+                        <hr class="my-2">
+                      </div>
+
+                      <div class="col-12 col-md-6">
+                        <label class="form-label small fw-semibold text-secondary" for="roleIdSelect">
+                          Peran (Role) <span class="app-required">*</span>
+                        </label>
+                        <select id="roleIdSelect" name="role_id" class="form-select" required>
+                          <option value="">Pilih peran pengguna</option>
                           <% roles.forEach(role => { %>
                             <option
                               value="<%= role.id %>"
@@ -82,19 +113,15 @@
                             </option>
                           <% }) %>
                         </select>
-                        <div class="form-text">Pastikan role sesuai kebutuhan operasional.</div>
+                        <div class="form-text">Role menentukan hak akses menu dan alur tiket.</div>
                       </div>
 
-                      <div class="col-12">
-                        <div class="fw-semibold mt-2">Wilayah Kerja</div>
-                        <div class="text-muted small">Wilayah digunakan untuk pembatasan akses eksekutor.</div>
-                        <hr class="my-3">
-                      </div>
-
-                      <div class="col-md-8">
-                        <label class="form-label">District/Region</label>
-                        <select name="region_id" class="form-select">
-                          <option value="">Tidak dipilih</option>
+                      <div class="col-12 col-md-6">
+                        <label class="form-label small fw-semibold text-secondary" for="regionIdSelect">
+                          District / Wilayah Kerja
+                        </label>
+                        <select id="regionIdSelect" name="region_id" class="form-select">
+                          <option value="">Tidak dipilih (Umum / Non-Eksekutor)</option>
                           <% regions.forEach(region => { %>
                             <option
                               value="<%= region.id %>"
@@ -104,13 +131,15 @@
                             </option>
                           <% }) %>
                         </select>
-                        <div class="form-text">Wajib untuk role <span class="fw-semibold">eksekutor</span>. Untuk role lain, biarkan kosong.</div>
+                        <div class="form-text">
+                          Wajib untuk peran <span class="fw-semibold text-dark">eksekutor</span>. Untuk peran lain, biarkan kosong.
+                        </div>
                       </div>
                     </div>
 
-                    <div class="mt-4 d-flex gap-2 flex-wrap">
-                      <button type="submit" class="btn btn-primary">Simpan User</button>
+                    <div class="mt-4 pt-3 border-top d-flex gap-2 justify-content-end">
                       <a href="/users" class="btn btn-outline-secondary">Batal</a>
+                      <button type="submit" class="btn btn-primary">Simpan User</button>
                     </div>
                   </form>
                 </div>

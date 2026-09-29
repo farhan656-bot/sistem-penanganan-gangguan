@@ -36,94 +36,88 @@
 
           <div class="card app-card mb-3">
             <div class="card-body">
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-3">
-                <div>
-                  <div class="text-muted small">Status Internal</div>
-                  <div class="mt-1">
-                    <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
-                    <% if (report.status_internal === 'didelegasikan') { %>
-                      <span class="badge text-bg-info ms-1">Delegasi Aktif</span>
-                    <% } %>
-                  </div>
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 pb-3 border-bottom">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <span class="fs-5 fw-bold font-monospace text-dark"><%= report.ticket_id %></span>
+                  <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                  <% if (report.status_internal === 'didelegasikan') { %>
+                    <span class="badge text-bg-info">Delegasi Aktif</span>
+                  <% } %>
                 </div>
 
-                <div class="text-end">
-                  <div class="text-muted small">Wilayah Laporan</div>
-                  <div class="fw-semibold"><%= report.reported_region_code || report.region_code || report.current_region_code || '-' %></div>
+                <div class="text-md-end">
+                  <span class="text-muted small me-1">Wilayah:</span>
+                  <span class="badge text-bg-light border fs-6"><%= report.reported_region_code || report.region_code || report.current_region_code || '-' %></span>
                 </div>
               </div>
 
-              <hr class="my-3">
-
-              <div class="row g-3">
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Ticket ID</div>
-                  <div class="fw-semibold"><%= report.ticket_id %></div>
-                </div>
-                <div class="col-12 col-md-3">
+              <div class="row g-3 pt-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Order ID</div>
-                  <div><%= report.order_id || '-' %></div>
+                  <div class="fw-medium"><%= report.order_id || '-' %></div>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Jenis Layanan</div>
                   <div><%= report.service_type || '-' %></div>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Provider</div>
                   <div><%= report.provider || '-' %></div>
                 </div>
-
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Branch</div>
-                  <div><%= report.branch_name || '-' %></div>
-                </div>
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Cluster</div>
-                  <div><%= report.cluster_name || '-' %></div>
-                </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">STO</div>
                   <div><%= report.sto || '-' %></div>
                 </div>
-                <div class="col-12 col-md-3">
+
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small">Branch</div>
+                  <div><%= report.branch_name || '-' %></div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small">Cluster</div>
+                  <div><%= report.cluster_name || '-' %></div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small">Waktu Ambil</div>
+                  <div><span class="text-muted small"><%= formatDateTime(report.taken_at) %></span></div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Assigned To</div>
-                  <div class="fw-semibold"><%= report.assigned_user_name || '-' %></div>
+                  <div class="fw-semibold <%= report.assigned_user_name ? 'text-dark' : 'text-muted' %>"><%= report.assigned_user_name || '-' %></div>
                 </div>
 
                 <div class="col-12">
-                  <div class="text-muted small">Ringkasan</div>
-                  <div class="mt-1"><%= report.summary || '-' %></div>
+                  <div class="text-muted small mb-1">Ringkasan Gangguan</div>
+                  <div class="p-2 rounded bg-light border text-break"><%= report.summary || '-' %></div>
                 </div>
 
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Waktu Ambil</div>
-                  <div><%= formatDateTime(report.taken_at) %></div>
-                </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-4">
                   <div class="text-muted small">Waktu Selesai</div>
-                  <div><%= formatDateTime(report.resolved_at) %></div>
+                  <div><span class="text-muted small"><%= formatDateTime(report.resolved_at) %></span></div>
                 </div>
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-sm-6 col-md-4">
                   <div class="text-muted small">Status Akhir</div>
                   <div><%= report.completion_status || '-' %></div>
                 </div>
 
                 <% if (report.diit_code) { %>
-                  <div class="col-12 col-md-6">
+                  <div class="col-12 col-md-4">
                     <div class="text-muted small">Kode DIIT</div>
-                    <div class="fw-semibold"><%= report.diit_code %></div>
+                    <div class="fw-semibold font-monospace"><%= report.diit_code %></div>
                   </div>
                 <% } %>
 
-                <div class="col-12">
-                  <div class="text-muted small">Catatan Penyelesaian</div>
-                  <div class="mt-1"><%= report.completion_notes || '-' %></div>
-                </div>
+                <% if (report.completion_notes) { %>
+                  <div class="col-12">
+                    <div class="text-muted small mb-1">Catatan Penyelesaian</div>
+                    <div class="p-2 rounded bg-light border text-break"><%= report.completion_notes %></div>
+                  </div>
+                <% } %>
               </div>
             </div>
           </div>
 
-          <div class="row g-3">
+          <div class="row g-3 mb-3">
             <div class="col-12 col-xl-6">
               <div class="card app-card h-100">
                 <div class="card-header fw-semibold">Bukti Penyelesaian</div>
@@ -131,7 +125,7 @@
                   <% const completionOnly = typeof completionAttachments !== 'undefined' ? completionAttachments : (attachments || []); %>
 
                   <% if (completionOnly.length === 0) { %>
-                    <div class="text-muted">Belum ada bukti penyelesaian yang diunggah oleh Eksekutor.</div>
+                    <div class="text-muted small p-3 text-center border rounded border-dashed">Belum ada bukti penyelesaian yang diunggah oleh Eksekutor.</div>
                   <% } else { %>
                     <div class="list-group list-group-flush">
                       <% completionOnly.forEach(file => { %>
@@ -139,7 +133,7 @@
                         <div class="list-group-item px-0">
                           <div class="d-flex align-items-start justify-content-between gap-3">
                             <div class="min-w-0">
-                              <div class="fw-semibold">
+                              <div class="fw-semibold text-truncate">
                                 <a href="<%= file.file_path %>" target="_blank" class="text-decoration-none"><%= completionFileName %></a>
                               </div>
                               <div class="small text-muted">Diunggah oleh <%= file.uploaded_by_name || '-' %></div>
@@ -161,7 +155,7 @@
                   <% const telegramOnly = typeof telegramAttachments !== 'undefined' ? telegramAttachments : []; %>
 
                   <% if (telegramOnly.length === 0) { %>
-                    <div class="text-muted">Belum ada media tambahan Telegram yang terhubung ke tiket ini.</div>
+                    <div class="text-muted small p-3 text-center border rounded border-dashed">Belum ada media tambahan Telegram yang terhubung ke tiket ini.</div>
                   <% } else { %>
                     <div class="row g-3">
                       <% telegramOnly.forEach(item => { %>
@@ -170,7 +164,7 @@
                           <div class="border rounded p-3 bg-white">
                             <div class="d-flex align-items-start justify-content-between gap-2">
                               <div class="min-w-0">
-                                <div class="fw-semibold"><%= item.original_name || item.stored_name || 'Media Telegram' %></div>
+                                <div class="fw-semibold text-truncate"><%= item.original_name || item.stored_name || 'Media Telegram' %></div>
                                 <div class="small text-muted">Waktu: <%= formatDateTime(item.created_at) %></div>
                               </div>
                               <a href="<%= item.file_path %>" target="_blank" class="btn btn-sm btn-outline-primary">Buka</a>
@@ -181,8 +175,7 @@
                                 <img
                                   src="<%= item.file_path %>"
                                   alt="Telegram media <%= item.id %>"
-                                  class="img-fluid rounded border mt-2"
-                                  style="max-height: 280px; object-fit: cover; width: 100%;"
+                                  class="report-detail-media-preview"
                                 >
                               </a>
                             <% } %>
@@ -211,9 +204,12 @@
       Number(report.assigned_to_user_id) === Number(currentUser.id)
     ) { %>
       <div class="card app-card mb-3">
-        <div class="card-header fw-semibold">Update Pengerjaan</div>
-        <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <p class="mb-0 text-muted">Gunakan tombol ini saat tiket sudah mulai dikerjakan agar pelapor menerima update status.</p>
+        <div class="card-header fw-semibold">Update Status Pengerjaan</div>
+        <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <div class="fw-semibold text-dark mb-1">Mulai Penanganan Lapangan</div>
+            <p class="mb-0 text-muted small">Gunakan tombol ini saat pengerjaan teknis dimulai agar status tiket diperbarui dan notifikasi terkirim ke pelapor.</p>
+          </div>
           <form
             action="/reports/<%= report.ticket_id %>/in-progress"
             method="POST"
@@ -222,7 +218,7 @@
             data-action-type="in-progress"
             data-ticket-id="<%= report.ticket_id %>"
           >
-            <button type="submit" class="btn btn-warning" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
+            <button type="submit" class="btn btn-warning fw-semibold px-3" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
               Tandai In Progress
             </button>
           </form>
@@ -230,69 +226,113 @@
       </div>
 
       <div class="card app-card mb-3">
-        <div class="card-header fw-semibold">Konfirmasi Penyelesaian</div>
+        <div class="card-header fw-semibold">Konfirmasi Penyelesaian Laporan</div>
         <div class="card-body">
+          <p class="text-muted small mb-3">
+            Pilih status akhir penanganan gangguan. Catatan dan bukti penyelesaian bersifat opsional kecuali jika status penanganan memerlukan tindak lanjut khusus.
+          </p>
+
           <form action="/reports/<%= report.ticket_id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
             <div class="mb-3">
-              <label class="form-label" for="completion_notes">
-                Catatan
-                <span class="app-required d-none" data-completion-notes-required>*</span>
+              <label class="form-label fw-semibold" for="completion_status">
+                Status Akhir Penanganan <span class="app-required">*</span>
               </label>
-              <textarea id="completion_notes" name="completion_notes" class="form-control" rows="4" data-completion-notes></textarea>
-              <div class="form-text">Opsional untuk selesai dan eskalasi. Wajib untuk return/perlu tindak lanjut agar feedback Telegram jelas.</div>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label" for="completion_status">Status Akhir <span class="app-required">*</span></label>
               <select id="completion_status" name="completion_status" class="form-select" required data-completion-status>
-                <option value="">Pilih status akhir</option>
+                <option value="">Pilih status akhir penanganan</option>
                 <option value="selesai">Selesai</option>
                 <option value="perlu_tindak_lanjut">Perlu Tindak Lanjut</option>
                 <option value="eskalasi">Eskalasi</option>
               </select>
+              <div class="form-text">
+                Pilih 'Selesai' untuk gangguan tertangani, 'Perlu Tindak Lanjut' jika butuh tindak lanjut teknis lanjutan, atau 'Eskalasi' untuk kendala eksternal.
+              </div>
             </div>
 
             <div class="mb-3 d-none" data-diit-code-group>
-              <label class="form-label" for="diit_code">Kode DIIT <span class="app-required">*</span></label>
-              <input
-                type="text"
-                id="diit_code"
-                name="diit_code"
-                class="form-control"
-                maxlength="100"
-                autocomplete="off"
-                data-diit-code
-              >
-              <div class="form-text">Masukkan kode rujukan DIIT dari proses eksternal.</div>
+              <div class="p-3 border rounded bg-light">
+                <label class="form-label fw-semibold text-danger" for="diit_code">
+                  Kode DIIT Eskalasi <span class="app-required">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="diit_code"
+                  name="diit_code"
+                  class="form-control font-monospace"
+                  placeholder="Contoh: DIIT-2026-..."
+                  maxlength="100"
+                  autocomplete="off"
+                  data-diit-code
+                >
+                <div class="form-text text-muted">
+                  Wajib diisi saat status Eskalasi. Masukkan kode rujukan penanganan DIIT dari unit eksternal.
+                </div>
+              </div>
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Upload Bukti (Opsional)</label>
-              <input
-                type="file"
-                name="proof_file"
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="form-label fw-semibold mb-0" for="completion_notes">
+                  Catatan Penyelesaian
+                  <span class="app-required d-none" data-completion-notes-required>*</span>
+                </label>
+                <span class="badge text-bg-light border text-muted small fw-normal">Opsional</span>
+              </div>
+              <textarea
+                id="completion_notes"
+                name="completion_notes"
                 class="form-control"
-                accept=".jpg,.jpeg,.png,.webp,.pdf"
-                multiple
-                data-proof-file-input
-              >
+                rows="3"
+                placeholder="Tuliskan ringkasan tindakan atau hasil penanganan di lapangan..."
+                data-completion-notes
+              ></textarea>
               <div class="form-text">
-                Unggah file bukti atau klik area ini lalu tekan Ctrl + V untuk menempel screenshot.
-                Format: JPG, JPEG, PNG, WEBP, atau PDF. Maksimal 5 file, 5 MB per file.
+                Opsional untuk status Selesai dan Eskalasi. Wajib diisi jika status Perlu Tindak Lanjut agar catatan feedback tersampaikan ke pelapor Telegram.
+              </div>
+            </div>
+
+            <div class="mb-4">
+              <div class="d-flex align-items-center justify-content-between mb-1">
+                <label class="form-label fw-semibold mb-0" for="proof_file">
+                  Bukti Penanganan / Evidence
+                </label>
+                <span class="badge text-bg-light border text-muted small fw-normal">Opsional</span>
+              </div>
+              <p class="text-muted small mb-2">
+                Unggah berkas atau tempel screenshot dari clipboard jika tersedia dokumentasi lapangan.
+              </p>
+
+              <div class="mb-2">
+                <input
+                  type="file"
+                  id="proof_file"
+                  name="proof_file"
+                  class="form-control"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  multiple
+                  data-proof-file-input
+                >
+                <div class="form-text">
+                  Format yang didukung: JPG, JPEG, PNG, WEBP, atau PDF. Maksimal 5 berkas (ukuran maks. 5 MB per berkas).
+                </div>
               </div>
 
               <div
-                class="completion-evidence-paste mt-3"
+                class="completion-evidence-paste mt-2"
                 tabindex="0"
                 role="button"
                 aria-label="Area paste screenshot bukti penyelesaian"
                 data-evidence-paste-area
               >
-                <div class="fw-semibold">Paste Screenshot</div>
-                <div class="small text-muted">
-                  Klik area ini lalu tekan Ctrl + V. Screenshot akan masuk ke upload bukti penyelesaian.
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                  <div class="fw-semibold text-dark">
+                    Area Paste Screenshot Clipboard
+                  </div>
+                  <span class="badge text-bg-light border text-muted small fw-normal">Ctrl + V</span>
                 </div>
-                <div class="small mt-2 text-muted" aria-live="polite" data-evidence-paste-status>
+                <div class="small text-muted mt-1">
+                  Klik di area ini lalu tekan <kbd class="bg-light text-dark border">Ctrl</kbd> + <kbd class="bg-light text-dark border">V</kbd> untuk menempelkan tangkapan layar langsung dari clipboard.
+                </div>
+                <div class="small mt-2 text-muted fw-medium" aria-live="polite" data-evidence-paste-status>
                   Belum ada screenshot yang ditempel.
                 </div>
 
@@ -309,7 +349,7 @@
                       <div class="small text-muted" data-evidence-file-size></div>
                       <div class="small text-muted" data-evidence-file-note></div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" data-evidence-clear>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-evidence-clear>
                       Hapus
                     </button>
                   </div>
@@ -317,9 +357,11 @@
               </div>
             </div>
 
-            <button type="submit" class="btn btn-success" onclick="return confirm('Yakin ingin menyelesaikan laporan ini?');">
-              Konfirmasi Selesai
-            </button>
+            <div class="d-flex align-items-center gap-2 pt-2 border-top">
+              <button type="submit" class="btn btn-success fw-semibold px-4" onclick="return confirm('Yakin ingin menyelesaikan laporan ini?');">
+                Konfirmasi Selesai
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -334,8 +376,8 @@
         <div class="card-body">
           <form action="/reports/<%= report.ticket_id %>/delegate" method="POST">
             <div class="mb-3">
-              <label class="form-label">Pilih Pegawai Tujuan <span class="app-required">*</span></label>
-              <select name="target_user_id" class="form-select" required>
+              <label class="form-label fw-semibold" for="target_user_id">Pilih Pegawai Tujuan <span class="app-required">*</span></label>
+              <select id="target_user_id" name="target_user_id" class="form-select" required>
                 <option value="">Pilih pegawai eksekutor</option>
                 <% eksekutorUsers.forEach(user => { %>
                   <% if (Number(user.id) !== Number(report.assigned_to_user_id)) { %>
@@ -357,11 +399,11 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Alasan Delegasi <span class="app-required">*</span></label>
-              <textarea name="delegation_notes" class="form-control" rows="3" required></textarea>
+              <label class="form-label fw-semibold" for="delegation_notes">Alasan Delegasi <span class="app-required">*</span></label>
+              <textarea id="delegation_notes" name="delegation_notes" class="form-control" rows="3" required></textarea>
             </div>
 
-            <button type="submit" class="btn btn-primary" onclick="return confirm('Yakin ingin mendelegasikan laporan ini?');">
+            <button type="submit" class="btn btn-primary fw-semibold px-3" onclick="return confirm('Yakin ingin mendelegasikan laporan ini?');">
               Delegasikan
             </button>
           </form>
@@ -379,11 +421,11 @@
         <div class="card-body">
           <form action="/reports/<%= report.ticket_id %>/cancel-assignment" method="POST">
             <div class="mb-3">
-              <label class="form-label">Alasan Pembatalan <span class="app-required">*</span></label>
-              <textarea name="cancel_notes" class="form-control" rows="3" required></textarea>
+              <label class="form-label fw-semibold" for="cancel_notes">Alasan Pembatalan <span class="app-required">*</span></label>
+              <textarea id="cancel_notes" name="cancel_notes" class="form-control" rows="3" required></textarea>
             </div>
 
-            <button type="submit" class="btn btn-danger" onclick="return confirm('Yakin ingin membatalkan penugasan ini?');">
+            <button type="submit" class="btn btn-danger fw-semibold px-3" onclick="return confirm('Yakin ingin membatalkan penugasan ini?');">
               Batalkan Tugas
             </button>
           </form>

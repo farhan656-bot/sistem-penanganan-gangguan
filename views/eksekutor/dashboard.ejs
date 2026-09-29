@@ -27,52 +27,71 @@
           }) %>
 
           <div class="row g-3 mb-3">
-            <div class="col-12 col-md-6 col-xl">
+            <div class="col-12 col-xl-8">
               <div class="card app-card h-100">
+                <div class="card-header d-flex align-items-center justify-content-between gap-2 py-2">
+                  <div>
+                    <strong class="text-dark">Tanggung Jawab Saya</strong>
+                    <span class="text-muted small d-none d-sm-inline ms-1">— Tiket yang ditugaskan kepada Anda</span>
+                  </div>
+                  <span class="badge badge-status-in-progress"><%= summary.total_my_in_progress %> Aktif</span>
+                </div>
                 <div class="card-body">
-                  <div class="text-muted small">Tiket Tersedia</div>
-                  <h3 class="mb-1 text-primary"><%= summary.total_available %></h3>
-                  <div class="small text-muted">Sesuai akses wilayah kerja</div>
+                  <div class="row g-3">
+                    <div class="col-6 col-md-3">
+                      <div class="app-metric-block app-metric-divider-end h-100">
+                        <div class="text-muted small">Tiket Aktif Saya</div>
+                        <h3 class="mb-1 fw-bold text-status-in-progress"><%= summary.total_my_in_progress %></h3>
+                        <div class="small text-muted">Sedang dikerjakan</div>
+                      </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                      <div class="app-metric-block app-metric-divider-end h-100">
+                        <div class="text-muted small">Perlu Tindak Lanjut</div>
+                        <h3 class="mb-1 fw-bold text-status-follow-up"><%= summary.total_follow_up %></h3>
+                        <div class="small text-muted">Perlu perbaikan</div>
+                      </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                      <div class="app-metric-block app-metric-divider-end h-100">
+                        <div class="text-muted small">Eskalasi</div>
+                        <h3 class="mb-1 fw-bold text-status-escalated"><%= summary.total_escalated %></h3>
+                        <div class="small text-muted">Penanganan khusus</div>
+                      </div>
+                    </div>
+
+                    <div class="col-6 col-md-3">
+                      <div class="app-metric-block h-100">
+                        <div class="text-muted small">Tiket Selesai</div>
+                        <h3 class="mb-1 fw-bold text-status-completed"><%= summary.total_completed %></h3>
+                        <div class="small text-muted">Telah diselesaikan</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div class="col-12 col-md-6 col-xl">
+            <div class="col-12 col-xl-4">
               <div class="card app-card h-100">
-                <div class="card-body">
-                  <div class="text-muted small">Tiket Saya</div>
-                  <h3 class="mb-1 text-warning"><%= summary.total_my_in_progress %></h3>
-                  <div class="small text-muted">Sedang Anda kerjakan</div>
+                <div class="card-header d-flex align-items-center justify-content-between gap-2 py-2">
+                  <div>
+                    <strong class="text-dark">Antrean Wilayah</strong>
+                    <span class="text-muted small d-none d-sm-inline ms-1">— Pool Terbuka</span>
+                  </div>
+                  <span class="badge badge-status-available"><%= summary.total_available %> Tersedia</span>
                 </div>
-              </div>
-            </div>
-
-            <div class="col-12 col-md-6 col-xl">
-              <div class="card app-card h-100">
-                <div class="card-body">
-                  <div class="text-muted small">Tiket Selesai</div>
-                  <h3 class="mb-1 text-success"><%= summary.total_completed %></h3>
-                  <div class="small text-muted">Diselesaikan oleh Anda</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-12 col-md-6 col-xl">
-              <div class="card app-card h-100">
-                <div class="card-body">
-                  <div class="text-muted small">Perlu Tindak Lanjut</div>
-                  <h3 class="mb-1 text-warning"><%= summary.total_follow_up %></h3>
-                  <div class="small text-muted">Tiket Anda yang perlu ditinjau</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-12 col-md-6 col-xl">
-              <div class="card app-card h-100">
-                <div class="card-body">
-                  <div class="text-muted small">Eskalasi</div>
-                  <h3 class="mb-1 text-danger"><%= summary.total_escalated %></h3>
-                  <div class="small text-muted">Tiket Anda yang dieskalasikan</div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                  <div class="app-metric-block">
+                    <div class="text-muted small">Tiket Siap Diambil</div>
+                    <h3 class="mb-1 fw-bold text-status-available"><%= summary.total_available %></h3>
+                    <div class="small text-muted">Sesuai akses wilayah kerja Anda</div>
+                  </div>
+                  <div class="pt-2">
+                    <a href="/reports" class="btn btn-sm btn-outline-primary w-100">Buka Antrean Wilayah</a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -81,12 +100,12 @@
           <div class="row g-3">
             <div class="col-12 col-xl-8">
               <div class="card app-card h-100">
-                <div class="card-header d-flex align-items-center justify-content-between gap-2">
+                <div class="card-header d-flex align-items-center justify-content-between gap-2 py-2">
                   <div>
-                    <strong>Tiket Assigned Terbaru</strong>
-                    <div class="text-muted small">Maksimal 5 tiket terbaru yang ditugaskan kepada Anda.</div>
+                    <strong class="text-dark">Tiket Assigned Terbaru</strong>
+                    <span class="text-muted small d-none d-sm-inline ms-1">— Maksimal 5 tiket yang ditugaskan kepada Anda</span>
                   </div>
-                  <span class="badge text-bg-primary"><%= latestAssignedReports.length %> tiket</span>
+                  <span class="badge text-bg-secondary"><%= (latestAssignedReports || []).length %> tiket</span>
                 </div>
                 <div class="card-body">
                   <div class="table-responsive">
@@ -121,11 +140,13 @@
                                 <%= report.summary || '-' %>
                               </div>
                             </td>
-                            <td><%= report.region_code || '-' %></td>
+                            <td>
+                              <span class="badge text-bg-light border"><%= report.region_code || '-' %></span>
+                            </td>
                             <td>
                               <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
                             </td>
-                            <td><span class="text-muted"><%= formatDateTime(report.taken_at || report.updated_at || report.received_at) %></span></td>
+                            <td><span class="text-muted small"><%= formatDateTime(report.taken_at || report.updated_at || report.received_at) %></span></td>
                             <td class="app-table-actions">
                               <a href="/reports/<%= report.ticket_id %>" class="btn btn-sm btn-outline-secondary">Detail</a>
                             </td>
@@ -140,13 +161,16 @@
 
             <div class="col-12 col-xl-4">
               <div class="card app-card h-100">
-                <div class="card-body">
-                  <h5 class="card-title mb-1">Shortcut Pekerjaan</h5>
-                  <div class="text-muted mb-3">Akses cepat ke antrean kerja dan pengaturan akses region sementara.</div>
+                <div class="card-header py-2">
+                  <strong class="text-dark">Shortcut Pekerjaan</strong>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                  <div class="text-muted small mb-3">Akses cepat ke antrean kerja operasional, input laporan manual, dan permohonan akses wilayah sementara.</div>
 
                   <div class="d-grid gap-2">
                     <a href="/reports" class="btn btn-primary">Daftar Antrean Kerja</a>
-                    <a href="/region-switch/my" class="btn btn-outline-primary">Pengajuan Switch Region</a>
+                    <a href="/manual-reports" class="btn btn-outline-secondary">Input Laporan Manual</a>
+                    <a href="/region-switch/my" class="btn btn-outline-secondary">Pengajuan Switch Region</a>
                   </div>
                 </div>
               </div>

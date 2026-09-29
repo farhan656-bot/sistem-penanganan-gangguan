@@ -26,25 +26,41 @@
             `
           }) %>
 
-          <div class="card app-card">
+          <div class="card app-card mb-4">
+            <div class="card-header">
+              <strong>Formulir Permohonan Akses Region Sementara</strong>
+              <div class="text-muted small">Lengkapi data wilayah tujuan dan alasan permohonan akses operasional.</div>
+            </div>
             <div class="card-body">
               <form action="/region-switch" method="POST">
                 <div class="row g-3">
-                  <div class="col-12">
-                    <label class="form-label">Region Utama</label>
+                  <!-- Region Utama (Asal) -->
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="homeRegionInput">
+                      Region Utama (Asal)
+                    </label>
                     <input
                       type="text"
-                      class="form-control"
+                      id="homeRegionInput"
+                      class="form-control bg-light"
                       value="<%= currentUser.region_name || '-' %>"
                       readonly
                     >
-                    <div class="form-text">Wilayah ini berasal dari profil akun eksekutor.</div>
+                    <div class="form-text">Wilayah kerja penugasan utama berdasarkan data profil akun Anda.</div>
                   </div>
 
-                  <div class="col-12">
-                    <label class="form-label">Region Tujuan</label>
-                    <select name="target_region_id" class="form-select" required>
-                      <option value="">Pilih region tujuan</option>
+                  <!-- Region Tujuan -->
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="targetRegionSelect">
+                      Region Tujuan <span class="app-required">*</span>
+                    </label>
+                    <select
+                      id="targetRegionSelect"
+                      name="target_region_id"
+                      class="form-select"
+                      required
+                    >
+                      <option value="">Pilih region tujuan...</option>
                       <% regions.forEach((region) => { %>
                         <% if (Number(region.id) !== Number(homeRegionId)) { %>
                           <option
@@ -56,25 +72,30 @@
                         <% } %>
                       <% }) %>
                     </select>
-                    <div class="form-text">Pilih region tujuan yang berbeda dari region utama.</div>
+                    <div class="form-text">Pilih wilayah kerja operasional yang berbeda dari wilayah utama Anda.</div>
                   </div>
 
+                  <!-- Alasan Pengajuan -->
                   <div class="col-12">
-                    <label class="form-label">Alasan Pengajuan</label>
+                    <label class="form-label small fw-semibold text-secondary" for="regionSwitchReason">
+                      Alasan Pengajuan <span class="app-required">*</span>
+                    </label>
                     <textarea
+                      id="regionSwitchReason"
                       name="reason"
                       class="form-control"
                       rows="4"
-                      placeholder="Jelaskan alasan kebutuhan akses region tambahan..."
+                      placeholder="Jelaskan kebutuhan penanganan gangguan atau bantuan operasional di wilayah tujuan..."
                       required
                     ><%= formData.reason %></textarea>
-                    <div class="form-text">Tulis alasan singkat dan jelas agar memudahkan proses review koordinator.</div>
+                    <div class="form-text">Uraikan alasan secara ringkas dan jelas agar memudahkan proses verifikasi Koordinator.</div>
                   </div>
                 </div>
 
-                <div class="d-flex gap-2 mt-3">
-                  <button type="submit" class="btn btn-primary">Kirim Pengajuan</button>
+                <!-- Tombol Aksi Form -->
+                <div class="d-flex gap-2 justify-content-end mt-4">
                   <a href="/region-switch/my" class="btn btn-outline-secondary">Batal</a>
+                  <button type="submit" class="btn btn-primary">Kirim Pengajuan</button>
                 </div>
               </form>
             </div>

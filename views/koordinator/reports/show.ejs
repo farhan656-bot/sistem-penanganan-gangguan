@@ -20,7 +20,7 @@
 
           <%- include('../../partials/page-header', {
             pageTitle: 'Detail Laporan',
-            pageSubtitle: `Ticket ID: ${report && report.ticket_id ? report.ticket_id : '-'}` ,
+            pageSubtitle: `Ticket ID: ${report && report.ticket_id ? report.ticket_id : '-'}`,
             pageActions: `
               <a href="/reports" class="btn btn-outline-secondary">Kembali</a>
             `
@@ -28,94 +28,88 @@
 
           <div class="card app-card mb-3">
             <div class="card-body">
-              <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
-                <div>
-                  <div class="text-muted small">Status Internal</div>
-                  <div class="mt-1">
-                    <%- include('../../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
-                    <% if (report.status_internal === 'didelegasikan') { %>
-                      <span class="badge text-bg-info ms-1">Delegasi Aktif</span>
-                    <% } %>
-                  </div>
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 pb-3 border-bottom">
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <span class="fs-5 fw-bold font-monospace text-dark"><%= report.ticket_id %></span>
+                  <%- include('../../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                  <% if (report.status_internal === 'didelegasikan') { %>
+                    <span class="badge text-bg-info">Delegasi Aktif</span>
+                  <% } %>
                 </div>
 
-                <div class="text-end">
-                  <div class="text-muted small">Wilayah Laporan</div>
-                  <div class="fw-semibold"><%= report.reported_region_code || report.region_code || report.current_region_code || '-' %></div>
+                <div class="text-md-end">
+                  <span class="text-muted small me-1">Wilayah:</span>
+                  <span class="badge text-bg-light border fs-6 font-monospace"><%= report.reported_region_code || report.region_code || report.current_region_code || '-' %></span>
                 </div>
               </div>
 
-              <hr class="my-3">
-
-              <div class="row g-3">
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Ticket ID</div>
-                  <div class="fw-semibold"><%= report.ticket_id %></div>
-                </div>
-                <div class="col-12 col-md-3">
+              <div class="row g-3 pt-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Order ID</div>
-                  <div><%= report.order_id || '-' %></div>
+                  <div class="fw-medium"><%= report.order_id || '-' %></div>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Jenis Layanan</div>
                   <div><%= report.service_type || '-' %></div>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Provider</div>
                   <div><%= report.provider || '-' %></div>
                 </div>
-
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Branch</div>
-                  <div><%= report.branch_name || '-' %></div>
-                </div>
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Cluster</div>
-                  <div><%= report.cluster_name || '-' %></div>
-                </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">STO</div>
                   <div><%= report.sto || '-' %></div>
                 </div>
-                <div class="col-12 col-md-3">
+
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small">Branch</div>
+                  <div><%= report.branch_name || '-' %></div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small">Cluster</div>
+                  <div><%= report.cluster_name || '-' %></div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small">Waktu Ambil</div>
+                  <div><span class="text-muted small"><%= formatDateTime(report.taken_at) %></span></div>
+                </div>
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Assigned To</div>
-                  <div class="fw-semibold"><%= report.assigned_user_name || '-' %></div>
+                  <div class="fw-semibold <%= report.assigned_user_name ? 'text-dark' : 'text-muted' %>"><%= report.assigned_user_name || '-' %></div>
                 </div>
 
                 <div class="col-12">
-                  <div class="text-muted small">Ringkasan</div>
-                  <div class="mt-1"><%= report.summary || '-' %></div>
+                  <div class="text-muted small mb-1">Ringkasan Gangguan</div>
+                  <div class="p-2 rounded bg-light border text-break"><%= report.summary || '-' %></div>
                 </div>
 
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Waktu Ambil</div>
-                  <div><%= formatDateTime(report.taken_at) %></div>
-                </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-4">
                   <div class="text-muted small">Waktu Selesai</div>
-                  <div><%= formatDateTime(report.resolved_at) %></div>
+                  <div><span class="text-muted small"><%= formatDateTime(report.resolved_at) %></span></div>
                 </div>
-                <div class="col-12 col-md-6">
+                <div class="col-12 col-sm-6 col-md-4">
                   <div class="text-muted small">Status Akhir</div>
                   <div><%= report.completion_status || '-' %></div>
                 </div>
 
                 <% if (report.diit_code) { %>
-                  <div class="col-12 col-md-6">
+                  <div class="col-12 col-md-4">
                     <div class="text-muted small">Kode DIIT</div>
-                    <div class="fw-semibold"><%= report.diit_code %></div>
+                    <div class="fw-semibold font-monospace"><%= report.diit_code %></div>
                   </div>
                 <% } %>
 
-                <div class="col-12">
-                  <div class="text-muted small">Catatan Penyelesaian</div>
-                  <div class="mt-1"><%= report.completion_notes || '-' %></div>
-                </div>
+                <% if (report.completion_notes) { %>
+                  <div class="col-12">
+                    <div class="text-muted small mb-1">Catatan Penyelesaian</div>
+                    <div class="p-2 rounded bg-light border text-break"><%= report.completion_notes %></div>
+                  </div>
+                <% } %>
               </div>
             </div>
           </div>
 
-          <div class="row g-3">
+          <div class="row g-3 mb-3">
             <div class="col-12 col-xl-6">
               <div class="card app-card h-100">
                 <div class="card-header fw-semibold">Bukti Penyelesaian</div>
@@ -123,7 +117,7 @@
                   <% const completionOnly = typeof completionAttachments !== 'undefined' ? completionAttachments : (attachments || []); %>
 
                   <% if (completionOnly.length === 0) { %>
-                    <div class="text-muted">Belum ada bukti penyelesaian yang diunggah.</div>
+                    <div class="text-muted small p-3 text-center border rounded border-dashed">Belum ada bukti penyelesaian yang diunggah.</div>
                   <% } else { %>
                     <div class="list-group list-group-flush">
                       <% completionOnly.forEach(file => { %>
@@ -131,7 +125,7 @@
                         <div class="list-group-item px-0">
                           <div class="d-flex align-items-start justify-content-between gap-3">
                             <div class="min-w-0">
-                              <div class="fw-semibold">
+                              <div class="fw-semibold text-truncate">
                                 <a href="<%= file.file_path %>" target="_blank" class="text-decoration-none"><%= completionFileName %></a>
                               </div>
                               <div class="small text-muted">Diunggah oleh <%= file.uploaded_by_name || '-' %></div>
@@ -153,7 +147,7 @@
                   <% const telegramOnly = typeof telegramAttachments !== 'undefined' ? telegramAttachments : []; %>
 
                   <% if (telegramOnly.length === 0) { %>
-                    <div class="text-muted">Belum ada media tambahan Telegram untuk tiket ini.</div>
+                    <div class="text-muted small p-3 text-center border rounded border-dashed">Belum ada media tambahan Telegram untuk tiket ini.</div>
                   <% } else { %>
                     <div class="row g-3">
                       <% telegramOnly.forEach(item => { %>
@@ -162,7 +156,7 @@
                           <div class="border rounded p-3 bg-white">
                             <div class="d-flex align-items-start justify-content-between gap-2">
                               <div class="min-w-0">
-                                <div class="fw-semibold"><%= item.original_name || item.stored_name || 'Media Telegram' %></div>
+                                <div class="fw-semibold text-truncate"><%= item.original_name || item.stored_name || 'Media Telegram' %></div>
                                 <div class="small text-muted">Waktu: <%= formatDateTime(item.created_at) %></div>
                               </div>
                               <a href="<%= item.file_path %>" target="_blank" class="btn btn-sm btn-outline-primary">Buka</a>
@@ -173,8 +167,7 @@
                                 <img
                                   src="<%= item.file_path %>"
                                   alt="Telegram media <%= item.id %>"
-                                  class="img-fluid rounded border mt-2"
-                                  style="max-height: 280px; object-fit: cover; width: 100%;"
+                                  class="report-detail-media-preview"
                                 >
                               </a>
                             <% } %>
@@ -201,10 +194,13 @@
             currentUser.role === 'koordinator' &&
             report.status_internal === 'tersedia'
           ) { %>
-            <div class="card app-card mt-3">
-              <div class="card-header fw-semibold">Ambil Tugas</div>
-              <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <p class="mb-0 text-muted">Ambil tiket ini agar Koordinator menjadi penanggung jawab aktif dan dapat membantu proses pengerjaan.</p>
+            <div class="card app-card mb-3">
+              <div class="card-header fw-semibold">Ambil Tugas Tiket</div>
+              <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div>
+                  <div class="fw-semibold text-dark mb-1">Ambil Sebagai Penanggung Jawab</div>
+                  <p class="mb-0 text-muted small">Ambil tiket ini agar Koordinator menjadi penanggung jawab aktif dan dapat membantu proses pengerjaan lapangan.</p>
+                </div>
                 <form
                   action="/reports/<%= report.ticket_id %>/take"
                   method="POST"
@@ -213,7 +209,7 @@
                   data-action-type="take"
                   data-ticket-id="<%= report.ticket_id %>"
                 >
-                  <button type="submit" class="btn btn-primary" onclick="return confirm('Ambil tugas ini?');">
+                  <button type="submit" class="btn btn-primary fw-semibold px-3" onclick="return confirm('Ambil tugas tiket ini sebagai penanggung jawab aktif?');">
                     Ambil Tugas
                   </button>
                 </form>
@@ -225,10 +221,13 @@
             currentUser.role === 'koordinator' &&
             ['diambil', 'didelegasikan'].includes(report.status_internal)
           ) { %>
-            <div class="card app-card mt-3">
-              <div class="card-header fw-semibold">Update Pengerjaan</div>
-              <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <p class="mb-0 text-muted">Gunakan tombol ini saat tiket sudah mulai dikerjakan agar pelapor menerima update status.</p>
+            <div class="card app-card mb-3">
+              <div class="card-header fw-semibold">Update Status Pengerjaan</div>
+              <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div>
+                  <div class="fw-semibold text-dark mb-1">Mulai Penanganan Lapangan</div>
+                  <p class="mb-0 text-muted small">Gunakan tombol ini saat pengerjaan teknis dimulai agar status tiket diperbarui dan notifikasi terkirim ke pelapor.</p>
+                </div>
                 <form
                   action="/reports/<%= report.ticket_id %>/in-progress"
                   method="POST"
@@ -237,77 +236,121 @@
                   data-action-type="in-progress"
                   data-ticket-id="<%= report.ticket_id %>"
                 >
-                  <button type="submit" class="btn btn-warning" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
+                  <button type="submit" class="btn btn-warning fw-semibold px-3" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
                     Tandai In Progress
                   </button>
                 </form>
               </div>
             </div>
 
-            <div class="card app-card mt-3">
-              <div class="card-header fw-semibold">Konfirmasi Penyelesaian</div>
+            <div class="card app-card mb-3">
+              <div class="card-header fw-semibold">Konfirmasi Penyelesaian Laporan</div>
               <div class="card-body">
+                <p class="text-muted small mb-3">
+                  Pilih status akhir penanganan gangguan. Catatan dan bukti penyelesaian bersifat opsional kecuali jika status penanganan memerlukan tindak lanjut khusus.
+                </p>
+
                 <form action="/reports/<%= report.ticket_id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
                   <div class="mb-3">
-                    <label class="form-label" for="completion_notes">
-                      Catatan
-                      <span class="app-required d-none" data-completion-notes-required>*</span>
+                    <label class="form-label fw-semibold" for="completion_status">
+                      Status Akhir Penanganan <span class="app-required">*</span>
                     </label>
-                    <textarea id="completion_notes" name="completion_notes" class="form-control" rows="4" data-completion-notes></textarea>
-                    <div class="form-text">Opsional untuk selesai dan eskalasi. Wajib untuk return/perlu tindak lanjut agar feedback Telegram jelas.</div>
-                  </div>
-
-                  <div class="mb-3">
-                    <label class="form-label" for="completion_status">Status Akhir <span class="app-required">*</span></label>
                     <select id="completion_status" name="completion_status" class="form-select" required data-completion-status>
-                      <option value="">Pilih status akhir</option>
+                      <option value="">Pilih status akhir penanganan</option>
                       <option value="selesai">Selesai</option>
                       <option value="perlu_tindak_lanjut">Perlu Tindak Lanjut</option>
                       <option value="eskalasi">Eskalasi</option>
                     </select>
+                    <div class="form-text">
+                      Pilih 'Selesai' untuk gangguan tertangani, 'Perlu Tindak Lanjut' jika butuh tindak lanjut teknis lanjutan, atau 'Eskalasi' untuk kendala eksternal.
+                    </div>
                   </div>
 
                   <div class="mb-3 d-none" data-diit-code-group>
-                    <label class="form-label" for="diit_code">Kode DIIT <span class="app-required">*</span></label>
-                    <input
-                      type="text"
-                      id="diit_code"
-                      name="diit_code"
-                      class="form-control"
-                      maxlength="100"
-                      autocomplete="off"
-                      data-diit-code
-                    >
-                    <div class="form-text">Masukkan kode rujukan DIIT dari proses eksternal.</div>
+                    <div class="p-3 border rounded bg-light">
+                      <label class="form-label fw-semibold text-danger" for="diit_code">
+                        Kode DIIT Eskalasi <span class="app-required">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        id="diit_code"
+                        name="diit_code"
+                        class="form-control font-monospace"
+                        placeholder="Contoh: DIIT-2026-..."
+                        maxlength="100"
+                        autocomplete="off"
+                        data-diit-code
+                      >
+                      <div class="form-text text-muted">
+                        Wajib diisi saat status Eskalasi. Masukkan kode rujukan penanganan DIIT dari unit eksternal.
+                      </div>
+                    </div>
                   </div>
 
                   <div class="mb-3">
-                    <label class="form-label">Upload Bukti (Opsional)</label>
-                    <input
-                      type="file"
-                      name="proof_file"
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                      <label class="form-label fw-semibold mb-0" for="completion_notes">
+                        Catatan Penyelesaian
+                        <span class="app-required d-none" data-completion-notes-required>*</span>
+                      </label>
+                      <span class="badge text-bg-light border text-muted small fw-normal">Opsional</span>
+                    </div>
+                    <textarea
+                      id="completion_notes"
+                      name="completion_notes"
                       class="form-control"
-                      accept=".jpg,.jpeg,.png,.webp,.pdf"
-                      multiple
-                      data-proof-file-input
-                    >
+                      rows="3"
+                      placeholder="Tuliskan ringkasan tindakan atau hasil penanganan di lapangan..."
+                      data-completion-notes
+                    ></textarea>
                     <div class="form-text">
-                      Unggah file bukti atau klik area ini lalu tekan Ctrl + V untuk menempel screenshot.
-                      Format: JPG, JPEG, PNG, WEBP, atau PDF. Maksimal 5 file, 5 MB per file.
+                      Opsional untuk status Selesai dan Eskalasi. Wajib diisi jika status Perlu Tindak Lanjut agar catatan feedback tersampaikan ke pelapor Telegram.
+                    </div>
+                  </div>
+
+                  <div class="mb-4">
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                      <label class="form-label fw-semibold mb-0" for="proof_file">
+                        Bukti Penanganan / Evidence
+                      </label>
+                      <span class="badge text-bg-light border text-muted small fw-normal">Opsional</span>
+                    </div>
+                    <p class="text-muted small mb-2">
+                      Unggah berkas atau tempel screenshot dari clipboard jika tersedia dokumentasi lapangan.
+                    </p>
+
+                    <div class="mb-2">
+                      <input
+                        type="file"
+                        id="proof_file"
+                        name="proof_file"
+                        class="form-control"
+                        accept=".jpg,.jpeg,.png,.webp,.pdf"
+                        multiple
+                        data-proof-file-input
+                      >
+                      <div class="form-text">
+                        Format yang didukung: JPG, JPEG, PNG, WEBP, atau PDF. Maksimal 5 berkas (ukuran maks. 5 MB per berkas).
+                      </div>
                     </div>
 
                     <div
-                      class="completion-evidence-paste mt-3"
+                      class="completion-evidence-paste mt-2"
                       tabindex="0"
                       role="button"
                       aria-label="Area paste screenshot bukti penyelesaian"
                       data-evidence-paste-area
                     >
-                      <div class="fw-semibold">Paste Screenshot</div>
-                      <div class="small text-muted">
-                        Klik area ini lalu tekan Ctrl + V. Screenshot akan masuk ke upload bukti penyelesaian.
+                      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="fw-semibold text-dark">
+                          Area Paste Screenshot Clipboard
+                        </div>
+                        <span class="badge text-bg-light border text-muted small fw-normal">Ctrl + V</span>
                       </div>
-                      <div class="small mt-2 text-muted" aria-live="polite" data-evidence-paste-status>
+                      <div class="small text-muted mt-1">
+                        Klik di area ini lalu tekan <kbd class="bg-light text-dark border">Ctrl</kbd> + <kbd class="bg-light text-dark border">V</kbd> untuk menempelkan tangkapan layar langsung dari clipboard.
+                      </div>
+                      <div class="small mt-2 text-muted fw-medium" aria-live="polite" data-evidence-paste-status>
                         Belum ada screenshot yang ditempel.
                       </div>
 
@@ -324,7 +367,7 @@
                             <div class="small text-muted" data-evidence-file-size></div>
                             <div class="small text-muted" data-evidence-file-note></div>
                           </div>
-                          <button type="button" class="btn btn-sm btn-outline-secondary" data-evidence-clear>
+                          <button type="button" class="btn btn-sm btn-outline-danger" data-evidence-clear>
                             Hapus
                           </button>
                         </div>
@@ -332,9 +375,11 @@
                     </div>
                   </div>
 
-                  <button type="submit" class="btn btn-success" onclick="return confirm('Yakin ingin memproses status akhir laporan ini?');">
-                    Proses Status Akhir
-                  </button>
+                  <div class="d-flex align-items-center gap-2 pt-2 border-top">
+                    <button type="submit" class="btn btn-success fw-semibold px-4" onclick="return confirm('Yakin ingin menyelesaikan laporan ini?');">
+                      Konfirmasi Selesai
+                    </button>
+                  </div>
                 </form>
               </div>
             </div>
@@ -344,47 +389,143 @@
             currentUser.role === 'koordinator' &&
             ['tersedia', 'diambil', 'didelegasikan'].includes(report.status_internal)
           ) { %>
-            <div class="card app-card mt-3">
+            <%
+              const currentTicketRegion = report.reported_region_code || report.region_code || report.current_region_code || '-';
+              const oppositeRegion = currentTicketRegion === 'PDG' ? 'BKT' : (currentTicketRegion === 'BKT' ? 'PDG' : '-');
+              const oppositeRegionName = oppositeRegion === 'PDG' ? 'Padang (PDG)' : (oppositeRegion === 'BKT' ? 'Bukittinggi (BKT)' : '-');
+            %>
+            <div class="card app-card mb-3">
               <div class="card-header fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <span>Delegasi Penanggung Jawab (Opsional)</span>
-                <span class="badge text-bg-secondary">Non-dominan</span>
+                <span>Delegasi Penanggung Jawab Lintas Wilayah</span>
+                <span class="badge text-bg-light border text-muted">Aksi Koordinasi Wilayah</span>
               </div>
               <div class="card-body">
-                <div class="text-muted mb-3">
-                  Gunakan delegasi hanya jika memang dibutuhkan untuk penanganan lintas wilayah. Akses region sementara digunakan untuk mendukung kebutuhan operasional lintas region berdasarkan persetujuan Koordinator.
+                <div class="p-3 mb-3 border rounded bg-light">
+                  <div class="row g-2 align-items-center">
+                    <div class="col-12 col-md-5">
+                      <div class="text-muted small">Wilayah Asal Tiket</div>
+                      <div class="d-flex align-items-center gap-2 mt-1">
+                        <span class="badge text-bg-secondary font-monospace fs-6"><%= currentTicketRegion %></span>
+                        <span class="fw-semibold text-dark"><%= currentTicketRegion === 'PDG' ? 'Padang' : (currentTicketRegion === 'BKT' ? 'Bukittinggi' : '-') %></span>
+                      </div>
+                    </div>
+                    <div class="col-12 col-md-2 text-center text-muted">
+                      <span class="fs-5 d-none d-md-inline">&rarr;</span>
+                      <span class="d-md-none">&darr; Delegasi ke</span>
+                    </div>
+                    <div class="col-12 col-md-5">
+                      <div class="text-muted small">Wilayah Eksekutor Tujuan</div>
+                      <div class="d-flex align-items-center gap-2 mt-1">
+                        <span class="badge text-bg-info text-white font-monospace fs-6"><%= oppositeRegion %></span>
+                        <span class="fw-semibold text-dark"><%= oppositeRegionName %></span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-text mt-2 text-muted">
+                    Sesuai aturan operasional F018: tiket wilayah <%= currentTicketRegion %> hanya dapat didelegasikan ke eksekutor di wilayah <%= oppositeRegion %>.
+                  </div>
                 </div>
 
-                <form action="/reports/<%= report.ticket_id %>/delegate" method="POST">
-                  <div class="row g-3">
+                <form id="delegationForm" action="/reports/<%= report.ticket_id %>/delegate" method="POST">
+                  <div class="row g-3 mb-3">
                     <div class="col-12 col-lg-6">
-                      <label class="form-label">Pilih Pegawai Tujuan</label>
-                      <select name="target_user_id" class="form-select" required>
-                        <option value="">Pilih pegawai eksekutor</option>
+                      <label for="target_user_id" class="form-label fw-semibold">Pilih Pegawai Eksekutor Tujuan <span class="app-required">*</span></label>
+                      <select id="target_user_id" name="target_user_id" class="form-select" required>
+                        <option value="">-- Pilih pegawai eksekutor <%= oppositeRegion %> --</option>
                         <% (eksekutorUsers || []).forEach(user => { %>
                           <% if (Number(user.id) !== Number(report.assigned_to_user_id)) { %>
-                            <option value="<%= user.id %>">
-                              <%= user.full_name %> - <%= user.region_code || '-' %>
+                            <option
+                              value="<%= user.id %>"
+                              data-user-name="<%= user.full_name %>"
+                              data-user-region="<%= user.region_code || '-' %>"
+                            >
+                              <%= user.full_name %> — <%= user.region_code || '-' %>
                             </option>
                           <% } %>
                         <% }) %>
                       </select>
-                      <div class="form-text">Aturan delegasi: tiket PDG hanya ke eksekutor BKT, tiket BKT hanya ke eksekutor PDG.</div>
 
                       <% if ((eksekutorUsers || []).length === 0) { %>
-                        <div class="text-danger small mt-2">Tidak ada eksekutor aktif pada wilayah lawan untuk tiket ini.</div>
+                        <div class="alert alert-danger small mt-2 mb-0 py-2">
+                          Tidak ada pegawai eksekutor aktif di wilayah <%= oppositeRegion %> untuk menerima delegasi saat ini.
+                        </div>
                       <% } %>
                     </div>
 
                     <div class="col-12 col-lg-6">
-                      <label class="form-label">Alasan Delegasi</label>
-                      <textarea name="delegation_notes" class="form-control" rows="3" required></textarea>
+                      <label for="delegation_notes" class="form-label fw-semibold">Alasan / Catatan Delegasi <span class="app-required">*</span></label>
+                      <textarea
+                        id="delegation_notes"
+                        name="delegation_notes"
+                        class="form-control"
+                        rows="3"
+                        placeholder="Jelaskan alasan delegasi penanganan lintas wilayah..."
+                        required
+                      ></textarea>
                     </div>
                   </div>
 
-                  <div class="mt-3">
-                    <button type="submit" class="btn btn-outline-primary" onclick="return confirm('Yakin ingin mendelegasikan laporan ini?');">Delegasikan</button>
+                  <div class="d-flex align-items-center gap-2 pt-2 border-top">
+                    <button
+                      type="button"
+                      class="btn btn-primary fw-semibold px-4"
+                      id="openDelegationModalBtn"
+                      <%= (eksekutorUsers || []).length === 0 ? 'disabled' : '' %>
+                    >
+                      Delegasikan Tiket
+                    </button>
                   </div>
                 </form>
+              </div>
+            </div>
+
+            <!-- Safe Confirmation Modal for Delegation -->
+            <div class="modal fade" id="delegationConfirmModal" tabindex="-1" aria-labelledby="delegationConfirmModalLabel" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header">
+                    <h5 class="modal-title fw-bold" id="delegationConfirmModalLabel">Konfirmasi Delegasi Lintas Wilayah</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                  </div>
+                  <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                      Periksa kembali rincian tiket dan teknisi tujuan sebelum mendelegasikan. Penugasan aktif akan dialihkan ke teknisi terpilih.
+                    </p>
+
+                    <div class="border rounded p-3 bg-light mb-3">
+                      <div class="row g-2 small">
+                        <div class="col-4 text-muted">Ticket ID</div>
+                        <div class="col-8 fw-semibold font-monospace"><%= report.ticket_id %></div>
+
+                        <div class="col-4 text-muted">Wilayah Asal</div>
+                        <div class="col-8">
+                          <span class="badge text-bg-secondary"><%= currentTicketRegion %></span>
+                        </div>
+
+                        <div class="col-4 text-muted">Teknisi Tujuan</div>
+                        <div class="col-8 fw-bold text-dark" id="modalTargetUserName">-</div>
+
+                        <div class="col-4 text-muted">Wilayah Tujuan</div>
+                        <div class="col-8">
+                          <span class="badge text-bg-info text-white" id="modalTargetUserRegion">-</span>
+                        </div>
+
+                        <div class="col-4 text-muted">Alasan Delegasi</div>
+                        <div class="col-8 text-break" id="modalDelegationNotes">-</div>
+                      </div>
+                    </div>
+
+                    <div class="small text-muted">
+                      Apakah rincian delegasi sudah benar dan siap dialihkan?
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-primary fw-semibold px-3" id="confirmDelegationSubmitBtn">
+                      Ya, Delegasikan
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           <% } %>
@@ -394,18 +535,29 @@
             ['diambil', 'didelegasikan'].includes(report.status_internal) &&
             report.assigned_to_user_id
           ) { %>
-            <div class="card app-card mt-3">
-              <div class="card-header fw-semibold">Batalkan Penugasan</div>
+            <div class="card app-card mb-3">
+              <div class="card-header fw-semibold text-danger">Batalkan Penugasan Aktif</div>
               <div class="card-body">
-                <div class="text-muted mb-3">Gunakan pembatalan penugasan bila penanggung jawab aktif perlu diganti dan tiket harus kembali tersedia sesuai rule yang ada.</div>
+                <p class="text-muted small mb-3">
+                  Gunakan pembatalan penugasan bila penanggung jawab aktif berhalangan atau perlu diganti. Tiket akan kembali berstatus tersedia untuk diambil ulang.
+                </p>
 
                 <form action="/reports/<%= report.ticket_id %>/cancel-assignment" method="POST">
                   <div class="mb-3">
-                    <label class="form-label">Alasan Pembatalan</label>
-                    <textarea name="cancel_notes" class="form-control" rows="3" required></textarea>
+                    <label for="cancel_notes" class="form-label fw-semibold">Alasan Pembatalan <span class="app-required">*</span></label>
+                    <textarea
+                      id="cancel_notes"
+                      name="cancel_notes"
+                      class="form-control"
+                      rows="3"
+                      placeholder="Jelaskan alasan pembatalan penugasan..."
+                      required
+                    ></textarea>
                   </div>
 
-                  <button type="submit" class="btn btn-danger" onclick="return confirm('Yakin ingin membatalkan penugasan ini?');">Batalkan Tugas</button>
+                  <button type="submit" class="btn btn-danger fw-semibold px-3" onclick="return confirm('Batalkan penugasan tiket ini? Status tiket akan kembali menjadi tersedia.');">
+                    Batalkan Tugas
+                  </button>
                 </form>
               </div>
             </div>
@@ -452,6 +604,54 @@
 
       statusField.addEventListener('change', syncCompletionRequirements);
       syncCompletionRequirements();
+    })();
+  </script>
+  <script>
+    (function () {
+      var openBtn = document.getElementById('openDelegationModalBtn');
+      var form = document.getElementById('delegationForm');
+      var targetSelect = document.getElementById('target_user_id');
+      var notesTextarea = document.getElementById('delegation_notes');
+      var confirmSubmitBtn = document.getElementById('confirmDelegationSubmitBtn');
+
+      if (!openBtn || !form || !targetSelect || !notesTextarea) return;
+
+      openBtn.addEventListener('click', function () {
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          return;
+        }
+
+        var selectedOption = targetSelect.options[targetSelect.selectedIndex];
+        var userName = selectedOption ? (selectedOption.getAttribute('data-user-name') || selectedOption.textContent.trim()) : '-';
+        var userRegion = selectedOption ? (selectedOption.getAttribute('data-user-region') || '-') : '-';
+        var notes = notesTextarea.value.trim() || '-';
+
+        var nameEl = document.getElementById('modalTargetUserName');
+        var regionEl = document.getElementById('modalTargetUserRegion');
+        var notesEl = document.getElementById('modalDelegationNotes');
+
+        if (nameEl) nameEl.textContent = userName;
+        if (regionEl) regionEl.textContent = userRegion;
+        if (notesEl) notesEl.textContent = notes;
+
+        var modalEl = document.getElementById('delegationConfirmModal');
+        if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+          var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          modal.show();
+        } else {
+          if (confirm('Yakin ingin mendelegasikan tiket ini ke ' + userName + ' (' + userRegion + ')?')) {
+            form.submit();
+          }
+        }
+      });
+
+      if (confirmSubmitBtn) {
+        confirmSubmitBtn.addEventListener('click', function () {
+          confirmSubmitBtn.disabled = true;
+          form.submit();
+        });
+      }
     })();
   </script>
 </body>

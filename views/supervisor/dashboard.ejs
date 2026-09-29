@@ -17,6 +17,21 @@
     }
 
     const selectedFilters = filters || {};
+    const periodLabelMap = {
+      all: 'Semua',
+      today: 'Hari ini',
+      last_7_days: '7 hari terakhir',
+      this_month: 'Bulan ini',
+      custom: 'Custom'
+    };
+
+    const selectedRegion = (regions || []).find((r) => String(r.id) === String(selectedFilters.regionId));
+    const activePeriodLabel = periodLabelMap[selectedFilters.period] || 'Semua';
+    const activeRegionLabel = selectedRegion ? `${selectedRegion.code} - ${selectedRegion.name}` : 'Semua District';
+    const activeStatusLabel = (selectedFilters.status && selectedFilters.status !== 'all')
+      ? statusLabel(selectedFilters.status)
+      : 'Semua Status';
+    const showCustomRange = selectedFilters.period === 'custom' && (selectedFilters.startDate || selectedFilters.endDate);
   %>
 
   <div class="app-layout">
@@ -31,460 +46,526 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Dashboard Supervisor',
-            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Hak akses: read-only (tanpa aksi operasional).`
+            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Hak akses: pemantauan read-only.`
           }) %>
 
-          <section id="dashboard-ringkasan" class="supervisor-section app-anchor-section">
-          <div class="card app-card mb-3">
-            <div class="card-body">
-              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                <div>
-                  <div class="fw-semibold">Filter Dashboard</div>
-                  <div class="text-muted small">Periode memakai tanggal masuk (received_at).</div>
-                </div>
-              </div>
-
-              <form class="row g-2" method="GET" action="/dashboard/supervisor">
-          <div class="col-12 col-md-3">
-            <label class="form-label">Periode</label>
-            <select class="form-select" name="period" id="filterPeriod">
-              <option value="all" <%= selectedFilters.period === 'all' ? 'selected' : '' %>>Semua</option>
-              <option value="today" <%= selectedFilters.period === 'today' ? 'selected' : '' %>>Hari ini</option>
-              <option value="last_7_days" <%= selectedFilters.period === 'last_7_days' ? 'selected' : '' %>>7 hari terakhir</option>
-              <option value="this_month" <%= selectedFilters.period === 'this_month' ? 'selected' : '' %>>Bulan ini</option>
-              <option value="custom" <%= selectedFilters.period === 'custom' ? 'selected' : '' %>>Custom</option>
-            </select>
-          </div>
-
-          <div class="col-12 col-md-3">
-            <label class="form-label">Mulai</label>
-            <input type="date" class="form-control" name="startDate" id="filterStartDate" value="<%= selectedFilters.startDate || '' %>">
-          </div>
-
-          <div class="col-12 col-md-3">
-            <label class="form-label">Sampai</label>
-            <input type="date" class="form-control" name="endDate" id="filterEndDate" value="<%= selectedFilters.endDate || '' %>">
-          </div>
-
-          <div class="col-12 col-md-3">
-            <label class="form-label">District</label>
-            <select class="form-select" name="regionId">
-              <option value="">Semua District</option>
-              <% (regions || []).forEach(region => { %>
-                <option value="<%= region.id %>" <%= String(selectedFilters.regionId) === String(region.id) ? 'selected' : '' %>>
-                  <%= region.code %> - <%= region.name %>
-                </option>
-              <% }) %>
-            </select>
-          </div>
-
-          <div class="col-12 col-md-6">
-            <label class="form-label">Status</label>
-            <select class="form-select" name="status">
-              <option value="all" <%= (selectedFilters.status || 'all') === 'all' ? 'selected' : '' %>>Semua Status</option>
-              <% safeReportStatusOptions.forEach(st => { %>
-                <option value="<%= st %>" <%= (selectedFilters.status || 'all') === st ? 'selected' : '' %>>
-                  <%= statusLabel(st) %>
-                </option>
-              <% }) %>
-            </select>
-          </div>
-
-          <div class="col-12 col-md-6 d-flex align-items-end justify-content-end gap-2">
-            <button type="submit" class="btn btn-primary">Terapkan Filter</button>
-            <a href="/dashboard/supervisor" class="btn btn-outline-secondary">Reset</a>
-          </div>
-        </form>
-
-        <%
-          const periodLabelMap = {
-            all: 'Semua',
-            today: 'Hari ini',
-            last_7_days: '7 hari terakhir',
-            this_month: 'Bulan ini',
-            custom: 'Custom'
-          };
-
-          const selectedRegion = (regions || []).find((r) => String(r.id) === String(selectedFilters.regionId));
-          const activePeriodLabel = periodLabelMap[selectedFilters.period] || 'Semua';
-          const activeRegionLabel = selectedRegion ? `${selectedRegion.code} - ${selectedRegion.name}` : 'Semua District';
-          const activeStatusLabel = (selectedFilters.status && selectedFilters.status !== 'all')
-            ? statusLabel(selectedFilters.status)
-            : 'Semua Status';
-          const showCustomRange = selectedFilters.period === 'custom' && (selectedFilters.startDate || selectedFilters.endDate);
-        %>
-
-              <div class="mt-3">
-                <div class="text-muted small mb-2">Filter aktif:</div>
-                <div class="d-flex flex-wrap gap-2">
-                  <span class="badge text-bg-light border">Periode: <%= activePeriodLabel %></span>
-                  <% if (showCustomRange) { %>
-                    <span class="badge text-bg-light border">Tanggal: <%= selectedFilters.startDate || '-' %> s/d <%= selectedFilters.endDate || '-' %></span>
+          <!-- In-Page Section Navigation Tabs -->
+          <div class="mb-3">
+            <ul class="nav nav-tabs supervisor-nav-tabs" role="tablist">
+              <li class="nav-item" role="presentation">
+                <a class="nav-link active" href="#dashboard-ringkasan" role="tab" aria-selected="true">Ringkasan & Metrik SLA</a>
+              </li>
+              <li class="nav-item" role="presentation">
+                <a class="nav-link" href="#analisis-wilayah" role="tab" aria-selected="false">Analisis Wilayah</a>
+              </li>
+              <li class="nav-item" role="presentation">
+                <a class="nav-link" href="#kinerja-eksekutor" role="tab" aria-selected="false">Kinerja Eksekutor</a>
+              </li>
+              <li class="nav-item" role="presentation">
+                <a class="nav-link" href="#tiket-perlu-perhatian" role="tab" aria-selected="false">
+                  Tiket Perlu Perhatian
+                  <% if (attentionTickets && attentionTickets.length > 0) { %>
+                    <span class="badge badge-status-escalated ms-1"><%= attentionTickets.length %></span>
                   <% } %>
-                  <span class="badge text-bg-light border">District: <%= activeRegionLabel %></span>
-                  <span class="badge text-bg-light border">Status: <%= activeStatusLabel %></span>
+                </a>
+              </li>
+              <li class="nav-item" role="presentation">
+                <a class="nav-link" href="#riwayat-region-switch" role="tab" aria-selected="false">Riwayat Region Switch</a>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Section 1: Dashboard Ringkasan & Metrik SLA -->
+          <section id="dashboard-ringkasan" class="supervisor-section app-anchor-section" aria-hidden="false">
+            <!-- Filter Card -->
+            <div class="card app-card mb-3">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                  <div>
+                    <div class="fw-semibold">Filter Pemantauan</div>
+                    <div class="text-muted small">Periode pemantauan berdasarkan tanggal masuk laporan (received_at).</div>
+                  </div>
+                </div>
+
+                <form class="row g-2 align-items-end" method="GET" action="/dashboard/supervisor">
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary" for="filterPeriod">Periode</label>
+                    <select class="form-select form-select-sm" name="period" id="filterPeriod">
+                      <option value="all" <%= selectedFilters.period === 'all' ? 'selected' : '' %>>Semua</option>
+                      <option value="today" <%= selectedFilters.period === 'today' ? 'selected' : '' %>>Hari ini</option>
+                      <option value="last_7_days" <%= selectedFilters.period === 'last_7_days' ? 'selected' : '' %>>7 hari terakhir</option>
+                      <option value="this_month" <%= selectedFilters.period === 'this_month' ? 'selected' : '' %>>Bulan ini</option>
+                      <option value="custom" <%= selectedFilters.period === 'custom' ? 'selected' : '' %>>Custom</option>
+                    </select>
+                  </div>
+
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary" for="filterStartDate">Tanggal Mulai</label>
+                    <input type="date" class="form-control form-control-sm" name="startDate" id="filterStartDate" value="<%= selectedFilters.startDate || '' %>">
+                  </div>
+
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary" for="filterEndDate">Tanggal Sampai</label>
+                    <input type="date" class="form-control form-control-sm" name="endDate" id="filterEndDate" value="<%= selectedFilters.endDate || '' %>">
+                  </div>
+
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <label class="form-label small fw-semibold text-secondary" for="filterRegionId">District</label>
+                    <select class="form-select form-select-sm" name="regionId" id="filterRegionId">
+                      <option value="">Semua District</option>
+                      <% (regions || []).forEach(region => { %>
+                        <option value="<%= region.id %>" <%= String(selectedFilters.regionId) === String(region.id) ? 'selected' : '' %>>
+                          <%= region.code %> - <%= region.name %>
+                        </option>
+                      <% }) %>
+                    </select>
+                  </div>
+
+                  <div class="col-12 col-md-6">
+                    <label class="form-label small fw-semibold text-secondary" for="filterStatus">Status Tiket</label>
+                    <select class="form-select form-select-sm" name="status" id="filterStatus">
+                      <option value="all" <%= (selectedFilters.status || 'all') === 'all' ? 'selected' : '' %>>Semua Status</option>
+                      <% safeReportStatusOptions.forEach(st => { %>
+                        <option value="<%= st %>" <%= (selectedFilters.status || 'all') === st ? 'selected' : '' %>>
+                          <%= statusLabel(st) %>
+                        </option>
+                      <% }) %>
+                    </select>
+                  </div>
+
+                  <div class="col-12 col-md-6 d-flex align-items-end justify-content-end gap-2">
+                    <a href="/dashboard/supervisor" class="btn btn-sm btn-outline-secondary">Reset</a>
+                    <button type="submit" class="btn btn-sm btn-primary">Terapkan Filter</button>
+                  </div>
+                </form>
+
+                <div class="mt-3 pt-2 border-top">
+                  <div class="text-muted small mb-2">Filter aktif:</div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <span class="badge text-bg-light border">Periode: <%= activePeriodLabel %></span>
+                    <% if (showCustomRange) { %>
+                      <span class="badge text-bg-light border">Tanggal: <%= selectedFilters.startDate || '-' %> s/d <%= selectedFilters.endDate || '-' %></span>
+                    <% } %>
+                    <span class="badge text-bg-light border">District: <%= activeRegionLabel %></span>
+                    <span class="badge text-bg-light border">Status: <%= activeStatusLabel %></span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div class="row g-3 mb-3">
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Total Laporan</div>
-            <h3 class="mb-0"><%= summary.total_reports %></h3>
-          </div>
-        </div>
-      </div>
+            <!-- Group A: Prioritas Kinerja Penanganan Gangguan (SLA & Efektivitas) -->
+            <div class="mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <div>
+                  <h6 class="fw-bold mb-0 text-dark">Ringkasan Kinerja Penanganan Gangguan</h6>
+                  <div class="text-muted small">Waktu respons rata-rata, penyelesaian, tingkat efektivitas, dan antrean aktif.</div>
+                </div>
+              </div>
 
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Tersedia</div>
-            <h3 class="mb-0 text-primary"><%= summary.total_available %></h3>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Sedang Ditangani</div>
-            <h3 class="mb-0 text-warning"><%= summary.total_in_progress %></h3>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Selesai</div>
-            <h3 class="mb-0 text-success"><%= summary.total_completed %></h3>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Perlu Tindak Lanjut</div>
-            <h3 class="mb-0 text-warning"><%= summary.total_follow_up %></h3>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Eskalasi</div>
-            <h3 class="mb-0 text-danger"><%= summary.total_escalated %></h3>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Rata-rata Waktu Respons</div>
-            <h6 class="mb-0"><%= summary.avg_response %></h6>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Rata-rata Waktu Penyelesaian</div>
-            <h6 class="mb-0"><%= summary.avg_resolution %></h6>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Tingkat Penyelesaian</div>
-            <h3 class="mb-0"><%= Number(summary.completion_rate || 0).toFixed(2) %>%</h3>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-6 col-xl-3">
-        <div class="card app-card h-100">
-          <div class="card-body">
-            <div class="text-muted small">Backlog Aktif</div>
-            <h3 class="mb-0"><%= summary.active_backlog %></h3>
-            <div class="small text-muted">Tersedia + Diproses + TL + Eskalasi</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-          <div class="row g-3 mb-3">
-      <div class="col-lg-6">
-        <div class="card app-card h-100">
-          <div class="card-header"><strong>Grafik Status Tiket</strong></div>
-          <div class="card-body d-flex flex-column">
-            <div class="flex-grow-1">
-              <canvas id="statusChart" height="160"></canvas>
-            </div>
-            <% if (!charts || !charts.status || !charts.status.labels || charts.status.labels.length === 0) { %>
-              <div class="text-muted small mt-2">Tidak ada data untuk grafik status.</div>
-            <% } %>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-lg-6">
-        <div class="card app-card h-100">
-          <div class="card-header"><strong>Grafik Tren Laporan (Harian)</strong></div>
-          <div class="card-body d-flex flex-column">
-            <div class="flex-grow-1">
-              <canvas id="trendChart" height="160"></canvas>
-            </div>
-            <% if (!charts || !charts.trend || !charts.trend.labels || charts.trend.labels.length === 0) { %>
-              <div class="text-muted small mt-2">Tidak ada data untuk grafik tren.</div>
-            <% } %>
-          </div>
-        </div>
-      </div>
-
-    </div>
-
-          </section>
-
-          <section id="analisis-wilayah" class="supervisor-section app-anchor-section d-none">
-            <div class="row g-3">
-              <div class="col-lg-5">
-                <div class="card app-card h-100">
-                  <div class="card-header"><strong>Grafik Perbandingan District</strong></div>
-                  <div class="card-body d-flex flex-column">
-                    <div class="flex-grow-1">
-                      <canvas id="regionComparisonChart" height="160"></canvas>
+              <div class="row g-3">
+                <div class="col-12 col-sm-6 col-xl-3">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="text-muted small fw-semibold">Rata-rata Waktu Respons</span>
+                        <span class="badge text-bg-light border">MTTA</span>
+                      </div>
+                      <div class="fs-4 fw-bold text-dark mb-1"><%= summary.avg_response %></div>
+                      <div class="supervisor-kpi-subtext">Waktu penerimaan hingga penanganan</div>
                     </div>
-                    <% if (!charts || !charts.regionComparison || !charts.regionComparison.labels || charts.regionComparison.labels.length === 0) { %>
-                      <div class="text-muted small mt-2">Tidak ada data untuk grafik perbandingan.</div>
+                  </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="text-muted small fw-semibold">Rata-rata Waktu Penyelesaian</span>
+                        <span class="badge text-bg-light border">MTTR</span>
+                      </div>
+                      <div class="fs-4 fw-bold text-dark mb-1"><%= summary.avg_resolution %></div>
+                      <div class="supervisor-kpi-subtext">Waktu penanganan hingga tiket selesai</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="text-muted small fw-semibold">Tingkat Penyelesaian</span>
+                        <span class="badge badge-status-completed">Rasio</span>
+                      </div>
+                      <div class="fs-4 fw-bold text-status-completed mb-1"><%= Number(summary.completion_rate || 0).toFixed(2) %>%</div>
+                      <div class="supervisor-kpi-subtext">Persentase tiket berstatus selesai</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-12 col-sm-6 col-xl-3">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <span class="text-muted small fw-semibold">Backlog Aktif</span>
+                        <span class="badge text-bg-light border">Antrean</span>
+                      </div>
+                      <div class="fs-4 fw-bold text-dark mb-1"><%= summary.active_backlog %></div>
+                      <div class="supervisor-kpi-subtext">Tersedia + Diproses + TL + Eskalasi</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Group B: Distribusi Volume dan Status Operasional -->
+            <div class="mb-3">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <div>
+                  <h6 class="fw-bold mb-0 text-dark">Distribusi Status Laporan</h6>
+                  <div class="text-muted small">Rincian jumlah tiket pada setiap status operasional.</div>
+                </div>
+              </div>
+
+              <div class="row g-3">
+                <div class="col-6 col-md-4 col-xl-2">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="text-muted small">Total Laporan</div>
+                      <div class="fs-4 fw-bold mb-0 text-dark"><%= summary.total_reports %></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-6 col-md-4 col-xl-2">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="text-muted small">Tersedia</div>
+                      <div class="fs-4 fw-bold mb-0 text-status-available"><%= summary.total_available %></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-6 col-md-4 col-xl-2">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="text-muted small">Sedang Ditangani</div>
+                      <div class="fs-4 fw-bold mb-0 text-status-in-progress"><%= summary.total_in_progress %></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-6 col-md-4 col-xl-2">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="text-muted small">Selesai</div>
+                      <div class="fs-4 fw-bold mb-0 text-status-completed"><%= summary.total_completed %></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-6 col-md-4 col-xl-2">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="text-muted small">Perlu Tindak Lanjut</div>
+                      <div class="fs-4 fw-bold mb-0 text-status-follow-up"><%= summary.total_follow_up %></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="col-6 col-md-4 col-xl-2">
+                  <div class="card app-card h-100">
+                    <div class="card-body">
+                      <div class="text-muted small">Eskalasi</div>
+                      <div class="fs-4 fw-bold mb-0 text-status-escalated"><%= summary.total_escalated %></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Group C: Visualisasi Grafik Chart.js -->
+            <div class="row g-3 mb-3">
+              <div class="col-lg-6">
+                <div class="card app-card h-100">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Grafik Status Tiket</strong>
+                    <span class="text-muted small">Proporsi status operasional</span>
+                  </div>
+                  <div class="card-body d-flex flex-column">
+                    <div class="supervisor-chart-container flex-grow-1">
+                      <canvas id="statusChart"></canvas>
+                    </div>
+                    <% if (!charts || !charts.status || !charts.status.labels || charts.status.labels.length === 0) { %>
+                      <div class="text-muted small text-center py-2">Belum ada data untuk ditampilkan.</div>
                     <% } %>
                   </div>
                 </div>
               </div>
 
-      <div class="col-lg-7">
-        <div class="card app-card">
-          <div class="card-header"><strong>Rekap per Wilayah</strong></div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover align-middle">
-                <thead>
-                  <tr>
-                    <th>Wilayah</th>
-                    <th>Total</th>
-                    <th>Tersedia</th>
-                    <th>Diproses</th>
-                    <th>Selesai</th>
-                    <th>Tindak Lanjut</th>
-                    <th>Eskalasi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% if (regionSummary.length === 0) { %>
-                    <tr>
-                      <td colspan="7" class="text-center text-muted py-4">Belum ada data.</td>
-                    </tr>
-                  <% } %>
-
-                  <% regionSummary.forEach(region => { %>
-                    <tr>
-                      <td><%= region.region_code %></td>
-                      <td><%= region.total_reports %></td>
-                      <td><%= region.total_available %></td>
-                      <td><%= region.total_in_progress %></td>
-                      <td><%= region.total_completed %></td>
-                      <td><%= region.total_follow_up %></td>
-                      <td><%= region.total_escalated %></td>
-                    </tr>
-                  <% }) %>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-            </div>
-          </section>
-
-          <section id="kinerja-eksekutor" class="supervisor-section app-anchor-section d-none">
-            <div class="row g-3">
-      <div class="col-12">
-        <div class="card app-card">
-          <div class="card-header"><strong>Rekap Kinerja Pegawai Eksekutor</strong></div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover align-middle">
-                <thead>
-                  <tr>
-                    <th>No</th>
-                    <th>Nama Pegawai</th>
-                    <th>Wilayah</th>
-                    <th>Total Ditangani</th>
-                    <th>Total Selesai</th>
-                    <th>Rata-rata Waktu Penyelesaian</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% if (userPerformance.length === 0) { %>
-                    <tr>
-                      <td colspan="6" class="text-center text-muted py-4">Belum ada data.</td>
-                    </tr>
-                  <% } %>
-
-                  <% userPerformance.forEach((user, index) => { %>
-                    <tr>
-                      <td><%= index + 1 %></td>
-                      <td><%= user.full_name %></td>
-                      <td><%= user.region_code || '-' %></td>
-                      <td><%= user.total_handled %></td>
-                      <td><%= user.total_completed %></td>
-                      <td><%= formatMinutes(user.avg_resolution_minutes) %></td>
-                    </tr>
-                  <% }) %>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-          </section>
-
-          <section id="tiket-perlu-perhatian" class="supervisor-section app-anchor-section d-none">
-            <div class="row g-3">
-      <div class="col-12">
-        <div class="card app-card">
-          <div class="card-header">
-            <strong>Tiket Perlu Perhatian</strong>
-            <div class="text-muted small">Prioritas: perlu tindak lanjut & eskalasi (read-only)</div>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover align-middle">
-                <thead>
-                  <tr>
-                    <th>No</th>
-                    <th>Ticket ID</th>
-                    <th>Order ID</th>
-                    <th>Ringkasan</th>
-                    <th>Wilayah</th>
-                    <th>Status</th>
-                    <th>Eksekutor</th>
-                    <th>Diterima</th>
-                    <th class="app-table-actions">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% if (!attentionTickets || attentionTickets.length === 0) { %>
-                    <tr>
-                      <td colspan="9" class="text-center text-muted py-4">Tidak ada tiket perlu perhatian pada filter ini.</td>
-                    </tr>
-                  <% } %>
-
-                  <% (attentionTickets || []).forEach((ticket, index) => { %>
-                    <tr>
-                      <td><%= index + 1 %></td>
-                      <td><%= ticket.ticket_id || '-' %></td>
-                      <td><%= ticket.order_id || '-' %></td>
-                      <td>
-                        <div class="app-truncate-lg" title="<%= ticket.summary || '-' %>">
-                          <%= ticket.summary || '-' %>
-                        </div>
-                      </td>
-                      <td><%= ticket.region_code || '-' %></td>
-                      <td>
-                        <%- include('../partials/status-badge', { type: 'ticket', value: ticket.status_internal }) %>
-                      </td>
-                      <td><%= ticket.assigned_user_name || '-' %></td>
-                      <td><span class="text-muted"><%= formatDateTime(ticket.received_at) %></span></td>
-                      <td class="app-table-actions">
-                        <a
-                          href="/reports/<%= ticket.ticket_id %>"
-                          class="btn btn-sm btn-outline-secondary"
-                          data-report-detail-url="/reports/<%= ticket.ticket_id %>/detail-json"
-                        >Detail</a>
-                      </td>
-                    </tr>
-                  <% }) %>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-            </div>
-          </section>
-
-          <section id="riwayat-region-switch" class="supervisor-section app-anchor-section d-none">
-            <div class="row g-3">
-      <div class="col-12">
-        <div class="card app-card">
-          <div class="card-header">
-            <strong>Riwayat Region Switch F007</strong>
-            <div class="text-muted small">Informasi read-only (tanpa approve/reject)</div>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover align-middle">
-                <thead>
-                  <tr>
-                    <th>No</th>
-                    <th>Eksekutor</th>
-                    <th>Asal</th>
-                    <th>Tujuan</th>
-                    <th>Status</th>
-                    <th>Diajukan</th>
-                    <th>Disetujui</th>
-                    <th>Berakhir</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <% if (!regionSwitchHistory || regionSwitchHistory.length === 0) { %>
-                    <tr>
-                      <td colspan="8" class="text-center text-muted py-4">Belum ada data Region Switch.</td>
-                    </tr>
-                  <% } %>
-
-                  <% (regionSwitchHistory || []).forEach((item, index) => { %>
-                    <tr>
-                      <td><%= index + 1 %></td>
-                      <td><%= item.requester_name || '-' %></td>
-                      <td><%= item.home_region_code || '-' %></td>
-                      <td><%= item.target_region_code || '-' %></td>
-                      <td>
-                        <%- include('../partials/status-badge', { type: 'region_switch', value: item.status }) %>
-                      </td>
-                      <td><span class="text-muted"><%= formatDateTime(item.requested_at) %></span></td>
-                      <td><span class="text-muted"><%= formatDateTime(item.approved_at) %></span></td>
-                      <td><span class="text-muted"><%= formatDateTime(item.end_at) %></span></td>
-                    </tr>
-                    <% if (item.rejection_reason) { %>
-                      <tr>
-                        <td></td>
-                        <td colspan="7" class="text-muted small bg-light">
-                          Alasan penolakan: <%= item.rejection_reason %>
-                        </td>
-                      </tr>
+              <div class="col-lg-6">
+                <div class="card app-card h-100">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Grafik Tren Laporan (Harian)</strong>
+                    <span class="text-muted small">Volume gangguan masuk per tanggal</span>
+                  </div>
+                  <div class="card-body d-flex flex-column">
+                    <div class="supervisor-chart-container flex-grow-1">
+                      <canvas id="trendChart"></canvas>
+                    </div>
+                    <% if (!charts || !charts.trend || !charts.trend.labels || charts.trend.labels.length === 0) { %>
+                      <div class="text-muted small text-center py-2">Belum ada data untuk ditampilkan.</div>
                     <% } %>
-                  <% }) %>
-                </tbody>
-              </table>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          </section>
+
+          <!-- Section 2: Analisis Wilayah -->
+          <section id="analisis-wilayah" class="supervisor-section app-anchor-section d-none" aria-hidden="true">
+            <div class="row g-3">
+              <div class="col-lg-5">
+                <div class="card app-card h-100">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Grafik Perbandingan District</strong>
+                    <span class="text-muted small">Volume laporan per wilayah</span>
+                  </div>
+                  <div class="card-body d-flex flex-column">
+                    <div class="supervisor-chart-container flex-grow-1">
+                      <canvas id="regionComparisonChart"></canvas>
+                    </div>
+                    <% if (!charts || !charts.regionComparison || !charts.regionComparison.labels || charts.regionComparison.labels.length === 0) { %>
+                      <div class="text-muted small text-center py-2">Belum ada data untuk ditampilkan.</div>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-7">
+                <div class="card app-card h-100">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Rekap per Wilayah</strong>
+                    <span class="text-muted small">Agregat status per district</span>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover align-middle">
+                        <thead>
+                          <tr>
+                            <th>Wilayah</th>
+                            <th class="text-center">Total</th>
+                            <th class="text-center">Tersedia</th>
+                            <th class="text-center">Diproses</th>
+                            <th class="text-center">Selesai</th>
+                            <th class="text-center">Tindak Lanjut</th>
+                            <th class="text-center">Eskalasi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <% if (regionSummary.length === 0) { %>
+                            <tr>
+                              <td colspan="7" class="text-center text-muted py-4">Belum ada data rekap per wilayah.</td>
+                            </tr>
+                          <% } %>
+
+                          <% regionSummary.forEach(region => { %>
+                            <tr>
+                              <td class="fw-semibold"><%= region.region_code %></td>
+                              <td class="text-center"><%= region.total_reports %></td>
+                              <td class="text-center text-status-available fw-semibold"><%= region.total_available %></td>
+                              <td class="text-center text-status-in-progress fw-semibold"><%= region.total_in_progress %></td>
+                              <td class="text-center text-status-completed fw-semibold"><%= region.total_completed %></td>
+                              <td class="text-center text-status-follow-up fw-semibold"><%= region.total_follow_up %></td>
+                              <td class="text-center text-status-escalated fw-semibold"><%= region.total_escalated %></td>
+                            </tr>
+                          <% }) %>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Section 3: Kinerja Eksekutor -->
+          <section id="kinerja-eksekutor" class="supervisor-section app-anchor-section d-none" aria-hidden="true">
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="card app-card">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong>Rekap Kinerja Pegawai Eksekutor</strong>
+                    <span class="text-muted small">Produktivitas dan rata-rata waktu penyelesaian</span>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover align-middle">
+                        <thead>
+                          <tr>
+                            <th class="app-col-num">No</th>
+                            <th>Nama Pegawai</th>
+                            <th>Wilayah</th>
+                            <th class="text-center">Total Ditangani</th>
+                            <th class="text-center">Total Selesai</th>
+                            <th>Rata-rata Waktu Penyelesaian</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <% if (userPerformance.length === 0) { %>
+                            <tr>
+                              <td colspan="6" class="text-center text-muted py-4">Belum ada data kinerja pegawai eksekutor.</td>
+                            </tr>
+                          <% } %>
+
+                          <% userPerformance.forEach((user, index) => { %>
+                            <tr>
+                              <td class="app-col-num text-muted"><%= index + 1 %></td>
+                              <td class="fw-semibold"><%= user.full_name %></td>
+                              <td><span class="badge text-bg-light border"><%= user.region_code || '-' %></span></td>
+                              <td class="text-center"><%= user.total_handled %></td>
+                              <td class="text-center text-status-completed fw-semibold"><%= user.total_completed %></td>
+                              <td><span class="text-secondary"><%= formatMinutes(user.avg_resolution_minutes) %></span></td>
+                            </tr>
+                          <% }) %>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Section 4: Tiket Perlu Perhatian -->
+          <section id="tiket-perlu-perhatian" class="supervisor-section app-anchor-section d-none" aria-hidden="true">
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="card app-card">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>Tiket Perlu Perhatian</strong>
+                      <div class="text-muted small">Prioritas pengawasan: tiket berstatus Perlu Tindak Lanjut & Eskalasi (read-only)</div>
+                    </div>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover align-middle">
+                        <thead>
+                          <tr>
+                            <th class="app-col-num">No</th>
+                            <th>Ticket ID</th>
+                            <th>Order ID</th>
+                            <th>Ringkasan</th>
+                            <th>Wilayah</th>
+                            <th>Status</th>
+                            <th>Eksekutor</th>
+                            <th class="app-col-time">Diterima</th>
+                            <th class="app-table-actions">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <% if (!attentionTickets || attentionTickets.length === 0) { %>
+                            <tr>
+                              <td colspan="9" class="text-center text-muted py-4">Tidak ada tiket perlu perhatian pada filter ini.</td>
+                            </tr>
+                          <% } %>
+
+                          <% (attentionTickets || []).forEach((ticket, index) => { %>
+                            <tr>
+                              <td class="app-col-num text-muted"><%= index + 1 %></td>
+                              <td><span class="font-monospace small fw-semibold"><%= ticket.ticket_id || '-' %></span></td>
+                              <td><span class="font-monospace small text-muted"><%= ticket.order_id || '-' %></span></td>
+                              <td>
+                                <div class="app-truncate-lg" title="<%= ticket.summary || '-' %>">
+                                  <%= ticket.summary || '-' %>
+                                </div>
+                              </td>
+                              <td><span class="badge text-bg-light border"><%= ticket.region_code || '-' %></span></td>
+                              <td>
+                                <%- include('../partials/status-badge', { type: 'ticket', value: ticket.status_internal }) %>
+                              </td>
+                              <td><%= ticket.assigned_user_name || '-' %></td>
+                              <td class="app-col-time text-muted small"><%= formatDateTime(ticket.received_at) %></td>
+                              <td class="app-table-actions">
+                                <a
+                                  href="/reports/<%= ticket.ticket_id %>"
+                                  class="btn btn-sm btn-outline-secondary"
+                                  data-report-detail-url="/reports/<%= ticket.ticket_id %>/detail-json"
+                                >Detail</a>
+                              </td>
+                            </tr>
+                          <% }) %>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Section 5: Riwayat Region Switch -->
+          <section id="riwayat-region-switch" class="supervisor-section app-anchor-section d-none" aria-hidden="true">
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="card app-card">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>Riwayat Temporary Region Switch (F007)</strong>
+                      <div class="text-muted small">Informasi pemantauan perbantuan teknisi lintas wilayah (read-only)</div>
+                    </div>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <table class="table table-hover align-middle">
+                        <thead>
+                          <tr>
+                            <th class="app-col-num">No</th>
+                            <th>Eksekutor</th>
+                            <th>Asal</th>
+                            <th>Tujuan</th>
+                            <th>Status</th>
+                            <th class="app-col-time">Diajukan</th>
+                            <th class="app-col-time">Disetujui</th>
+                            <th class="app-col-time">Berakhir</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <% if (!regionSwitchHistory || regionSwitchHistory.length === 0) { %>
+                            <tr>
+                              <td colspan="8" class="text-center text-muted py-4">Belum ada data riwayat Region Switch.</td>
+                            </tr>
+                          <% } %>
+
+                          <% (regionSwitchHistory || []).forEach((item, index) => { %>
+                            <tr>
+                              <td class="app-col-num text-muted"><%= index + 1 %></td>
+                              <td class="fw-semibold"><%= item.requester_name || '-' %></td>
+                              <td><span class="badge text-bg-light border"><%= item.home_region_code || '-' %></span></td>
+                              <td><span class="badge text-bg-light border"><%= item.target_region_code || '-' %></span></td>
+                              <td>
+                                <%- include('../partials/status-badge', { type: 'region_switch', value: item.status }) %>
+                              </td>
+                              <td class="app-col-time text-muted small"><%= formatDateTime(item.requested_at) %></td>
+                              <td class="app-col-time text-muted small"><%= formatDateTime(item.approved_at) %></td>
+                              <td class="app-col-time text-muted small"><%= formatDateTime(item.end_at) %></td>
+                            </tr>
+                            <% if (item.rejection_reason) { %>
+                              <tr>
+                                <td></td>
+                                <td colspan="7" class="text-muted small bg-light">
+                                  Alasan penolakan: <%= item.rejection_reason %>
+                                </td>
+                              </tr>
+                            <% } %>
+                          <% }) %>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </section>
 
         </div>

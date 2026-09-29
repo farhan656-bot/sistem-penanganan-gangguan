@@ -33,7 +33,7 @@ describe('Unit Test: utils/viewHelpers.js', () => {
     it('2. harus mengembalikan badge dan label yang tepat untuk status tindak lanjut dan eskalasi', () => {
       const tindakLanjut = ticketStatusMeta('perlu_tindak_lanjut');
       assert.deepEqual(tindakLanjut, {
-        cls: 'text-bg-warning',
+        cls: 'badge-status-follow-up',
         label: 'Perlu Tindak Lanjut'
       });
 

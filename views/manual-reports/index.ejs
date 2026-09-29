@@ -11,6 +11,15 @@
   <%
     const selectedFilters = filters || {};
     const canCreateManualReport = currentUser && ['eksekutor', 'koordinator'].includes(currentUser.role);
+    const hasActiveFilters = Boolean(
+      selectedFilters.search ||
+      selectedFilters.date_from ||
+      selectedFilters.date_to ||
+      selectedFilters.sto ||
+      selectedFilters.activity ||
+      selectedFilters.work_type ||
+      selectedFilters.se_status
+    );
   %>
 
   <div class="app-layout">
@@ -25,101 +34,153 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Laporan Manual',
-            pageSubtitle: 'Catatan pekerjaan non-ticketing yang terpisah dari antrean tiket Telegram.',
+            pageSubtitle: 'Catatan pekerjaan dan penanganan gangguan non-ticketing di luar alur bot Telegram.',
             pageActions: canCreateManualReport ? `
               <a href="/manual-reports/create" class="btn btn-primary">Tambah Laporan Manual</a>
             ` : null
           }) %>
 
+          <!-- Filter & Pencarian Laporan Manual -->
           <div class="card app-card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <div>
+                <strong>Filter & Pencarian</strong>
+                <div class="text-muted small">Saring data laporan manual berdasarkan parameter operasional.</div>
+              </div>
+            </div>
             <div class="card-body">
-              <form method="GET" action="/manual-reports" class="row g-2">
+              <form method="GET" action="/manual-reports" class="row g-2 align-items-end">
                 <div class="col-12 col-lg-4">
-                  <label class="form-label">Pencarian</label>
+                  <label class="form-label small fw-semibold text-secondary" for="filterSearch">Pencarian Bebas</label>
                   <input
                     type="text"
+                    id="filterSearch"
                     name="search"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     placeholder="Cari details, order, pelanggan, incident..."
                     value="<%= selectedFilters.search || '' %>"
                   >
                 </div>
 
-                <div class="col-12 col-md-6 col-lg-2">
-                  <label class="form-label">Dari Tanggal</label>
+                <div class="col-12 col-sm-6 col-lg-2">
+                  <label class="form-label small fw-semibold text-secondary" for="filterDateFrom">Dari Tanggal</label>
                   <input
                     type="date"
+                    id="filterDateFrom"
                     name="date_from"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     value="<%= selectedFilters.date_from || '' %>"
                   >
                 </div>
 
-                <div class="col-12 col-md-6 col-lg-2">
-                  <label class="form-label">Sampai Tanggal</label>
+                <div class="col-12 col-sm-6 col-lg-2">
+                  <label class="form-label small fw-semibold text-secondary" for="filterDateTo">Sampai Tanggal</label>
                   <input
                     type="date"
+                    id="filterDateTo"
                     name="date_to"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     value="<%= selectedFilters.date_to || '' %>"
                   >
                 </div>
 
-                <div class="col-12 col-md-6 col-lg-2">
-                  <label class="form-label">STO</label>
+                <div class="col-12 col-sm-6 col-lg-2">
+                  <label class="form-label small fw-semibold text-secondary" for="filterSto">STO</label>
                   <input
                     type="text"
+                    id="filterSto"
                     name="sto"
-                    class="form-control"
+                    class="form-control form-control-sm"
+                    placeholder="contoh: KBL"
                     value="<%= selectedFilters.sto || '' %>"
                   >
                 </div>
 
-                <div class="col-12 col-md-6 col-lg-2">
-                  <label class="form-label">Aktivitas</label>
+                <div class="col-12 col-sm-6 col-lg-2">
+                  <label class="form-label small fw-semibold text-secondary" for="filterActivity">Aktivitas</label>
                   <input
                     type="text"
+                    id="filterActivity"
                     name="activity"
-                    class="form-control"
+                    class="form-control form-control-sm"
+                    placeholder="contoh: Pemeliharaan"
                     value="<%= selectedFilters.activity || '' %>"
                   >
                 </div>
 
-                <div class="col-12 col-md-6 col-lg-2">
-                  <label class="form-label">Pengerjaan</label>
+                <div class="col-12 col-sm-6 col-lg-2">
+                  <label class="form-label small fw-semibold text-secondary" for="filterWorkType">Pengerjaan</label>
                   <input
                     type="text"
+                    id="filterWorkType"
                     name="work_type"
-                    class="form-control"
+                    class="form-control form-control-sm"
+                    placeholder="Tipe kerja"
                     value="<%= selectedFilters.work_type || '' %>"
                   >
                 </div>
 
-                <div class="col-12 col-md-6 col-lg-2">
-                  <label class="form-label">S/E</label>
+                <div class="col-12 col-sm-6 col-lg-2">
+                  <label class="form-label small fw-semibold text-secondary" for="filterSeStatus">Status S/E</label>
                   <input
                     type="text"
+                    id="filterSeStatus"
                     name="se_status"
-                    class="form-control"
+                    class="form-control form-control-sm"
+                    placeholder="S / E"
                     value="<%= selectedFilters.se_status || '' %>"
                   >
                 </div>
 
-                <div class="col-12 col-lg-4 d-flex align-items-end gap-2">
-                  <button type="submit" class="btn btn-primary">Terapkan</button>
-                  <a href="/manual-reports" class="btn btn-outline-secondary">Reset</a>
+                <div class="col-12 col-lg-8 d-flex justify-content-end gap-2">
+                  <a href="/manual-reports" class="btn btn-sm btn-outline-secondary">Reset</a>
+                  <button type="submit" class="btn btn-sm btn-primary">Terapkan Filter</button>
                 </div>
               </form>
+
+              <% if (hasActiveFilters) { %>
+                <div class="mt-3 pt-2 border-top">
+                  <div class="text-muted small mb-2">Filter aktif:</div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <% if (selectedFilters.search) { %>
+                      <span class="badge text-bg-light border">Cari: <%= selectedFilters.search %></span>
+                    <% } %>
+                    <% if (selectedFilters.date_from || selectedFilters.date_to) { %>
+                      <span class="badge text-bg-light border">Periode: <%= selectedFilters.date_from || '-' %> s/d <%= selectedFilters.date_to || '-' %></span>
+                    <% } %>
+                    <% if (selectedFilters.sto) { %>
+                      <span class="badge text-bg-light border">STO: <%= selectedFilters.sto %></span>
+                    <% } %>
+                    <% if (selectedFilters.activity) { %>
+                      <span class="badge text-bg-light border">Aktivitas: <%= selectedFilters.activity %></span>
+                    <% } %>
+                    <% if (selectedFilters.work_type) { %>
+                      <span class="badge text-bg-light border">Pengerjaan: <%= selectedFilters.work_type %></span>
+                    <% } %>
+                    <% if (selectedFilters.se_status) { %>
+                      <span class="badge text-bg-light border">S/E: <%= selectedFilters.se_status %></span>
+                    <% } %>
+                  </div>
+                </div>
+              <% } %>
             </div>
           </div>
 
+          <!-- Tabel Daftar Laporan Manual -->
           <div class="card app-card">
-            <div class="card-body">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <strong>Daftar Pekerjaan Non-Ticketing</strong>
+                <div class="text-muted small">Rekap catatan pekerjaan manual yang telah disimpan.</div>
+              </div>
+              <span class="badge text-bg-light border">Total: <%= (manualReports || []).length %> data</span>
+            </div>
+            <div class="card-body p-0">
               <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-hover align-middle mb-0">
                   <thead>
                     <tr>
-                      <th style="width: 64px">No</th>
+                      <th class="app-col-num">No</th>
                       <th>Tanggal</th>
                       <th>STO</th>
                       <th>Pelanggan</th>
@@ -140,20 +201,38 @@
 
                     <% (manualReports || []).forEach((report, index) => { %>
                       <tr>
-                        <td class="text-muted"><%= index + 1 %></td>
-                        <td><%= formatDate(report.report_date) %></td>
-                        <td><%= report.sto || '-' %></td>
+                        <td class="app-col-num text-muted"><%= index + 1 %></td>
+                        <td class="text-nowrap"><%= formatDate(report.report_date) %></td>
                         <td>
-                          <div class="fw-semibold"><%= report.customer_name || '-' %></div>
-                          <div class="small text-muted"><%= report.ncli || report.sc || '-' %></div>
+                          <% if (report.sto) { %>
+                            <span class="badge text-bg-light border"><%= report.sto %></span>
+                          <% } else { %>
+                            <span class="text-muted small">-</span>
+                          <% } %>
+                        </td>
+                        <td>
+                          <div class="fw-semibold text-dark"><%= report.customer_name || '-' %></div>
+                          <% if (report.ncli || report.sc) { %>
+                            <div class="small text-muted font-monospace"><%= report.ncli || report.sc %></div>
+                          <% } %>
                         </td>
                         <td><%= report.activity || '-' %></td>
                         <td><%= report.work_type || '-' %></td>
-                        <td><%= report.se_status || '-' %></td>
                         <td>
-                          <div class="app-truncate-lg" title="<%= report.details || '-' %>"><%= report.details || '-' %></div>
+                          <% if (report.se_status) { %>
+                            <span class="badge text-bg-light border"><%= report.se_status %></span>
+                          <% } else { %>
+                            <span class="text-muted small">-</span>
+                          <% } %>
                         </td>
-                        <td><%= report.created_by_name || '-' %></td>
+                        <td>
+                          <div class="app-truncate-lg" title="<%= report.details || '-' %>">
+                            <%= report.details || '-' %>
+                          </div>
+                        </td>
+                        <td>
+                          <span class="text-secondary small"><%= report.created_by_name || '-' %></span>
+                        </td>
                         <td class="app-table-actions">
                           <a href="/manual-reports/<%= report.id %>" class="btn btn-sm btn-outline-secondary">Detail</a>
                         </td>

@@ -10,7 +10,7 @@
 <body>
   <%
     const report = manualReport || {};
-    const display = (value) => value ? value : '-';
+    const display = (value) => (value && String(value).trim()) ? value : '-';
   %>
 
   <div class="app-layout">
@@ -25,99 +25,125 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Detail Laporan Manual',
-            pageSubtitle: `Tanggal: ${formatDate(report.report_date)}`,
+            pageSubtitle: `Informasi lengkap catatan pekerjaan non-ticketing per tanggal ${formatDate(report.report_date)}.`,
             pageActions: `
-              <a href="/manual-reports" class="btn btn-outline-secondary">Kembali</a>
+              <div class="d-flex gap-2 flex-wrap">
+                <a href="/manual-reports" class="btn btn-outline-secondary">Kembali ke Daftar</a>
+              </div>
             `
           }) %>
 
+          <!-- Header Metadata Ringkasan -->
           <div class="card app-card mb-3">
             <div class="card-body">
               <div class="row g-3">
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Tanggal</div>
-                  <div class="fw-semibold"><%= formatDate(report.report_date) %></div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small fw-semibold">Tanggal Laporan</div>
+                  <div class="fs-5 fw-bold text-dark"><%= formatDate(report.report_date) %></div>
                 </div>
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Region</div>
-                  <div><%= report.region_code || '-' %></div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small fw-semibold">Wilayah Kerja (Region)</div>
+                  <div class="mt-1">
+                    <% if (report.region_code) { %>
+                      <span class="badge text-bg-light border"><%= report.region_code %></span>
+                    <% } else { %>
+                      <span class="text-muted">-</span>
+                    <% } %>
+                  </div>
                 </div>
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Dibuat Oleh</div>
-                  <div class="fw-semibold"><%= report.created_by_name || '-' %></div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small fw-semibold">Dibuat Oleh</div>
+                  <div class="fw-semibold text-dark"><%= report.created_by_name || '-' %></div>
                 </div>
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Waktu Input</div>
-                  <div><%= formatDateTime(report.created_at) %></div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small fw-semibold">Waktu Pencatatan</div>
+                  <div class="text-secondary"><%= formatDateTime(report.created_at) %></div>
                 </div>
               </div>
             </div>
           </div>
 
+          <!-- Bagian 1: Informasi Utama & Rincian Pekerjaan -->
           <div class="card app-card mb-3">
-            <div class="card-header fw-semibold">Informasi Utama</div>
+            <div class="card-header">
+              <strong>1. Informasi Utama & Rincian Pekerjaan</strong>
+              <div class="text-muted small">Aktivitas pekerjaan, tipe pengerjaan, dan status operasional.</div>
+            </div>
             <div class="card-body">
               <div class="row g-3">
                 <div class="col-12 col-md-4">
                   <div class="text-muted small">Aktivitas</div>
-                  <div><%= display(report.activity) %></div>
+                  <div class="fw-semibold text-dark mt-1"><%= display(report.activity) %></div>
                 </div>
                 <div class="col-12 col-md-4">
-                  <div class="text-muted small">Pengerjaan</div>
-                  <div><%= display(report.work_type) %></div>
+                  <div class="text-muted small">Tipe Pengerjaan</div>
+                  <div class="fw-semibold text-dark mt-1"><%= display(report.work_type) %></div>
                 </div>
                 <div class="col-12 col-md-4">
-                  <div class="text-muted small">S/E</div>
-                  <div><%= display(report.se_status) %></div>
+                  <div class="text-muted small">Status S/E</div>
+                  <div class="mt-1">
+                    <% if (report.se_status) { %>
+                      <span class="badge text-bg-light border"><%= report.se_status %></span>
+                    <% } else { %>
+                      <span class="text-muted">-</span>
+                    <% } %>
+                  </div>
                 </div>
                 <div class="col-12">
-                  <div class="text-muted small">Details</div>
-                  <div class="app-modal-prewrap mt-1"><%= display(report.details) %></div>
+                  <div class="text-muted small mb-1">Rincian Pekerjaan (Details)</div>
+                  <div class="app-modal-prewrap bg-light border p-3 rounded text-dark">
+                    <%= display(report.details) %>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
+          <!-- Bagian 2 & 3: Order Pelanggan & Alpro / Insiden -->
           <div class="row g-3 mb-3">
+            <!-- Kolom Kiri: Data Order & Pelanggan -->
             <div class="col-12 col-xl-6">
               <div class="card app-card h-100">
-                <div class="card-header fw-semibold">Data Order dan Pelanggan</div>
+                <div class="card-header">
+                  <strong>2. Data Order & Pelanggan</strong>
+                  <div class="text-muted small">Nomor order sistem dan data pelanggan.</div>
+                </div>
                 <div class="card-body">
                   <div class="row g-3">
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">OrderID OSM</div>
-                      <div><%= display(report.osm_order_id) %></div>
+                    <div class="col-12 col-sm-6">
+                      <div class="text-muted small">Nama Pelanggan</div>
+                      <div class="fw-semibold text-dark"><%= display(report.customer_name) %></div>
                     </div>
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-sm-6">
+                      <div class="text-muted small">Nomor NCLI</div>
+                      <div class="font-monospace"><%= display(report.ncli) %></div>
+                    </div>
+                    <div class="col-12 col-sm-4">
                       <div class="text-muted small">STO</div>
                       <div><%= display(report.sto) %></div>
                     </div>
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">SC</div>
-                      <div><%= display(report.sc) %></div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">OrderID / NCX-ID</div>
-                      <div><%= display(report.order_ncx_id) %></div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">NCLI</div>
-                      <div><%= display(report.ncli) %></div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">Nama Customer</div>
-                      <div class="fw-semibold"><%= display(report.customer_name) %></div>
-                    </div>
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-sm-4">
                       <div class="text-muted small">Witel</div>
                       <div><%= display(report.witel) %></div>
                     </div>
-                    <div class="col-12 col-md-6">
+                    <div class="col-12 col-sm-4">
+                      <div class="text-muted small">SC</div>
+                      <div><%= display(report.sc) %></div>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                      <div class="text-muted small">Order ID OSM</div>
+                      <div class="font-monospace"><%= display(report.osm_order_id) %></div>
+                    </div>
+                    <div class="col-12 col-sm-6">
+                      <div class="text-muted small">Order ID / NCX-ID</div>
+                      <div class="font-monospace"><%= display(report.order_ncx_id) %></div>
+                    </div>
+                    <div class="col-12 col-sm-6">
                       <div class="text-muted small">K-Kontak</div>
                       <div><%= display(report.k_kontak) %></div>
                     </div>
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">User ID</div>
+                    <div class="col-12 col-sm-6">
+                      <div class="text-muted small">User ID / Petugas</div>
                       <div><%= display(report.user_id_text) %></div>
                     </div>
                   </div>
@@ -125,26 +151,32 @@
               </div>
             </div>
 
+            <!-- Kolom Kanan: Data Alpro & Insiden Lapangan -->
             <div class="col-12 col-xl-6">
               <div class="card app-card h-100">
-                <div class="card-header fw-semibold">Data Alpro dan Incident</div>
+                <div class="card-header">
+                  <strong>3. Data Alpro & Insiden Lapangan</strong>
+                  <div class="text-muted small">Perangkat jaringan dan catatan kendala insiden.</div>
+                </div>
                 <div class="card-body">
                   <div class="row g-3">
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">Nama Alpro Before</div>
-                      <div><%= display(report.alpro_before) %></div>
+                    <div class="col-12 col-sm-6">
+                      <div class="text-muted small">Alpro Sebelum (Before)</div>
+                      <div class="fw-semibold"><%= display(report.alpro_before) %></div>
                     </div>
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">Nama Alpro</div>
-                      <div><%= display(report.alpro_name) %></div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                      <div class="text-muted small">Ticket Incident</div>
-                      <div><%= display(report.ticket_incident) %></div>
+                    <div class="col-12 col-sm-6">
+                      <div class="text-muted small">Alpro Sesudah (After)</div>
+                      <div class="fw-semibold"><%= display(report.alpro_name) %></div>
                     </div>
                     <div class="col-12">
-                      <div class="text-muted small">Incident</div>
-                      <div class="app-modal-prewrap mt-1"><%= display(report.incident) %></div>
+                      <div class="text-muted small">Nomor Ticket Incident</div>
+                      <div class="font-monospace"><%= display(report.ticket_incident) %></div>
+                    </div>
+                    <div class="col-12">
+                      <div class="text-muted small mb-1">Catatan Insiden (Incident)</div>
+                      <div class="app-modal-prewrap bg-light border p-3 rounded text-dark">
+                        <%= display(report.incident) %>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -152,32 +184,36 @@
             </div>
           </div>
 
-          <div class="card app-card">
-            <div class="card-header fw-semibold">Transaksi dan Resolved</div>
+          <!-- Bagian 4: Transaksi & Status Penyelesaian (Resolved) -->
+          <div class="card app-card mb-4">
+            <div class="card-header">
+              <strong>4. Transaksi & Status Penyelesaian (Resolved)</strong>
+              <div class="text-muted small">Rujukan fallout dan catatan pembaruan terakhir.</div>
+            </div>
             <div class="card-body">
               <div class="row g-3">
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Tipe Transaksi</div>
                   <div><%= display(report.transaction_type) %></div>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Jenis Fallout</div>
                   <div><%= display(report.fallout_type) %></div>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Ticket Resolved</div>
-                  <div><%= display(report.ticket_resolved) %></div>
+                  <div class="font-monospace"><%= display(report.ticket_resolved) %></div>
                 </div>
-                <div class="col-12 col-md-3">
+                <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Ticket Resolved 2</div>
-                  <div><%= display(report.ticket_resolved_2) %></div>
+                  <div class="font-monospace"><%= display(report.ticket_resolved_2) %></div>
                 </div>
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Updated Oleh</div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small">Terakhir Diperbarui Oleh</div>
                   <div><%= display(report.updated_by_name) %></div>
                 </div>
-                <div class="col-12 col-md-3">
-                  <div class="text-muted small">Waktu Update</div>
+                <div class="col-12 col-sm-6 col-md-3">
+                  <div class="text-muted small">Waktu Pembaruan</div>
                   <div><%= formatDateTime(report.updated_at) %></div>
                 </div>
               </div>

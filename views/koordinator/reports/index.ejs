@@ -43,15 +43,16 @@
 
             <div class="card app-card mb-3">
               <div class="card-body">
-                <form method="GET" action="/reports" class="row g-2">
+                <form method="GET" action="/reports" class="row g-3">
                   <input type="hidden" name="work_status" value="<%= selectedFilters.workStatus %>">
                   <input type="hidden" name="page" value="1">
                   <input type="hidden" name="per_page" value="<%= pagination.perPage %>">
 
-                  <div class="col-12 col-lg-7">
-                    <label class="form-label">Pencarian</label>
+                  <div class="col-12 col-lg-6">
+                    <label for="reportSearchInput" class="form-label small fw-semibold text-secondary">Pencarian</label>
                     <input
                       type="text"
+                      id="reportSearchInput"
                       name="search"
                       class="form-control"
                       placeholder="Cari ticket ID, order ID, STO, branch, summary..."
@@ -59,17 +60,20 @@
                     >
                   </div>
 
-                  <div class="col-12 col-md-7 col-lg-3">
-                    <label class="form-label">Wilayah</label>
-                    <select name="region" class="form-select">
-                      <option value="" <%= !selectedFilters.region ? 'selected' : '' %>>Semua</option>
+                  <div class="col-12 col-lg-3">
+                    <label for="reportRegionSelect" class="form-label small fw-semibold text-secondary">Wilayah</label>
+                    <select id="reportRegionSelect" name="region" class="form-select">
+                      <option value="" <%= !selectedFilters.region ? 'selected' : '' %>>Semua Wilayah</option>
                       <option value="PDG" <%= selectedFilters.region === 'PDG' ? 'selected' : '' %>>Padang (PDG)</option>
                       <option value="BKT" <%= selectedFilters.region === 'BKT' ? 'selected' : '' %>>Bukittinggi (BKT)</option>
                     </select>
                   </div>
 
-                  <div class="col-12 col-lg-2 d-flex align-items-end justify-content-end">
-                    <button type="submit" class="btn btn-primary w-100">Terapkan</button>
+                  <div class="col-12 col-lg-3 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1 fw-semibold">Terapkan</button>
+                    <% if (selectedFilters.search || selectedFilters.region) { %>
+                      <a href="/reports?work_status=<%= selectedFilters.workStatus || '' %>" class="btn btn-outline-secondary" title="Reset filter">Reset</a>
+                    <% } %>
                   </div>
                 </form>
               </div>

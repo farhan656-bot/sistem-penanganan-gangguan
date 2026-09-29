@@ -9,12 +9,12 @@
 </head>
 <body class="app-page">
   <div class="container">
-    <div class="row justify-content-center align-items-center" style="min-height: 100vh;">
+    <div class="row justify-content-center align-items-center app-login-row">
       <div class="col-12 col-md-7 col-lg-5">
         <div class="app-card p-4 p-md-4">
           <div class="text-center mb-4">
-            <div class="d-inline-flex align-items-center justify-content-center mb-3" style="width: 56px; height: 56px; border-radius: 16px; background: rgba(225, 29, 42, 0.10);">
-              <span class="fw-bold text-primary" style="font-size: 18px;">TM</span>
+            <div class="app-brand-login mb-3 text-center">
+              <img src="/images/telkom-logo.png" alt="PT Telkom Indonesia" class="app-brand-logo-login">
             </div>
 
             <h1 class="h4 mb-1">Sistem Informasi Pengelolaan dan Monitoring Penanganan Gangguan</h1>
@@ -43,12 +43,12 @@
 
           <form action="/auth/login" method="POST">
             <div class="mb-3">
-              <label class="form-label">Username</label>
-              <input type="text" name="username" class="form-control" autocomplete="username" autofocus required>
+              <label for="usernameInput" class="form-label fw-semibold">Username</label>
+              <input id="usernameInput" type="text" name="username" class="form-control" autocomplete="username" autofocus required>
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Password</label>
+              <label for="passwordInput" class="form-label fw-semibold">Password</label>
               <div class="input-group">
                 <input id="passwordInput" type="password" name="password" class="form-control" autocomplete="current-password" required>
                 <button id="togglePasswordBtn" class="btn btn-outline-secondary" type="button" aria-label="Tampilkan password">
@@ -61,7 +61,7 @@
           </form>
 
           <div class="mt-3 text-muted small">
-            Gunakan akun yang telah didaftarkan oleh administrator. Jika mengalami kendala login, super admin.
+            Gunakan akun yang telah didaftarkan oleh administrator. Jika mengalami kendala login, hubungi Superadmin Divisi Data Management.
           </div>
         </div>
       </div>

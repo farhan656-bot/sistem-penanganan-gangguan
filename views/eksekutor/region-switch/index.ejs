@@ -23,6 +23,16 @@
       <% return `${minutes} menit`; %>
     <% } catch (error) { return value; } %>
   <% } %>
+
+  <%
+    const activeSwitch = (requests || []).find((r) => {
+      if (r.status !== 'approved') return false;
+      if (!r.end_at) return true;
+      const end = new Date(r.end_at);
+      return !Number.isNaN(end.getTime()) && end.getTime() > Date.now();
+    });
+  %>
+
   <div class="app-layout">
     <%- include('../../partials/sidebar', { activePath: '/region-switch/my' }) %>
 
@@ -41,49 +51,149 @@
             `
           }) %>
 
+          <!-- Ringkasan Akses Sementara Aktif -->
+          <% if (activeSwitch) { %>
+            <div class="card app-card mb-4 border-success">
+              <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 bg-success-subtle">
+                <div class="d-flex align-items-center gap-2">
+                  <strong class="text-success-emphasis">Status Akses Wilayah Sementara: Aktif</strong>
+                  <span class="badge text-bg-success">Aktif</span>
+                </div>
+                <div class="text-muted small">
+                  Sisa Waktu: <strong class="text-success-emphasis font-monospace"><%= formatRemainingTime(activeSwitch.end_at) %></strong>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <div class="text-muted small">Region Asal (Utama)</div>
+                    <div class="fw-semibold text-dark">
+                      <% if (activeSwitch.home_region_code) { %>
+                        <span class="badge text-bg-light border font-monospace me-1"><%= activeSwitch.home_region_code %></span>
+                      <% } %>
+                      <%= activeSwitch.home_region_name || '-' %>
+                    </div>
+                  </div>
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <div class="text-muted small">Region Tujuan (Akses Sementara)</div>
+                    <div class="fw-semibold text-dark">
+                      <% if (activeSwitch.target_region_code) { %>
+                        <span class="badge text-bg-primary font-monospace me-1"><%= activeSwitch.target_region_code %></span>
+                      <% } %>
+                      <%= activeSwitch.target_region_name || '-' %>
+                    </div>
+                  </div>
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <div class="text-muted small">Periode Akses</div>
+                    <div class="small">
+                      <div>Mulai: <span class="fw-medium text-dark"><%= formatDateTime(activeSwitch.start_at) %></span></div>
+                      <div>Berakhir: <span class="fw-medium text-dark"><%= formatDateTime(activeSwitch.end_at) %></span></div>
+                    </div>
+                  </div>
+                  <div class="col-12 col-sm-6 col-md-3">
+                    <div class="text-muted small">Disetujui Oleh</div>
+                    <div class="fw-semibold text-dark"><%= activeSwitch.approved_by_name || '-' %></div>
+                    <div class="text-muted small"><%= formatDateTime(activeSwitch.approved_at) %></div>
+                  </div>
+                  <% if (activeSwitch.reason) { %>
+                    <div class="col-12 pt-2 border-top">
+                      <div class="text-muted small">Alasan Pengajuan:</div>
+                      <div class="text-dark small"><%= activeSwitch.reason %></div>
+                    </div>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          <% } else { %>
+            <div class="card app-card mb-4">
+              <div class="card-body py-3">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                  <div>
+                    <div class="text-muted small">Status Akses Wilayah Saat Ini</div>
+                    <div class="fw-semibold text-dark">
+                      Wilayah Utama: <span class="badge text-bg-light border font-monospace me-1"><%= currentUser.region_name || '-' %></span>
+                      <span class="text-muted fw-normal ms-2 small">Tidak ada akses region sementara yang sedang aktif.</span>
+                    </div>
+                  </div>
+                  <span class="badge text-bg-secondary">Standar Operasional</span>
+                </div>
+              </div>
+            </div>
+          <% } %>
+
+          <!-- Riwayat Pengajuan Switch Region -->
           <div class="card app-card">
-            <div class="card-body">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <strong>Riwayat Pengajuan Switch Region</strong>
+                <div class="text-muted small">Catatan seluruh permohonan akses wilayah sementara yang telah diajukan.</div>
+              </div>
+              <span class="badge text-bg-light border">Total: <%= (requests || []).length %> pengajuan</span>
+            </div>
+            <div class="card-body p-0">
               <% if (!requests || requests.length === 0) { %>
-                <div class="text-muted">Belum ada pengajuan switch region.</div>
+                <div class="text-center text-muted p-4 app-table-empty">Belum ada pengajuan switch region.</div>
               <% } else { %>
                 <div class="table-responsive">
-                  <table class="table table-hover align-middle">
+                  <table class="table table-hover align-middle mb-0">
                     <thead>
                       <tr>
-                        <th style="width: 64px">No</th>
+                        <th class="app-col-num">No</th>
                         <th>Region Asal</th>
                         <th>Region Tujuan</th>
-                        <th>Alasan</th>
+                        <th>Alasan Pengajuan</th>
                         <th>Status</th>
-                        <th>Diajukan</th>
+                        <th class="app-col-time">Waktu Pengajuan</th>
                         <th>Disetujui Oleh</th>
-                        <th>Disetujui</th>
-                        <th>Mulai</th>
-                        <th>Berakhir</th>
+                        <th>Mulai Akses</th>
+                        <th>Berakhir Akses</th>
                         <th class="text-nowrap">Sisa Waktu</th>
-                        <th>Catatan</th>
+                        <th>Catatan Penolakan</th>
                       </tr>
                     </thead>
                     <tbody>
                       <% requests.forEach((request, index) => { %>
                         <tr>
-                          <td><%= index + 1 %></td>
-                          <td><%= request.home_region_name || '-' %></td>
-                          <td><%= request.target_region_name || '-' %></td>
+                          <td class="app-col-num text-muted"><%= index + 1 %></td>
+                          <td>
+                            <% if (request.home_region_code) { %>
+                              <span class="badge text-bg-light border font-monospace me-1"><%= request.home_region_code %></span>
+                            <% } %>
+                            <span class="fw-medium text-dark"><%= request.home_region_name || '-' %></span>
+                          </td>
+                          <td>
+                            <% if (request.target_region_code) { %>
+                              <span class="badge text-bg-light border font-monospace me-1"><%= request.target_region_code %></span>
+                            <% } %>
+                            <span class="fw-semibold text-dark"><%= request.target_region_name || '-' %></span>
+                          </td>
                           <td>
                             <div class="app-truncate" title="<%= request.reason || '-' %>"><%= request.reason || '-' %></div>
                           </td>
                           <td>
                             <%- include('../../partials/status-badge', { type: 'region_switch', value: request.status }) %>
                           </td>
-                          <td><span class="text-muted"><%= formatDateTime(request.requested_at) %></span></td>
-                          <td><%= request.approved_by_name || '-' %></td>
-                          <td><span class="text-muted"><%= formatDateTime(request.approved_at) %></span></td>
-                          <td><span class="text-muted"><%= formatDateTime(request.start_at) %></span></td>
-                          <td><span class="text-muted"><%= formatDateTime(request.end_at) %></span></td>
-                          <td class="text-nowrap"><%= formatRemainingTime(request.end_at) %></td>
+                          <td class="text-muted small"><%= formatDateTime(request.requested_at) %></td>
                           <td>
-                            <div class="app-truncate" title="<%= request.rejection_reason || '-' %>"><%= request.rejection_reason || '-' %></div>
+                            <span class="text-secondary"><%= request.approved_by_name || '-' %></span>
+                          </td>
+                          <td class="text-muted small"><%= formatDateTime(request.start_at) %></td>
+                          <td class="text-muted small"><%= formatDateTime(request.end_at) %></td>
+                          <td class="text-nowrap">
+                            <% if (request.status === 'approved') { %>
+                              <span class="font-monospace fw-semibold <%= formatRemainingTime(request.end_at) === 'Expired' ? 'text-secondary' : 'text-primary' %>">
+                                <%= formatRemainingTime(request.end_at) %>
+                              </span>
+                            <% } else { %>
+                              <span class="text-muted">-</span>
+                            <% } %>
+                          </td>
+                          <td>
+                            <% if (request.rejection_reason) { %>
+                              <div class="app-truncate text-danger small" title="<%= request.rejection_reason %>"><%= request.rejection_reason %></div>
+                            <% } else { %>
+                              <span class="text-muted small">-</span>
+                            <% } %>
                           </td>
                         </tr>
                       <% }) %>

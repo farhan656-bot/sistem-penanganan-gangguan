@@ -685,7 +685,7 @@
       diambil: { cls: 'text-bg-warning', label: 'Diambil' },
       didelegasikan: { cls: 'text-bg-info', label: 'Didelegasikan' },
       selesai: { cls: 'text-bg-success', label: 'Selesai' },
-      perlu_tindak_lanjut: { cls: 'text-bg-warning', label: 'Perlu Tindak Lanjut' },
+      perlu_tindak_lanjut: { cls: 'badge-status-follow-up', label: 'Perlu Tindak Lanjut' },
       eskalasi: { cls: 'text-bg-danger', label: 'Eskalasi' }
     };
     var meta = map[key] || { cls: 'text-bg-secondary', label: titleCase(key) };

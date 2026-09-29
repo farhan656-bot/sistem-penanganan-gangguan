@@ -45,9 +45,10 @@
                   <input type="hidden" name="per_page" value="<%= pagination.perPage %>">
 
                   <div class="col-12 col-lg-6">
-                    <label class="form-label">Pencarian</label>
+                    <label for="reportSearchInput" class="form-label small fw-semibold text-secondary">Pencarian</label>
                     <input
                       type="text"
+                      id="reportSearchInput"
                       name="search"
                       class="form-control"
                       placeholder="Cari ticket ID, order ID, STO, branch, summary..."
@@ -55,17 +56,20 @@
                     >
                   </div>
 
-                  <div class="col-12 col-lg-4">
-                    <label class="form-label">Wilayah</label>
-                    <select name="region" class="form-select">
-                      <option value="">Semua</option>
+                  <div class="col-12 col-lg-3">
+                    <label for="reportRegionSelect" class="form-label small fw-semibold text-secondary">Wilayah</label>
+                    <select id="reportRegionSelect" name="region" class="form-select">
+                      <option value="">Semua Wilayah</option>
                       <option value="PDG" <%= filters.region === 'PDG' ? 'selected' : '' %>>Padang (PDG)</option>
                       <option value="BKT" <%= filters.region === 'BKT' ? 'selected' : '' %>>Bukittinggi (BKT)</option>
                     </select>
                   </div>
 
-                  <div class="col-12 col-lg-2 d-flex align-items-end">
-                    <button type="submit" class="btn btn-outline-primary w-100">Terapkan</button>
+                  <div class="col-12 col-lg-3 d-flex align-items-end gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">Terapkan</button>
+                    <% if (filters.search || filters.region) { %>
+                      <a href="/reports?work_status=<%= filters.workStatus %>" class="btn btn-outline-secondary" title="Reset filter">Reset</a>
+                    <% } %>
                   </div>
                 </form>
               </div>

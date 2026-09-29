@@ -10,7 +10,7 @@
       <table class="table table-hover align-middle">
         <thead>
           <tr>
-            <th style="width: 64px">No</th>
+            <th class="app-col-num">No</th>
             <th>Ticket ID</th>
             <th>Order ID</th>
             <th>Jenis Layanan</th>
@@ -36,11 +36,11 @@
 
           <% (reports || []).forEach((report, index) => { %>
             <tr>
-              <td class="<%= isOperationalQueue ? '' : 'text-muted' %>">
-                <%= pagination.offset + index + 1 %>
+              <td class="app-col-num <%= isOperationalQueue ? '' : 'text-muted' %>">
+                <span class="small <%= isOperationalQueue ? 'fw-medium' : 'text-muted' %>"><%= pagination.offset + index + 1 %></span>
               </td>
-              <td class="fw-semibold"><%= report.ticket_id %></td>
-              <td><%= report.order_id || '-' %></td>
+              <td class="fw-semibold font-monospace"><%= report.ticket_id %></td>
+              <td><span class="text-secondary small"><%= report.order_id || '-' %></span></td>
               <td><%= report.service_type || '-' %></td>
               <td><%= report.provider || '-' %></td>
               <td><%= report.branch_name || '-' %></td>
@@ -52,7 +52,9 @@
                   title="<%= report.summary || '-' %>"
                 ><%= report.summary || '-' %></div>
               </td>
-              <td><%= report.region_code || '-' %></td>
+              <td>
+                <span class="badge text-bg-light border"><%= report.region_code || '-' %></span>
+              </td>
               <td>
                 <%- include('./status-badge', { type: 'ticket', value: report.status_internal }) %>
               </td>

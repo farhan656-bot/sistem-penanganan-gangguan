@@ -50,8 +50,22 @@ The following major features have been implemented:
 - F006 Telegram Bot Intake / Feedback / Text Enrichment
 - F007 Temporary Region Switch Approval
 - F008 UI/UX Refinement and Layout Standardization
+- F033 Report Identity & Database Normalization (RELEASED, tag: f033-normalization-completed)
+- F034 UI/UX Refinement & Anti-Slop (RELEASED, tag: f034-ui-ux-refinement)
 
-F008 has already been completed through the final safety check stage. Do not re-implement F008 unless explicitly asked.
+## F034 Release Checkpoint
+- Feature: 034-ui-ux-refinement
+- Status: RELEASED
+- Release tag: f034-ui-ux-refinement
+- Branch: master
+- Pre-release baseline: 17b305c14dcc2ed23cf75c8bd641b6bcabb1cf6d
+- Tasks: T078–T084 completed
+- Acceptance: T083 PASS / APPROVED
+- NF-05: Belum diuji
+- Database: No mutation during F034 release process
+- Tests: 84 total (83 pass, 0 fail, 1 skipped)
+
+F008 and F034 have already been completed through the final safety check stage. Do not re-implement F008 or F034 unless explicitly asked.
 
 ## Important Business Rules
 - Do not change Telegram bot logic unless explicitly requested.
@@ -108,6 +122,12 @@ It includes:
 Do not redo F008 unless explicitly requested.
 Only make small UI fixes if the user asks for a specific issue.
 
+## Triad Collaboration Model (Workflow TA)
+This project follows a strict three-role collaboration model documented in `docs/WORKFLOW_TA.md`:
+- **User / Anda (Human)**: Human Approval Gate & final decision maker.
+- **ChatGPT**: Orchestrator, Reviewer, and Auditor (spec, plans, thesis consistency).
+- **Antigravity**: Implementer, Refactorer, and Test Executor (code execution, test runs, anti-slop filter, factual reporting).
+
 ## Workflow Rules for Future Work
 When asked to implement a new feature:
 1. Read the relevant Spec Kit documents first.
@@ -122,3 +142,16 @@ When asked to fix a bug:
 2. Make the smallest safe change.
 3. Do not refactor unrelated code.
 4. Explain the root cause and test steps.
+
+<!-- antislop:start -->
+## antislop
+For UI, copy, people, mobile layout, or code comments work, read `.agents/skills/antislop/SKILL.md` (core) and then the skill for the task:
+- UI / visual: `.agents/skills/antislop-ui/SKILL.md`
+- Copy & text: `.agents/skills/antislop-copywriting/SKILL.md`
+- People: `.agents/skills/antislop-human/SKILL.md`
+- Mobile / responsive: `.agents/skills/antislop-layoutmobile/SKILL.md`
+- Code comments: `.agents/skills/antislop-code/SKILL.md`
+
+Before starting, ask the user when antislop applies: during the work, or after it is done.
+Note: antislop acts as an AI output quality filter and must strictly preserve all existing architecture rules (MVC, CommonJS, MySQL2, Bootstrap 5, no-ORM) defined above.
+<!-- antislop:end -->
