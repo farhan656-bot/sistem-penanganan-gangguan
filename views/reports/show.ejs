@@ -42,12 +42,21 @@
                   <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
                   <% if (report.status_internal === 'didelegasikan') { %>
                     <span class="badge text-bg-info">Delegasi Aktif</span>
+                  <% } else if (report.is_delegated) { %>
+                    <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle"><%= report.is_cross_region ? 'Delegasi Lintas Wilayah' : 'Delegasi' %></span>
+                  <% } else if (report.is_region_switch) { %>
+                    <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">Perbantuan Switch Region</span>
                   <% } %>
                 </div>
 
                 <div class="text-md-end">
                   <span class="text-muted small me-1">Wilayah:</span>
                   <span class="badge text-bg-light border fs-6"><%= report.reported_region_code || report.region_code || report.current_region_code || '-' %></span>
+                  <% if (report.is_region_switch) { %>
+                    <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">Perbantuan</span>
+                  <% } else if (report.is_delegated && report.is_cross_region) { %>
+                    <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle ms-1">Lintas Wilayah</span>
+                  <% } %>
                 </div>
               </div>
 
@@ -83,7 +92,14 @@
                 </div>
                 <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Assigned To</div>
-                  <div class="fw-semibold <%= report.assigned_user_name ? 'text-dark' : 'text-muted' %>"><%= report.assigned_user_name || '-' %></div>
+                  <div class="fw-semibold <%= report.assigned_user_name ? 'text-dark' : 'text-muted' %>">
+                    <%= report.assigned_user_name || '-' %>
+                    <% if (report.is_delegated) { %>
+                      <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle small ms-1">Delegasi</span>
+                    <% } else if (report.is_region_switch) { %>
+                      <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle small ms-1">Switch Region</span>
+                    <% } %>
+                  </div>
                 </div>
 
                 <div class="col-12">

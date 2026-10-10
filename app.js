@@ -6,6 +6,8 @@ const flash = require('connect-flash');
 const sessionMiddleware = require('./config/session');
 const { initTelegramBotService } = require('./services/telegramBotService');
 const viewHelpers = require('./utils/viewHelpers');
+const regionSwitchModel = require('./models/regionSwitchModel');
+const userModel = require('./models/userModel');
 
 dotenv.config();
 const app = express();
@@ -36,12 +38,41 @@ app.use(sessionMiddleware);
 app.use(flash());
 
 // global variables
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
+  if (req.session.user && (!req.session.user.region_code || !req.session.user.region_name) && req.session.user.id) {
+    try {
+      const refreshedUser = await userModel.findById(req.session.user.id);
+      if (refreshedUser) {
+        req.session.user.region_code = refreshedUser.region_code;
+        req.session.user.region_name = refreshedUser.region_name;
+      }
+    } catch (err) {
+      console.error('Gagal mengambil detail region user:', err.message || err);
+    }
+  }
   res.locals.currentUser = req.session.user || null;
   res.locals.success_msg = req.flash('success_msg');
   res.locals.error_msg = req.flash('error_msg');
   res.locals.warning_msg = req.flash('warning_msg');
   res.locals.info_msg = req.flash('info_msg');
+
+  res.locals.activeRegionSwitch = null;
+  if (req.session.user && req.session.user.role === 'eksekutor' && req.session.user.id) {
+    try {
+      res.locals.activeRegionSwitch = await regionSwitchModel.getActiveSwitchRequestByUserId(req.session.user.id);
+    } catch (err) {
+      console.error('Gagal mengambil activeRegionSwitch:', err.message || err);
+    }
+  }
+
+  res.locals.pendingSwitchCount = 0;
+  if (req.session.user && req.session.user.role === 'koordinator') {
+    try {
+      res.locals.pendingSwitchCount = await regionSwitchModel.countPendingRequests();
+    } catch (err) {
+      console.error('Gagal mengambil pendingSwitchCount:', err.message || err);
+    }
+  }
 
   // Shared UI helpers for EJS (badge meta + date formatting)
   // Kept in res.locals so partial includes don't need to "export" symbols.

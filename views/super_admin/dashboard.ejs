@@ -40,7 +40,7 @@
 
             <div class="row g-3">
               <div class="col-12 col-md-4">
-                <a href="/users" class="card app-card h-100 text-decoration-none text-reset">
+                <a href="/users" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka manajemen user">
                   <div class="card-body">
                     <div class="text-muted small fw-semibold mb-1">Total User Terdaftar</div>
                     <div class="fs-4 fw-bold text-dark mb-0"><%= summary.total_users %></div>
@@ -50,7 +50,7 @@
               </div>
 
               <div class="col-12 col-md-4">
-                <a href="/users" class="card app-card h-100 text-decoration-none text-reset">
+                <a href="/users" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka manajemen user">
                   <div class="card-body">
                     <div class="text-muted small fw-semibold mb-1">User Aktif</div>
                     <div class="fs-4 fw-bold text-success mb-0"><%= summary.total_active_users %></div>
@@ -60,7 +60,7 @@
               </div>
 
               <div class="col-12 col-md-4">
-                <a href="/users" class="card app-card h-100 text-decoration-none text-reset">
+                <a href="/users" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka manajemen user">
                   <div class="card-body">
                     <div class="text-muted small fw-semibold mb-1">User Nonaktif</div>
                     <div class="fs-4 fw-bold text-secondary mb-0"><%= summary.total_inactive_users %></div>
@@ -82,7 +82,7 @@
 
             <div class="row g-3">
               <div class="col-12 col-md-4">
-                <a href="/reports" class="card app-card h-100 text-decoration-none text-reset">
+                <a href="/reports" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka daftar antrean laporan">
                   <div class="card-body">
                     <div class="text-muted small fw-semibold mb-1">Laporan Ticketing</div>
                     <div class="fs-4 fw-bold text-primary mb-0"><%= summary.total_reports %></div>
@@ -92,7 +92,7 @@
               </div>
 
               <div class="col-12 col-md-4">
-                <a href="/manual-reports" class="card app-card h-100 text-decoration-none text-reset">
+                <a href="/manual-reports" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka laporan manual">
                   <div class="card-body">
                     <div class="text-muted small fw-semibold mb-1">Laporan Manual Non-Ticketing</div>
                     <div class="fs-4 fw-bold text-info mb-0"><%= summary.total_manual_reports %></div>

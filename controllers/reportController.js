@@ -25,15 +25,69 @@ const WORK_STATUS_TABS = Object.freeze([
   { key: 'all', label: 'Semua' },
   { key: 'available', label: 'Tersedia' },
   { key: 'in_progress', label: 'Sedang Dikerjakan' },
+  { key: 'delegated', label: 'Didelegasikan' },
   { key: 'completed', label: 'Selesai' },
   { key: 'follow_up', label: 'Perlu Tindak Lanjut' },
   { key: 'escalated', label: 'Eskalasi' }
 ]);
-const ALLOWED_WORK_STATUSES = new Set(WORK_STATUS_TABS.map((tab) => tab.key));
 
-function normalizeWorkStatus(value) {
+const WORK_STATUS_TABS_KOORDINATOR = Object.freeze([
+  { key: 'all', label: 'Semua' },
+  { key: 'available', label: 'Tersedia' },
+  { key: 'team_in_progress', label: 'Monitoring Tim' },
+  { key: 'my_in_progress', label: 'Dikerjakan Koordinator' },
+  { key: 'delegated', label: 'Didelegasikan' },
+  { key: 'completed', label: 'Selesai' },
+  { key: 'follow_up', label: 'Perlu Tindak Lanjut' },
+  { key: 'escalated', label: 'Eskalasi' }
+]);
+
+const ALLOWED_WORK_STATUSES = new Set([
+  ...WORK_STATUS_TABS.map((tab) => tab.key),
+  'team_in_progress',
+  'my_in_progress'
+]);
+
+const WORK_STATUS_ALIASES = Object.freeze({
+  tersedia: 'available',
+  baru: 'available',
+  diambil: 'in_progress',
+  sedang_dikerjakan: 'in_progress',
+  sedang_ditangani: 'in_progress',
+  monitoring_tim: 'team_in_progress',
+  monitoring: 'team_in_progress',
+  tim: 'team_in_progress',
+  dikerjakan_koordinator: 'my_in_progress',
+  koordinator: 'my_in_progress',
+  tiket_saya: 'my_in_progress',
+  didelegasikan: 'delegated',
+  delegasi: 'delegated',
+  selesai: 'completed',
+  perlu_tindak_lanjut: 'follow_up',
+  tindak_lanjut: 'follow_up',
+  eskalasi: 'escalated'
+});
+
+function getWorkStatusTabsForUser(currentUser = {}) {
+  const role = String(currentUser.role || currentUser.role_name || '').trim().toLowerCase();
+  return role === 'koordinator' ? WORK_STATUS_TABS_KOORDINATOR : WORK_STATUS_TABS;
+}
+
+function normalizeWorkStatus(value, currentUser = null) {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : 'all';
-  return ALLOWED_WORK_STATUSES.has(normalized) ? normalized : 'all';
+  const role = currentUser ? String(currentUser.role || currentUser.role_name || '').trim().toLowerCase() : '';
+
+  if (role === 'koordinator' && (normalized === 'in_progress' || normalized === 'diambil' || normalized === 'sedang_dikerjakan')) {
+    return 'team_in_progress';
+  }
+
+  if (ALLOWED_WORK_STATUSES.has(normalized)) {
+    return normalized;
+  }
+  if (WORK_STATUS_ALIASES[normalized]) {
+    return WORK_STATUS_ALIASES[normalized];
+  }
+  return 'all';
 }
 
 function normalizeReportPage(value) {
@@ -143,8 +197,9 @@ function buildReportPagination(filters, currentPage, perPage, totalItems, visibl
   };
 }
 
-function buildWorkStatusTabs(filters, counts) {
-  return WORK_STATUS_TABS.map((tab) => {
+function buildWorkStatusTabs(filters, counts, currentUser = {}) {
+  const tabs = getWorkStatusTabsForUser(currentUser);
+  return tabs.map((tab) => {
     const query = new URLSearchParams();
     query.set('work_status', tab.key);
     query.set('page', String(DEFAULT_REPORT_PAGE));
@@ -269,6 +324,13 @@ function buildReportDetailPayload(report) {
     current_region_code: normalizeJsonValue(report.current_region_code),
     current_region_name: normalizeJsonValue(report.current_region_name),
     assigned_user_name: normalizeJsonValue(report.assigned_user_name),
+    assigned_user_home_region_id: normalizeJsonValue(report.assigned_user_home_region_id),
+    assignment_type: normalizeJsonValue(report.assignment_type),
+    assignment_notes: normalizeJsonValue(report.assignment_notes),
+    assigned_by_user_name: normalizeJsonValue(report.assigned_by_user_name),
+    is_delegated: Boolean(report.is_delegated),
+    is_cross_region: Boolean(report.is_cross_region),
+    is_region_switch: Boolean(report.is_region_switch),
     received_at: normalizeJsonValue(report.received_at),
     taken_at: normalizeJsonValue(report.taken_at),
     resolved_at: normalizeJsonValue(report.resolved_at),
@@ -503,7 +565,7 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
 }
 
 async function buildReportListViewData(req, { includeLatestReportId = false } = {}) {
-  const workStatus = normalizeWorkStatus(req.query.work_status);
+  const workStatus = normalizeWorkStatus(req.query.work_status || req.query.status, req.session.user);
   const requestedPage = normalizeReportPage(req.query.page);
   const perPage = normalizeReportPerPage(req.query.per_page);
   const filters = {
@@ -548,7 +610,7 @@ async function buildReportListViewData(req, { includeLatestReportId = false } = 
     totalItems,
     reports.length
   );
-  const workStatusTabs = buildWorkStatusTabs(filters, workStatusCounts);
+  const workStatusTabs = buildWorkStatusTabs(filters, workStatusCounts, req.session.user);
   const activeWorkStatusTab = workStatusTabs.find((tab) => tab.active) || workStatusTabs[0];
 
   return {
@@ -623,7 +685,7 @@ async function checkNewReports(req, res) {
         sinceId: sinceId === null ? 0 : sinceId,
         search: req.query.search || req.query.keyword || '',
         region: req.query.region || '',
-        workStatus: normalizeWorkStatus(req.query.work_status)
+        workStatus: normalizeWorkStatus(req.query.work_status || req.query.status, req.session.user)
       },
       req.session.user
     );

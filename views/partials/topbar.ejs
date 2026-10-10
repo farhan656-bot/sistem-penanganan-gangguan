@@ -1,33 +1,52 @@
 <%
   const user = (typeof currentUser !== 'undefined') ? currentUser : null;
   const role = user && user.role ? String(user.role) : null;
-
-  const resolvedTitle =
-    (typeof pageTitle !== 'undefined' && pageTitle) ? pageTitle :
-    (typeof title !== 'undefined' && title) ? title :
-    'Dashboard';
-
   const roleBadge = roleMeta(role);
 %>
 
 <header class="app-topbar">
   <div class="app-topbar-inner">
-    <div class="d-flex align-items-center gap-2">
-      <h1 class="h6 mb-0"><%= resolvedTitle %></h1>
-    </div>
+    <div class="d-flex align-items-center gap-2"></div>
 
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-3">
       <% if (user) { %>
-        <div class="app-user-info text-end me-1">
-          <div class="app-user-name"><%= user.full_name || user.username || 'User' %></div>
-          <div class="app-user-role">
-            <span class="badge <%= roleBadge.cls %>"><%= roleBadge.label %></span>
+        <div class="app-user-info text-end d-flex align-items-center gap-2">
+          <div class="text-end">
+            <div class="app-user-name fw-semibold"><%= user.full_name || user.username || 'User' %></div>
+            <div class="app-user-role d-inline-flex align-items-center gap-1 justify-content-end">
+              <span class="badge <%= roleBadge.cls %>"><%= roleBadge.label %></span>
+              <% if (user.region_code) { %>
+                <% if (typeof activeRegionSwitch !== 'undefined' && activeRegionSwitch) { %>
+                  <span
+                    class="badge text-bg-success d-inline-flex align-items-center gap-1"
+                    title="Switch Region Aktif: <%= user.region_code %> + <%= activeRegionSwitch.target_region_code %> (s.d <%= new Date(activeRegionSwitch.end_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) %> WIB)"
+                  >
+                    <i class="bi bi-arrow-left-right"></i>
+                    <span><%= user.region_code %> + <%= activeRegionSwitch.target_region_code %></span>
+                  </span>
+                <% } else { %>
+                  <span
+                    class="badge text-bg-light border text-secondary d-inline-flex align-items-center gap-1"
+                    title="Wilayah Utama: <%= user.region_name || user.region_code %>"
+                  >
+                    <i class="bi bi-geo-alt"></i>
+                    <span><%= user.region_code %></span>
+                  </span>
+                <% } %>
+              <% } %>
+            </div>
+          </div>
+          <div class="app-user-avatar text-secondary">
+            <i class="bi bi-person-circle fs-4"></i>
           </div>
         </div>
       <% } %>
 
       <form action="/auth/logout" method="POST" class="m-0">
-        <button type="submit" class="btn btn-sm btn-outline-danger">Logout</button>
+        <button type="submit" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1" title="Keluar dari sistem">
+          <i class="bi bi-box-arrow-right"></i>
+          <span class="d-none d-sm-inline">Logout</span>
+        </button>
       </form>
     </div>
   </div>

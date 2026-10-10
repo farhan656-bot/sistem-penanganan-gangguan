@@ -15,9 +15,10 @@
   const isAssignedToCurrentUser = hasAssignedUser && Number.isFinite(currentUserId) && assignedUserId === currentUserId;
   const canTakeTicket = ['eksekutor', 'koordinator'].includes(actionRole) && ticketStatus === 'tersedia' && !hasAssignedUser;
   const canContinueTicket =
-    (actionRole === 'eksekutor' && ['diambil', 'didelegasikan'].includes(ticketStatus) && isAssignedToCurrentUser) ||
-    (actionRole === 'koordinator' && ['diambil', 'didelegasikan'].includes(ticketStatus));
-  const canDelegateTicket = actionRole === 'koordinator' && ['tersedia', 'diambil', 'didelegasikan'].includes(ticketStatus);
+    ['eksekutor', 'koordinator'].includes(actionRole) &&
+    ['diambil', 'didelegasikan'].includes(ticketStatus) &&
+    isAssignedToCurrentUser;
+  const canDelegateTicket = actionRole === 'koordinator' && ticketStatus === 'tersedia' && !hasAssignedUser;
   const canCancelAssignment = actionRole === 'koordinator' && ['diambil', 'didelegasikan'].includes(ticketStatus) && hasAssignedUser;
 %>
 

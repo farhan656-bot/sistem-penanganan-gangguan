@@ -20,109 +20,144 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Dashboard Koordinator',
-            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'Koordinator'}. Monitoring terpadu dan koordinasi operasional tiket wilayah PDG dan BKT.`,
-            pageActions: `
-              <div class="d-flex gap-2 flex-wrap">
-                <a href="/reports" class="btn btn-primary fw-semibold px-3">Daftar Antrean Kerja</a>
-                <a href="/manual-reports" class="btn btn-outline-primary fw-medium">Laporan Manual</a>
-              </div>
-            `
+            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'Koordinator'}. Monitoring terpadu dan koordinasi operasional tiket wilayah PDG dan BKT.`
           }) %>
 
           <div class="row g-3 mb-3">
             <div class="col-12 col-sm-6 col-xl-3">
-              <div class="card app-card h-100">
+              <a href="/reports?work_status=all" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka seluruh antrean tiket">
                 <div class="card-body">
                   <div class="text-muted small fw-medium">Total Tiket (PDG & BKT)</div>
                   <h3 class="mb-1 fw-bold text-dark"><%= summary.total_reports %></h3>
                   <div class="small text-muted">Seluruh status laporan</div>
                 </div>
-              </div>
+              </a>
             </div>
 
             <div class="col-12 col-sm-6 col-xl-3">
-              <div class="card app-card h-100">
+              <a href="/reports?work_status=available" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka antrean tiket tersedia">
                 <div class="card-body">
                   <div class="text-muted small fw-medium">Tiket Tersedia</div>
                   <h3 class="mb-1 fw-bold text-status-available"><%= summary.total_available %></h3>
                   <div class="small text-muted">Menunggu penanganan</div>
                 </div>
-              </div>
+              </a>
             </div>
 
             <div class="col-12 col-sm-6 col-xl-3">
-              <div class="card app-card h-100">
+              <a href="/reports?work_status=team_in_progress" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket yang sedang dikerjakan teknisi lapangan">
                 <div class="card-body">
-                  <div class="text-muted small fw-medium">Sedang Dikerjakan</div>
-                  <h3 class="mb-1 fw-bold text-status-in-progress"><%= summary.total_in_progress %></h3>
-                  <div class="small text-muted">Status diambil</div>
+                  <div class="text-muted small fw-medium">Monitoring Tim</div>
+                  <h3 class="mb-1 fw-bold text-status-in-progress"><%= summary.total_team_in_progress %></h3>
+                  <div class="small text-muted">Dikerjakan teknisi lapangan</div>
                 </div>
-              </div>
+              </a>
             </div>
 
             <div class="col-12 col-sm-6 col-xl-3">
-              <div class="card app-card h-100">
+              <a href="/reports?work_status=my_in_progress" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket yang sedang Anda tangani langsung">
+                <div class="card-body">
+                  <div class="text-muted small fw-medium">Dikerjakan Koordinator</div>
+                  <h3 class="mb-1 fw-bold text-primary"><%= summary.total_my_in_progress %></h3>
+                  <div class="small text-muted">Penanganan langsung Anda</div>
+                </div>
+              </a>
+            </div>
+
+            <div class="col-12 col-sm-6 col-xl-3">
+              <a href="/reports?work_status=delegated" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket didelegasikan">
                 <div class="card-body">
                   <div class="text-muted small fw-medium">Didelegasikan</div>
                   <h3 class="mb-1 fw-bold text-status-delegated"><%= summary.total_delegated %></h3>
                   <div class="small text-muted">Penugasan lintas wilayah</div>
                 </div>
-              </div>
+              </a>
             </div>
 
             <div class="col-12 col-sm-6 col-xl-3">
-              <div class="card app-card h-100">
+              <a href="/reports?work_status=completed" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket selesai">
                 <div class="card-body">
                   <div class="text-muted small fw-medium">Tiket Selesai</div>
                   <h3 class="mb-1 fw-bold text-status-completed"><%= summary.total_completed %></h3>
                   <div class="small text-muted">Tuntas ditangani</div>
                 </div>
-              </div>
+              </a>
             </div>
 
             <div class="col-12 col-sm-6 col-xl-3">
-              <div class="card app-card h-100">
+              <a href="/reports?work_status=follow_up" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket perlu tindak lanjut">
                 <div class="card-body">
                   <div class="text-muted small fw-medium">Perlu Tindak Lanjut</div>
                   <h3 class="mb-1 fw-bold text-status-follow-up"><%= summary.total_follow_up %></h3>
                   <div class="small text-muted">Butuh penanganan ulang</div>
                 </div>
-              </div>
+              </a>
             </div>
 
             <div class="col-12 col-sm-6 col-xl-3">
-              <div class="card app-card h-100">
+              <a href="/reports?work_status=escalated" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket eskalasi">
                 <div class="card-body">
                   <div class="text-muted small fw-medium">Eskalasi</div>
                   <h3 class="mb-1 fw-bold text-status-escalated"><%= summary.total_escalated %></h3>
                   <div class="small text-muted">Kendala eksternal / DIIT</div>
                 </div>
-              </div>
-            </div>
-
-            <div class="col-12 col-sm-6 col-xl-3">
-              <div class="card app-card h-100">
-                <div class="card-body">
-                  <div class="text-muted small fw-medium">Cakupan Monitoring</div>
-                  <h4 class="mb-1 fw-bold text-dark">PDG & BKT</h4>
-                  <div class="small text-muted">Padang & Bukittinggi</div>
-                </div>
-              </div>
+              </a>
             </div>
           </div>
 
           <div class="row g-3 mb-3">
-            <div class="col-12 col-xl-8">
-              <div class="card app-card h-100">
-                <div class="card-header fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="col-12">
+              <div class="card app-card">
+                <div class="card-header fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
                   <div>
                     <div>Ringkasan Beban Kerja per Wilayah</div>
                     <div class="text-muted small fw-normal">Perbandingan distribusi status tiket antara wilayah Padang (PDG) dan Bukittinggi (BKT).</div>
                   </div>
-                  <span class="badge text-bg-light border text-muted">2 Wilayah Kerja</span>
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Filter Periode Beban Kerja">
+                      <a href="/dashboard/koordinator?period=today" class="btn btn-outline-secondary <%= filters && filters.period === 'today' ? 'active fw-semibold' : '' %>">Hari Ini</a>
+                      <a href="/dashboard/koordinator?period=this_week" class="btn btn-outline-secondary <%= filters && (filters.period === 'this_week' || filters.period === 'last_7_days') ? 'active fw-semibold' : '' %>">Minggu Ini</a>
+                      <a href="/dashboard/koordinator?period=all" class="btn btn-outline-secondary <%= !filters || filters.period === 'all' || !filters.period ? 'active fw-semibold' : '' %>">Semua Waktu</a>
+                      <button type="button" class="btn btn-outline-secondary <%= filters && filters.period === 'custom' ? 'active fw-semibold' : '' %>" data-bs-toggle="collapse" data-bs-target="#customDateFilterCollapse" aria-expanded="<%= filters && filters.period === 'custom' ? 'true' : 'false' %>">
+                        Kustom
+                      </button>
+                    </div>
+                  </div>
                 </div>
+
+                <div class="collapse <%= filters && filters.period === 'custom' ? 'show' : '' %> bg-light border-bottom px-3 py-2" id="customDateFilterCollapse">
+                  <form action="/dashboard/koordinator" method="GET" class="row g-2 align-items-center">
+                    <input type="hidden" name="period" value="custom">
+                    <div class="col-auto">
+                      <label for="startDateInput" class="col-form-label col-form-label-sm fw-medium">Mulai:</label>
+                    </div>
+                    <div class="col-auto">
+                      <input type="date" id="startDateInput" name="startDate" class="form-control form-control-sm" value="<%= filters && filters.startDate ? filters.startDate : '' %>" required>
+                    </div>
+                    <div class="col-auto">
+                      <label for="endDateInput" class="col-form-label col-form-label-sm fw-medium">Sampai:</label>
+                    </div>
+                    <div class="col-auto">
+                      <input type="date" id="endDateInput" name="endDate" class="form-control form-control-sm" value="<%= filters && filters.endDate ? filters.endDate : '' %>" required>
+                    </div>
+                    <div class="col-auto">
+                      <button type="submit" class="btn btn-sm btn-primary">Terapkan Filter</button>
+                      <a href="/dashboard/koordinator?period=all" class="btn btn-sm btn-outline-secondary">Reset</a>
+                    </div>
+                  </form>
+                </div>
+
                 <div class="card-body">
-                  <div class="table-responsive">
+                  <% if (disparityAlert) { %>
+                    <div class="alert alert-warning border-warning-subtle d-flex align-items-center gap-2 mb-3 py-2 px-3" role="alert">
+                      <span class="pulsing-dot bg-warning me-2 flex-shrink-0"></span>
+                      <div class="small">
+                        <strong>Peringatan Disparitas Antrean Wilayah:</strong> <%= disparityAlert.message %>
+                      </div>
+                    </div>
+                  <% } %>
+
+                  <div class="table-responsive mb-4">
                     <table class="table table-hover align-middle mb-0">
                       <thead>
                         <tr>
@@ -149,17 +184,113 @@
                           <tr>
                             <td>
                               <div class="d-flex align-items-center gap-2">
-                                <span class="badge text-bg-light border font-monospace fw-semibold fs-6"><%= region.region_code || '-' %></span>
-                                <div class="fw-semibold text-dark"><%= region.region_name || '-' %></div>
+                                <% if (region.is_overloaded) { %>
+                                  <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle font-monospace fw-semibold fs-6 d-inline-flex align-items-center" title="Ketimpangan antrean tinggi terdeteksi!">
+                                    <span class="pulsing-dot bg-danger me-1"></span>
+                                    <%= region.region_code || '-' %>
+                                  </span>
+                                <% } else { %>
+                                  <span class="badge text-bg-light border font-monospace fw-semibold fs-6"><%= region.region_code || '-' %></span>
+                                <% } %>
+                                <div class="fw-semibold text-dark">
+                                  <%= region.region_name || '-' %>
+                                  <% if (region.is_overloaded) { %>
+                                    <span class="badge text-bg-danger ms-1 small fw-normal" style="font-size: 0.68rem;">Antrean Tinggi</span>
+                                  <% } %>
+                                </div>
                               </div>
                             </td>
-                            <td class="text-center"><strong class="text-dark"><%= region.total_reports %></strong></td>
-                            <td class="text-center"><span class="text-status-available fw-semibold"><%= region.total_available %></span></td>
-                            <td class="text-center"><span class="text-status-in-progress fw-semibold"><%= region.total_in_progress %></span></td>
-                            <td class="text-center"><span class="text-status-delegated fw-semibold"><%= region.total_delegated %></span></td>
-                            <td class="text-center"><span class="text-status-completed fw-semibold"><%= region.total_completed %></span></td>
-                            <td class="text-center"><span class="text-status-follow-up fw-semibold"><%= region.total_follow_up %></span></td>
-                            <td class="text-center"><span class="text-status-escalated fw-semibold"><%= region.total_escalated %></span></td>
+                            <td class="text-center"><a href="/reports?region=<%= region.region_code %>&work_status=all" class="text-decoration-none text-dark fw-bold" title="Lihat semua tiket <%= region.region_code %>"><%= region.total_reports %></a></td>
+                            <td class="text-center"><a href="/reports?region=<%= region.region_code %>&work_status=available" class="text-decoration-none text-status-available fw-semibold" title="Lihat tiket tersedia <%= region.region_code %>"><%= region.total_available %></a></td>
+                            <td class="text-center">
+                              <a href="/reports?region=<%= region.region_code %>&work_status=team_in_progress" class="text-decoration-none text-status-in-progress fw-semibold" title="Monitoring Tim <%= region.region_code %>: <%= region.total_team_in_progress %>, Ditangani Koordinator: <%= region.total_my_in_progress %>">
+                                <%= region.total_team_in_progress %>
+                              </a>
+                              <% if (region.total_my_in_progress > 0) { %>
+                                <div class="small text-primary" style="font-size: 0.72rem;" title="<%= region.total_my_in_progress %> tiket ditangani oleh Koordinator">(+<%= region.total_my_in_progress %> Anda)</div>
+                              <% } %>
+                            </td>
+                            <td class="text-center"><a href="/reports?region=<%= region.region_code %>&work_status=delegated" class="text-decoration-none text-status-delegated fw-semibold" title="Lihat tiket delegasi <%= region.region_code %>"><%= region.total_delegated %></a></td>
+                            <td class="text-center"><a href="/reports?region=<%= region.region_code %>&work_status=completed" class="text-decoration-none text-status-completed fw-semibold" title="Lihat tiket selesai <%= region.region_code %>"><%= region.total_completed %></a></td>
+                            <td class="text-center"><a href="/reports?region=<%= region.region_code %>&work_status=follow_up" class="text-decoration-none text-status-follow-up fw-semibold" title="Lihat tiket tindak lanjut <%= region.region_code %>"><%= region.total_follow_up %></a></td>
+                            <td class="text-center"><a href="/reports?region=<%= region.region_code %>&work_status=escalated" class="text-decoration-none text-status-escalated fw-semibold" title="Lihat tiket eskalasi <%= region.region_code %>"><%= region.total_escalated %></a></td>
+                          </tr>
+                        <% }) %>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <hr class="my-3 text-muted opacity-25">
+
+                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                    <div>
+                      <div class="fw-semibold text-dark">Rincian Beban Kerja Eksekutor per Wilayah</div>
+                      <div class="text-muted small">Status beban aktif teknisi real-time dan riwayat pengerjaan untuk acuan delegasi tiket yang seimbang.</div>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" id="eksekutorRegionFilter">
+                      <button type="button" class="btn btn-outline-secondary active" data-eksekutor-filter="all">Semua Eksekutor</button>
+                      <button type="button" class="btn btn-outline-secondary" data-eksekutor-filter="PDG">Padang (PDG)</button>
+                      <button type="button" class="btn btn-outline-secondary" data-eksekutor-filter="BKT">Bukittinggi (BKT)</button>
+                    </div>
+                  </div>
+
+                  <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="eksekutorWorkloadTable">
+                      <thead>
+                        <tr>
+                          <th>Nama Eksekutor</th>
+                          <th>Wilayah Asal</th>
+                          <th class="text-center">Beban Aktif Saat Ini</th>
+                          <th class="text-center">Diambil (Periode)</th>
+                          <th class="text-center">Selesai (Periode)</th>
+                          <th class="text-center">Kategori Beban</th>
+                          <th class="text-center">Rekomendasi Delegasi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% if (!eksekutorWorkload || eksekutorWorkload.length === 0) { %>
+                          <tr>
+                            <td colspan="7" class="text-center text-muted py-4">Belum ada data teknisi eksekutor aktif.</td>
+                          </tr>
+                        <% } %>
+                        <% (eksekutorWorkload || []).forEach(tek => { %>
+                          <tr data-region="<%= tek.region_code %>">
+                            <td>
+                              <div class="fw-semibold text-dark"><%= tek.full_name %></div>
+                              <div class="text-muted small font-monospace">@<%= tek.username %></div>
+                            </td>
+                            <td>
+                              <span class="badge text-bg-light border font-monospace"><%= tek.region_code %></span>
+                              <span class="small text-muted ms-1"><%= tek.region_name %></span>
+                            </td>
+                            <td class="text-center">
+                              <span class="fw-bold fs-6 <%= tek.active_tickets > 2 ? 'text-danger' : (tek.active_tickets === 0 ? 'text-success' : 'text-dark') %>">
+                                <%= tek.active_tickets %>
+                              </span>
+                              <div class="small text-muted" style="font-size: 0.72rem;">tiket diambil</div>
+                            </td>
+                            <td class="text-center fw-medium"><%= tek.period_taken %></td>
+                            <td class="text-center fw-medium text-success"><%= tek.period_completed %></td>
+                            <td class="text-center">
+                              <span class="badge <%= tek.load_badge.badgeClass %>">
+                                <%= tek.load_badge.label %>
+                              </span>
+                            </td>
+                            <td class="text-center">
+                              <% if (tek.load_badge.canDelegate) { %>
+                                <span class="badge text-bg-success-subtle text-success border border-success-subtle d-inline-flex align-items-center gap-1">
+                                  <i class="bi bi-check-circle-fill" style="font-size: 0.75rem;"></i> <%= tek.load_badge.recommendation %>
+                                </span>
+                              <% } else if (tek.active_tickets >= 4) { %>
+                                <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle d-inline-flex align-items-center gap-1">
+                                  <i class="bi bi-exclamation-triangle-fill" style="font-size: 0.75rem;"></i> <%= tek.load_badge.recommendation %>
+                                </span>
+                              <% } else { %>
+                                <span class="badge text-bg-light border text-muted">
+                                  <%= tek.load_badge.recommendation %>
+                                </span>
+                              <% } %>
+                            </td>
                           </tr>
                         <% }) %>
                       </tbody>
@@ -168,41 +299,61 @@
                 </div>
               </div>
             </div>
+          </div>
 
-            <div class="col-12 col-xl-4">
-              <div class="card app-card h-100">
-                <div class="card-header fw-semibold">
-                  <div>Aksi Cepat Koordinasi</div>
-                  <div class="text-muted small fw-normal">Akses langsung ke alur kerja operasional utama.</div>
+          <% if (myActiveReports && myActiveReports.length > 0) { %>
+            <div class="card app-card mb-3 border-primary-subtle">
+              <div class="card-header bg-primary-subtle text-primary-emphasis fw-semibold d-flex align-items-center justify-content-between flex-wrap gap-2 py-2">
+                <div>
+                  <strong>Tiket Aktif Sedang Ditangani Anda</strong>
+                  <span class="small ms-1 text-primary-emphasis opacity-75">(Penanganan Langsung Koordinator)</span>
                 </div>
-                <div class="card-body">
-                  <div class="d-grid gap-2">
-                    <a href="/reports" class="btn btn-primary fw-semibold text-start p-3 d-flex justify-content-between align-items-center">
-                      <div>
-                        <div class="fw-bold">Daftar Antrean Kerja</div>
-                        <div class="small text-white-50">Monitoring dan pengelolaan tiket</div>
-                      </div>
-                      <span>&rarr;</span>
-                    </a>
-                    <a href="/manual-reports" class="btn btn-outline-primary text-start p-3 d-flex justify-content-between align-items-center">
-                      <div>
-                        <div class="fw-semibold text-dark">Laporan Manual</div>
-                        <div class="small text-muted">Input laporan di luar bot Telegram</div>
-                      </div>
-                      <span>&rarr;</span>
-                    </a>
-                    <a href="/region-switch/pending" class="btn btn-outline-secondary text-start p-3 d-flex justify-content-between align-items-center">
-                      <div>
-                        <div class="fw-semibold text-dark">Approval Switch Region</div>
-                        <div class="small text-muted">Persetujuan alih wilayah teknisi</div>
-                      </div>
-                      <span>&rarr;</span>
-                    </a>
-                  </div>
+                <a href="/reports?work_status=my_in_progress" class="btn btn-sm btn-primary">Lihat di Antrean Kerja</a>
+              </div>
+              <div class="card-body p-0">
+                <div class="table-responsive">
+                  <table class="table table-hover align-middle mb-0">
+                    <thead>
+                      <tr>
+                        <th>Ticket ID</th>
+                        <th>Ringkasan</th>
+                        <th>Wilayah</th>
+                        <th>Status</th>
+                        <th>Waktu Ambil</th>
+                        <th class="app-table-actions">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% myActiveReports.forEach(report => { %>
+                        <tr>
+                          <td>
+                            <div class="fw-semibold font-monospace"><%= report.ticket_id %></div>
+                            <div class="text-muted small"><%= report.order_id || '-' %></div>
+                          </td>
+                          <td>
+                            <div class="app-truncate-lg" title="<%= report.summary || '-' %>"><%= report.summary || '-' %></div>
+                          </td>
+                          <td>
+                            <span class="badge text-bg-light border font-monospace"><%= report.region_code || '-' %></span>
+                          </td>
+                          <td>
+                            <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                            <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle d-block mt-1">Ditangani Anda</span>
+                          </td>
+                          <td>
+                            <span class="text-muted small"><%= formatDateTime(report.taken_at || report.updated_at || report.received_at) %></span>
+                          </td>
+                          <td class="app-table-actions">
+                            <a href="/reports/<%= report.ticket_id %>" class="btn btn-sm btn-outline-primary">Buka / Proses</a>
+                          </td>
+                        </tr>
+                      <% }) %>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
-          </div>
+          <% } %>
 
           <div class="card app-card">
             <div class="card-header fw-semibold">
@@ -265,5 +416,27 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/app.js?v=flash-auto-dismiss-20260505-2"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const filterButtons = document.querySelectorAll('[data-eksekutor-filter]');
+      const rows = document.querySelectorAll('#eksekutorWorkloadTable tbody tr[data-region]');
+
+      filterButtons.forEach(btn => {
+        btn.addEventListener('click', function () {
+          filterButtons.forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          const targetRegion = this.getAttribute('data-eksekutor-filter');
+          rows.forEach(row => {
+            if (targetRegion === 'all' || row.getAttribute('data-region') === targetRegion) {
+              row.style.display = '';
+            } else {
+              row.style.display = 'none';
+            }
+          });
+        });
+      });
+    });
+  </script>
 </body>
 </html>
+

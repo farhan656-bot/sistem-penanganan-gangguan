@@ -262,14 +262,54 @@ async function getActiveExtraRegionsByUserId(userId) {
   return rows.map((row) => row.target_region_id).filter(Boolean);
 }
 
+async function getActiveSwitchRequestByUserId(userId) {
+  if (!userId) return null;
+  await expireOldRequests();
+
+  const [rows] = await pool.query(
+    `
+    SELECT
+      requests.id,
+      requests.target_region_id,
+      requests.start_at,
+      requests.end_at,
+      target.code AS target_region_code,
+      target.name AS target_region_name
+    FROM region_switch_requests requests
+    LEFT JOIN regions target ON requests.target_region_id = target.id
+    WHERE requests.requester_user_id = ?
+      AND requests.status = 'approved'
+      AND requests.start_at <= NOW()
+      AND requests.end_at >= NOW()
+    ORDER BY requests.end_at DESC
+    LIMIT 1
+    `,
+    [userId]
+  );
+
+  return rows[0] || null;
+}
+
+async function countPendingRequests() {
+  await expireOldRequests();
+
+  const [rows] = await pool.query(
+    `SELECT COUNT(*) AS total FROM region_switch_requests WHERE status = 'pending'`
+  );
+
+  return Number(rows[0]?.total || 0);
+}
+
 module.exports = {
   createRequest,
   getRequestsByRequester,
   getPendingRequests,
+  countPendingRequests,
   getRequestById,
   approveRequest,
   rejectRequest,
   getActiveExtraRegionsByUserId,
+  getActiveSwitchRequestByUserId,
   expireOldRequests,
   hasDuplicateActiveOrPendingRequest
 };

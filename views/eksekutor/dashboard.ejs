@@ -20,77 +20,60 @@
 
           <%- include('../partials/page-header', {
             pageTitle: 'Dashboard Eksekutor',
-            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Ringkasan pekerjaan mengikuti region utama, region switch aktif, dan tiket yang ditugaskan kepada Anda.`,
-            pageActions: `
-              <a href="/reports" class="btn btn-primary">Buka Daftar Antrean Kerja</a>
-            `
+            pageSubtitle: `Selamat datang, ${currentUser && currentUser.full_name ? currentUser.full_name : 'User'}. Ringkasan pekerjaan mengikuti region utama, region switch aktif, dan tiket yang ditugaskan kepada Anda.`
           }) %>
 
           <div class="row g-3 mb-3">
-            <div class="col-12 col-xl-8">
+            <div class="col-12">
               <div class="card app-card h-100">
                 <div class="card-header d-flex align-items-center justify-content-between gap-2 py-2">
                   <div>
                     <strong class="text-dark">Tanggung Jawab Saya</strong>
-                    <span class="text-muted small d-none d-sm-inline ms-1">— Tiket yang ditugaskan kepada Anda</span>
+                    <span class="text-muted small d-none d-sm-inline ms-1">(Tiket yang ditugaskan kepada Anda)</span>
                   </div>
-                  <span class="badge badge-status-in-progress"><%= summary.total_my_in_progress %> Aktif</span>
+                  <a href="/reports?work_status=in_progress" class="badge badge-status-in-progress text-decoration-none" title="Buka tiket diambil & delegasi"><%= summary.total_my_in_progress %> Aktif</a>
                 </div>
                 <div class="card-body">
                   <div class="row g-3">
                     <div class="col-6 col-md-3">
-                      <div class="app-metric-block app-metric-divider-end h-100">
-                        <div class="text-muted small">Tiket Aktif Saya</div>
-                        <h3 class="mb-1 fw-bold text-status-in-progress"><%= summary.total_my_in_progress %></h3>
-                        <div class="small text-muted">Sedang dikerjakan</div>
-                      </div>
+                      <a href="/reports?work_status=in_progress" class="app-metric-block-link h-100" title="Buka tiket diambil & delegasi">
+                        <div class="app-metric-block h-100">
+                          <div class="text-muted small">Diambil + Delegasi</div>
+                          <h3 class="mb-1 fw-bold text-status-in-progress"><%= summary.total_my_in_progress %></h3>
+                          <div class="small text-muted">Sedang dikerjakan</div>
+                        </div>
+                      </a>
                     </div>
 
                     <div class="col-6 col-md-3">
-                      <div class="app-metric-block app-metric-divider-end h-100">
-                        <div class="text-muted small">Perlu Tindak Lanjut</div>
-                        <h3 class="mb-1 fw-bold text-status-follow-up"><%= summary.total_follow_up %></h3>
-                        <div class="small text-muted">Perlu perbaikan</div>
-                      </div>
+                      <a href="/reports?work_status=follow_up" class="app-metric-block-link h-100" title="Buka tiket perlu tindak lanjut">
+                        <div class="app-metric-block h-100">
+                          <div class="text-muted small">Perlu Tindak Lanjut</div>
+                          <h3 class="mb-1 fw-bold text-status-follow-up"><%= summary.total_follow_up %></h3>
+                          <div class="small text-muted">Perlu perbaikan</div>
+                        </div>
+                      </a>
                     </div>
 
                     <div class="col-6 col-md-3">
-                      <div class="app-metric-block app-metric-divider-end h-100">
-                        <div class="text-muted small">Eskalasi</div>
-                        <h3 class="mb-1 fw-bold text-status-escalated"><%= summary.total_escalated %></h3>
-                        <div class="small text-muted">Penanganan khusus</div>
-                      </div>
+                      <a href="/reports?work_status=escalated" class="app-metric-block-link h-100" title="Buka tiket eskalasi">
+                        <div class="app-metric-block h-100">
+                          <div class="text-muted small">Eskalasi</div>
+                          <h3 class="mb-1 fw-bold text-status-escalated"><%= summary.total_escalated %></h3>
+                          <div class="small text-muted">Penanganan khusus</div>
+                        </div>
+                      </a>
                     </div>
 
                     <div class="col-6 col-md-3">
-                      <div class="app-metric-block h-100">
-                        <div class="text-muted small">Tiket Selesai</div>
-                        <h3 class="mb-1 fw-bold text-status-completed"><%= summary.total_completed %></h3>
-                        <div class="small text-muted">Telah diselesaikan</div>
-                      </div>
+                      <a href="/reports?work_status=completed" class="app-metric-block-link h-100" title="Buka tiket selesai">
+                        <div class="app-metric-block h-100">
+                          <div class="text-muted small">Tiket Selesai</div>
+                          <h3 class="mb-1 fw-bold text-status-completed"><%= summary.total_completed %></h3>
+                          <div class="small text-muted">Telah diselesaikan</div>
+                        </div>
+                      </a>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="col-12 col-xl-4">
-              <div class="card app-card h-100">
-                <div class="card-header d-flex align-items-center justify-content-between gap-2 py-2">
-                  <div>
-                    <strong class="text-dark">Antrean Wilayah</strong>
-                    <span class="text-muted small d-none d-sm-inline ms-1">— Pool Terbuka</span>
-                  </div>
-                  <span class="badge badge-status-available"><%= summary.total_available %> Tersedia</span>
-                </div>
-                <div class="card-body d-flex flex-column justify-content-between">
-                  <div class="app-metric-block">
-                    <div class="text-muted small">Tiket Siap Diambil</div>
-                    <h3 class="mb-1 fw-bold text-status-available"><%= summary.total_available %></h3>
-                    <div class="small text-muted">Sesuai akses wilayah kerja Anda</div>
-                  </div>
-                  <div class="pt-2">
-                    <a href="/reports" class="btn btn-sm btn-outline-primary w-100">Buka Antrean Wilayah</a>
                   </div>
                 </div>
               </div>
@@ -98,12 +81,12 @@
           </div>
 
           <div class="row g-3">
-            <div class="col-12 col-xl-8">
+            <div class="col-12 col-xl-7">
               <div class="card app-card h-100">
                 <div class="card-header d-flex align-items-center justify-content-between gap-2 py-2">
                   <div>
                     <strong class="text-dark">Tiket Assigned Terbaru</strong>
-                    <span class="text-muted small d-none d-sm-inline ms-1">— Maksimal 5 tiket yang ditugaskan kepada Anda</span>
+                    <span class="text-muted small d-none d-sm-inline ms-1">(Maksimal 5 tiket yang ditugaskan kepada Anda)</span>
                   </div>
                   <span class="badge text-bg-secondary"><%= (latestAssignedReports || []).length %> tiket</span>
                 </div>
@@ -142,9 +125,21 @@
                             </td>
                             <td>
                               <span class="badge text-bg-light border"><%= report.region_code || '-' %></span>
+                              <% if (report.is_region_switch) { %>
+                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle d-block mt-1" style="font-size: 0.7rem;">Perbantuan</span>
+                              <% } else if (report.is_delegated && report.is_cross_region) { %>
+                                <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle d-block mt-1" style="font-size: 0.7rem;">Lintas Wilayah</span>
+                              <% } %>
                             </td>
                             <td>
                               <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                              <% if (report.status_internal === 'didelegasikan') { %>
+                                <span class="badge text-bg-info d-block mt-1">Delegasi Aktif</span>
+                              <% } else if (report.is_delegated) { %>
+                                <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle d-block mt-1">Delegasi</span>
+                              <% } else if (report.is_region_switch) { %>
+                                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle d-block mt-1">Switch Region</span>
+                              <% } %>
                             </td>
                             <td><span class="text-muted small"><%= formatDateTime(report.taken_at || report.updated_at || report.received_at) %></span></td>
                             <td class="app-table-actions">
@@ -159,19 +154,72 @@
               </div>
             </div>
 
-            <div class="col-12 col-xl-4">
+            <div class="col-12 col-xl-5">
               <div class="card app-card h-100">
-                <div class="card-header py-2">
-                  <strong class="text-dark">Shortcut Pekerjaan</strong>
-                </div>
-                <div class="card-body d-flex flex-column justify-content-between">
-                  <div class="text-muted small mb-3">Akses cepat ke antrean kerja operasional, input laporan manual, dan permohonan akses wilayah sementara.</div>
-
-                  <div class="d-grid gap-2">
-                    <a href="/reports" class="btn btn-primary">Daftar Antrean Kerja</a>
-                    <a href="/manual-reports" class="btn btn-outline-secondary">Input Laporan Manual</a>
-                    <a href="/region-switch/my" class="btn btn-outline-secondary">Pengajuan Switch Region</a>
+                <div class="card-header d-flex align-items-center justify-content-between gap-2 py-2">
+                  <div>
+                    <strong class="text-dark">Beban Antrean Wilayah</strong>
+                    <span class="text-muted small d-none d-sm-inline ms-1">(Komparasi Operasional)</span>
                   </div>
+                  <span class="badge text-bg-light border text-secondary">PDG vs BKT</span>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between gap-3">
+                  <div>
+                    <div class="text-muted small mb-2">
+                      Perbandingan antrean tiket siap diambil dan laporan harian antar region untuk pemantauan beban kerja tim.
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                      <% (regionComparison || []).forEach(reg => { %>
+                        <div class="col-6">
+                          <div class="p-2 border rounded-3 bg-light-subtle h-100 d-flex flex-column justify-content-between">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                              <span class="fw-bold text-dark"><%= reg.region_code %> (<%= reg.region_name %>)</span>
+                              <% if (reg.is_home) { %>
+                                <span class="badge text-bg-primary" style="font-size: 0.65rem;">Utama</span>
+                              <% } else if (reg.is_switched_active) { %>
+                                <span class="badge text-bg-success" style="font-size: 0.65rem;">Switch Aktif</span>
+                              <% } else { %>
+                                <span class="badge text-bg-secondary" style="font-size: 0.65rem;">Sekunder</span>
+                              <% } %>
+                            </div>
+
+                            <div class="d-flex flex-column gap-1">
+                              <div class="d-flex align-items-baseline justify-content-between">
+                                <span class="text-muted small">Antrean Siap:</span>
+                                <span class="fs-5 fw-bold text-dark"><%= reg.total_available %></span>
+                              </div>
+                              <div class="d-flex align-items-center justify-content-between">
+                                <span class="text-muted small">Masuk Hari Ini:</span>
+                                <span class="small fw-semibold text-secondary"><%= reg.today_incoming %></span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      <% }) %>
+                    </div>
+                  </div>
+
+                  <% if (typeof switchRecommendation !== 'undefined' && switchRecommendation) { %>
+                    <div class="p-3 border rounded-3 <%= switchRecommendation.type === 'recommend_switch' ? 'border-warning-subtle bg-warning-subtle' : (switchRecommendation.type === 'switch_active' ? 'border-success-subtle bg-success-subtle' : 'bg-light') %>">
+                      <div class="d-flex flex-column gap-2">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                          <span class="badge <%= switchRecommendation.badgeClass %>"><%= switchRecommendation.title %></span>
+                          <span class="text-muted small">Sinyal Operasional</span>
+                        </div>
+                        <div class="small text-secondary">
+                          <%= switchRecommendation.message %>
+                        </div>
+                        <% if (switchRecommendation.actionUrl && switchRecommendation.actionText) { %>
+                          <div class="pt-1">
+                            <a href="<%= switchRecommendation.actionUrl %>" class="btn btn-sm <%= switchRecommendation.type === 'recommend_switch' ? 'btn-warning text-dark fw-semibold w-100' : 'btn-outline-primary w-100' %>">
+                              <%= switchRecommendation.actionText %>
+                            </a>
+                          </div>
+                        <% } %>
+                      </div>
+                    </div>
+                  <% } %>
                 </div>
               </div>
             </div>

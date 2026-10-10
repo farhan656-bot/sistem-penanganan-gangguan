@@ -54,6 +54,11 @@
               </td>
               <td>
                 <span class="badge text-bg-light border"><%= report.region_code || '-' %></span>
+                <% if (report.is_region_switch) { %>
+                  <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle d-block mt-1" style="font-size: 0.7rem;" title="Dikerjakan via Perbantuan Switch Region">Perbantuan</span>
+                <% } else if (report.is_delegated && report.is_cross_region) { %>
+                  <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle d-block mt-1" style="font-size: 0.7rem;" title="Tiket didelegasikan lintas wilayah">Lintas Wilayah</span>
+                <% } %>
               </td>
               <td>
                 <%- include('./status-badge', { type: 'ticket', value: report.status_internal }) %>
@@ -63,9 +68,23 @@
                   <%= report.assigned_user_name || '-' %>
                 </div>
 
+                <% if (currentUser && currentUser.role === 'koordinator' && report.assigned_to_user_id === currentUser.id) { %>
+                  <div class="mt-1">
+                    <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle" title="Tiket ini sedang Anda tangani langsung">Ditangani Anda</span>
+                  </div>
+                <% } %>
+
                 <% if (report.status_internal === 'didelegasikan') { %>
                   <div class="mt-1">
                     <span class="badge text-bg-info">Delegasi Aktif</span>
+                  </div>
+                <% } else if (report.is_delegated) { %>
+                  <div class="mt-1">
+                    <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle" title="Tiket hasil penugasan delegasi koordinator">Delegasi</span>
+                  </div>
+                <% } else if (report.is_region_switch) { %>
+                  <div class="mt-1">
+                    <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Tiket dikerjakan melalui izin perbantuan switch region">Switch Region</span>
                   </div>
                 <% } %>
               </td>

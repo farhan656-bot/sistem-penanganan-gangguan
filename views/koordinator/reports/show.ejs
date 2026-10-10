@@ -34,12 +34,21 @@
                   <%- include('../../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
                   <% if (report.status_internal === 'didelegasikan') { %>
                     <span class="badge text-bg-info">Delegasi Aktif</span>
+                  <% } else if (report.is_delegated) { %>
+                    <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle"><%= report.is_cross_region ? 'Delegasi Lintas Wilayah' : 'Delegasi' %></span>
+                  <% } else if (report.is_region_switch) { %>
+                    <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">Perbantuan Switch Region</span>
                   <% } %>
                 </div>
 
                 <div class="text-md-end">
                   <span class="text-muted small me-1">Wilayah:</span>
                   <span class="badge text-bg-light border fs-6 font-monospace"><%= report.reported_region_code || report.region_code || report.current_region_code || '-' %></span>
+                  <% if (report.is_region_switch) { %>
+                    <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">Perbantuan</span>
+                  <% } else if (report.is_delegated && report.is_cross_region) { %>
+                    <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle ms-1">Lintas Wilayah</span>
+                  <% } %>
                 </div>
               </div>
 
@@ -75,7 +84,14 @@
                 </div>
                 <div class="col-12 col-sm-6 col-md-3">
                   <div class="text-muted small">Assigned To</div>
-                  <div class="fw-semibold <%= report.assigned_user_name ? 'text-dark' : 'text-muted' %>"><%= report.assigned_user_name || '-' %></div>
+                  <div class="fw-semibold <%= report.assigned_user_name ? 'text-dark' : 'text-muted' %>">
+                    <%= report.assigned_user_name || '-' %>
+                    <% if (report.is_delegated) { %>
+                      <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle small ms-1">Delegasi</span>
+                    <% } else if (report.is_region_switch) { %>
+                      <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle small ms-1">Switch Region</span>
+                    <% } %>
+                  </div>
                 </div>
 
                 <div class="col-12">
@@ -217,9 +233,14 @@
             </div>
           <% } %>
 
+          <%
+            const isAssignedToCurrentUser = Number(report.assigned_to_user_id) === Number(currentUser.id);
+          %>
+
           <% if (
             currentUser.role === 'koordinator' &&
-            ['diambil', 'didelegasikan'].includes(report.status_internal)
+            ['diambil', 'didelegasikan'].includes(report.status_internal) &&
+            isAssignedToCurrentUser
           ) { %>
             <div class="card app-card mb-3">
               <div class="card-header fw-semibold">Update Status Pengerjaan</div>
@@ -383,11 +404,46 @@
                 </form>
               </div>
             </div>
+          <% } else if (
+            currentUser.role === 'koordinator' &&
+            ['diambil', 'didelegasikan'].includes(report.status_internal) &&
+            !isAssignedToCurrentUser
+          ) { %>
+            <div class="card app-card mb-3 border-info-subtle bg-info-subtle bg-opacity-10">
+              <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3 py-3">
+                <div>
+                  <div class="fw-semibold text-dark mb-1">Tiket Sedang Dalam Penanganan Teknisi</div>
+                  <p class="mb-0 text-muted small">
+                    Tiket ini sedang ditangani oleh <strong><%= report.assigned_to_user_name || 'Teknisi Lapangan' %></strong> (<%= report.assigned_to_region_code || report.current_region_code || '-' %>).
+                    Koordinator berwenang memantau progres lapangan atau membatalkan penugasan aktif bila teknisi berhalangan.
+                  </p>
+                </div>
+                <span class="badge text-bg-info text-white font-monospace px-3 py-2">Mode Monitoring</span>
+              </div>
+            </div>
           <% } %>
 
           <% if (
             currentUser.role === 'koordinator' &&
-            ['tersedia', 'diambil', 'didelegasikan'].includes(report.status_internal)
+            ['diambil', 'didelegasikan'].includes(report.status_internal)
+          ) { %>
+            <div class="card app-card mb-3 border-warning-subtle">
+              <div class="card-header fw-semibold text-warning-emphasis d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <span>Delegasi Lintas Wilayah Dinonaktifkan</span>
+                <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle">Perlu Pembatalan</span>
+              </div>
+              <div class="card-body">
+                <p class="text-muted small mb-0">
+                  Tiket ini saat ini memiliki penanggung jawab aktif (<strong><%= report.assigned_to_user_name || 'Teknisi' %></strong>).
+                  Sesuai aturan operasional, Koordinator tidak dapat langsung mengalihkan penugasan. Untuk mendelegasikan ke wilayah seberang, silakan <strong>batalkan penugasan aktif</strong> di bawah ini terlebih dahulu agar status tiket kembali <em>tersedia</em>.
+                </p>
+              </div>
+            </div>
+          <% } %>
+
+          <% if (
+            currentUser.role === 'koordinator' &&
+            report.status_internal === 'tersedia'
           ) { %>
             <%
               const currentTicketRegion = report.reported_region_code || report.region_code || report.current_region_code || '-';
@@ -434,12 +490,24 @@
                         <option value="">-- Pilih pegawai eksekutor <%= oppositeRegion %> --</option>
                         <% (eksekutorUsers || []).forEach(user => { %>
                           <% if (Number(user.id) !== Number(report.assigned_to_user_id)) { %>
+                            <%
+                              const activeCount = Number(user.active_tickets) || 0;
+                              let loadNote = `${activeCount} tiket aktif`;
+                              if (activeCount === 0) {
+                                loadNote = '0 tiket aktif (Disarankan)';
+                              } else if (activeCount === 1) {
+                                loadNote = '1 tiket aktif (Beban ringan)';
+                              } else if (activeCount >= 3) {
+                                loadNote = `${activeCount} tiket aktif (Beban padat)`;
+                              }
+                            %>
                             <option
                               value="<%= user.id %>"
                               data-user-name="<%= user.full_name %>"
                               data-user-region="<%= user.region_code || '-' %>"
+                              data-active-tickets="<%= activeCount %>"
                             >
-                              <%= user.full_name %> — <%= user.region_code || '-' %>
+                              <%= user.full_name %> — <%= user.region_code || '-' %> [<%= loadNote %>]
                             </option>
                           <% } %>
                         <% }) %>

@@ -19,10 +19,32 @@ async function eksekutorDashboard(req, res) {
 
 async function koordinatorDashboard(req, res) {
   try {
-    const dashboardData = await dashboardModel.getKoordinatorDashboard();
+    const rawPeriod = typeof req.query.period === 'string' ? req.query.period.trim().toLowerCase() : 'all';
+    const allowedPeriods = ['all', 'today', 'last_7_days', 'this_week', 'custom'];
+    const period = allowedPeriods.includes(rawPeriod) ? rawPeriod : 'all';
+    const startDate = typeof req.query.startDate === 'string' ? req.query.startDate.trim() : '';
+    const endDate = typeof req.query.endDate === 'string' ? req.query.endDate.trim() : '';
+
+    const effectivePeriod = (period === 'this_week') ? 'last_7_days' : period;
+    const dateRange = buildReportDateRange(effectivePeriod, startDate, endDate);
+    const startDateTime = toMySqlDateTime(dateRange.start);
+    const endDateTime = toMySqlDateTime(dateRange.end);
+
+    const dashboardData = await dashboardModel.getKoordinatorDashboard(req.session.user, {
+      period,
+      startDate,
+      endDate,
+      startDateTime,
+      endDateTime
+    });
 
     return res.render('koordinator/dashboard', {
       title: 'Dashboard Koordinator',
+      filters: {
+        period,
+        startDate,
+        endDate
+      },
       ...dashboardData
     });
   } catch (error) {

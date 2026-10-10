@@ -896,18 +896,36 @@
     var telegramMedia = getTelegramMediaItems(payload);
     var activityLogs = getActivityLogs(payload);
 
+    var originBadge = '';
+    if (report.is_delegated) {
+      if (displayValue(report.status_internal) === 'didelegasikan') {
+        originBadge = '<span class="badge text-bg-info ms-1">Delegasi Aktif</span>';
+      } else {
+        originBadge = '<span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle ms-1">' + (report.is_cross_region ? 'Delegasi Lintas Wilayah' : 'Delegasi') + '</span>';
+      }
+    } else if (report.is_region_switch) {
+      originBadge = '<span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">Perbantuan Switch Region</span>';
+    }
+
+    var regionExtraBadge = '';
+    if (report.is_region_switch) {
+      regionExtraBadge = ' <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle ms-1">Perbantuan</span>';
+    } else if (report.is_delegated && report.is_cross_region) {
+      regionExtraBadge = ' <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle ms-1">Lintas Wilayah</span>';
+    }
+
     var overview = [
       '<div class="d-flex flex-wrap align-items-start justify-content-between gap-3 report-detail-overview">',
       '<div>',
       '<div class="text-muted small">Status Internal</div>',
-      '<div class="mt-1">',
+      '<div class="mt-1 d-flex flex-wrap align-items-center gap-1">',
       ticketStatusBadge(report.status_internal),
-      displayValue(report.status_internal) === 'didelegasikan' ? '<span class="badge text-bg-info ms-1">Delegasi Aktif</span>' : '',
+      originBadge,
       '</div>',
       '</div>',
       '<div class="text-md-end">',
       '<div class="text-muted small">Wilayah Aktif</div>',
-      '<div class="fw-semibold">' + escapeHtml(formatRegion(report.current_region_code, report.current_region_name)) + '</div>',
+      '<div class="fw-semibold">' + escapeHtml(formatRegion(report.current_region_code, report.current_region_name)) + regionExtraBadge + '</div>',
       '</div>',
       '</div>'
     ].join('');
@@ -932,8 +950,25 @@
       renderDetailField('STO', report.sto)
     ];
 
+    var assignedBadgeHtml = '';
+    if (report.is_delegated) {
+      assignedBadgeHtml = ' <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle small ms-1">' + (report.is_cross_region ? 'Delegasi Lintas Wilayah' : 'Delegasi') + '</span>';
+    } else if (report.is_region_switch) {
+      assignedBadgeHtml = ' <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle small ms-1">Switch Region</span>';
+    }
+
+    var assignedDisplay = escapeHtml(displayValue(report.assigned_user_name)) + assignedBadgeHtml;
+
+    var penugasanDesc = 'Mandiri (Wilayah Utama)';
+    if (report.is_delegated) {
+      penugasanDesc = 'Delegasi Koordinator' + (report.assigned_by_user_name ? ' (oleh ' + escapeHtml(report.assigned_by_user_name) + ')' : '');
+    } else if (report.is_region_switch) {
+      penugasanDesc = 'Perbantuan Switch Region';
+    }
+
     var statusFields = [
-      renderDetailField('Assigned To', report.assigned_user_name, { strong: true }),
+      renderDetailField('Assigned To', assignedDisplay, { html: true, strong: true }),
+      renderDetailField('Metode Penugasan', penugasanDesc, { col: 'col-12 col-md-6' }),
       renderDetailField('Status Internal', ticketStatusBadge(report.status_internal), { html: true }),
       renderDetailField('Status WFM', report.status_wfm),
       renderDetailField('Status Andalas', report.status_andalas),

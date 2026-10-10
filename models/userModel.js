@@ -73,18 +73,25 @@ async function getEksekutorUsersByRegionCode(regionCode) {
         users.username,
         users.region_id,
         regions.code AS region_code,
-        regions.name AS region_name
+        regions.name AS region_name,
+        COALESCE(SUM(CASE WHEN rep.status_internal = 'diambil' AND ra.is_active = 1 THEN 1 ELSE 0 END), 0) AS active_tickets
      FROM users
      JOIN roles ON users.role_id = roles.id
      LEFT JOIN regions ON users.region_id = regions.id
+     LEFT JOIN report_assignments ra ON ra.assigned_to_user_id = users.id AND ra.is_active = 1
+     LEFT JOIN reports rep ON rep.ticket_id = ra.ticket_id
      WHERE roles.name = 'eksekutor'
        AND users.is_active = 1
        AND regions.code = ?
-     ORDER BY users.full_name ASC`,
+     GROUP BY users.id, users.full_name, users.username, users.region_id, regions.code, regions.name
+     ORDER BY active_tickets ASC, users.full_name ASC`,
     [regionCode]
   );
 
-  return rows;
+  return rows.map((r) => ({
+    ...r,
+    active_tickets: Number(r.active_tickets) || 0
+  }));
 }
 
 async function getAllUsers() {

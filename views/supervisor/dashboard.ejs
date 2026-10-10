@@ -53,24 +53,32 @@
           <div class="mb-3">
             <ul class="nav nav-tabs supervisor-nav-tabs" role="tablist">
               <li class="nav-item" role="presentation">
-                <a class="nav-link active" href="#dashboard-ringkasan" role="tab" aria-selected="true">Ringkasan & Metrik SLA</a>
+                <a class="nav-link active" href="#dashboard-ringkasan" role="tab" aria-selected="true">
+                  <i class="bi bi-speedometer2 me-1"></i>Ringkasan & Metrik SLA
+                </a>
               </li>
               <li class="nav-item" role="presentation">
-                <a class="nav-link" href="#analisis-wilayah" role="tab" aria-selected="false">Analisis Wilayah</a>
+                <a class="nav-link" href="#analisis-wilayah" role="tab" aria-selected="false">
+                  <i class="bi bi-geo-alt me-1"></i>Analisis Wilayah
+                </a>
               </li>
               <li class="nav-item" role="presentation">
-                <a class="nav-link" href="#kinerja-eksekutor" role="tab" aria-selected="false">Kinerja Eksekutor</a>
+                <a class="nav-link" href="#kinerja-eksekutor" role="tab" aria-selected="false">
+                  <i class="bi bi-person-lines-fill me-1"></i>Kinerja Eksekutor
+                </a>
               </li>
               <li class="nav-item" role="presentation">
                 <a class="nav-link" href="#tiket-perlu-perhatian" role="tab" aria-selected="false">
-                  Tiket Perlu Perhatian
+                  <i class="bi bi-exclamation-triangle me-1"></i>Tiket Perlu Perhatian
                   <% if (attentionTickets && attentionTickets.length > 0) { %>
                     <span class="badge badge-status-escalated ms-1"><%= attentionTickets.length %></span>
                   <% } %>
                 </a>
               </li>
               <li class="nav-item" role="presentation">
-                <a class="nav-link" href="#riwayat-region-switch" role="tab" aria-selected="false">Riwayat Region Switch</a>
+                <a class="nav-link" href="#riwayat-region-switch" role="tab" aria-selected="false">
+                  <i class="bi bi-clock-history me-1"></i>Riwayat Region Switch
+                </a>
               </li>
             </ul>
           </div>
@@ -82,7 +90,9 @@
               <div class="card-body">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
                   <div>
-                    <div class="fw-semibold">Filter Pemantauan</div>
+                    <div class="fw-semibold">
+                      <i class="bi bi-funnel me-1 text-primary"></i>Filter Pemantauan
+                    </div>
                     <div class="text-muted small">Periode pemantauan berdasarkan tanggal masuk laporan (received_at).</div>
                   </div>
                 </div>
@@ -134,8 +144,12 @@
                   </div>
 
                   <div class="col-12 col-md-6 d-flex align-items-end justify-content-end gap-2">
-                    <a href="/dashboard/supervisor" class="btn btn-sm btn-outline-secondary">Reset</a>
-                    <button type="submit" class="btn btn-sm btn-primary">Terapkan Filter</button>
+                    <a href="/dashboard/supervisor" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1">
+                      <i class="bi bi-arrow-counterclockwise"></i>Reset
+                    </a>
+                    <button type="submit" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
+                      <i class="bi bi-funnel-fill"></i>Terapkan Filter
+                    </button>
                   </div>
                 </form>
 
@@ -228,57 +242,57 @@
 
               <div class="row g-3">
                 <div class="col-6 col-md-4 col-xl-2">
-                  <div class="card app-card h-100">
+                  <a href="/reports?work_status=all" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka seluruh antrean laporan">
                     <div class="card-body">
                       <div class="text-muted small">Total Laporan</div>
                       <div class="fs-4 fw-bold mb-0 text-dark"><%= summary.total_reports %></div>
                     </div>
-                  </div>
+                  </a>
                 </div>
 
                 <div class="col-6 col-md-4 col-xl-2">
-                  <div class="card app-card h-100">
+                  <a href="/reports?work_status=available" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket tersedia">
                     <div class="card-body">
                       <div class="text-muted small">Tersedia</div>
                       <div class="fs-4 fw-bold mb-0 text-status-available"><%= summary.total_available %></div>
                     </div>
-                  </div>
+                  </a>
                 </div>
 
                 <div class="col-6 col-md-4 col-xl-2">
-                  <div class="card app-card h-100">
+                  <a href="/reports?work_status=in_progress" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket sedang ditangani">
                     <div class="card-body">
                       <div class="text-muted small">Sedang Ditangani</div>
                       <div class="fs-4 fw-bold mb-0 text-status-in-progress"><%= summary.total_in_progress %></div>
                     </div>
-                  </div>
+                  </a>
                 </div>
 
                 <div class="col-6 col-md-4 col-xl-2">
-                  <div class="card app-card h-100">
+                  <a href="/reports?work_status=completed" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket selesai">
                     <div class="card-body">
                       <div class="text-muted small">Selesai</div>
                       <div class="fs-4 fw-bold mb-0 text-status-completed"><%= summary.total_completed %></div>
                     </div>
-                  </div>
+                  </a>
                 </div>
 
                 <div class="col-6 col-md-4 col-xl-2">
-                  <div class="card app-card h-100">
+                  <a href="/reports?work_status=follow_up" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket perlu tindak lanjut">
                     <div class="card-body">
                       <div class="text-muted small">Perlu Tindak Lanjut</div>
                       <div class="fs-4 fw-bold mb-0 text-status-follow-up"><%= summary.total_follow_up %></div>
                     </div>
-                  </div>
+                  </a>
                 </div>
 
                 <div class="col-6 col-md-4 col-xl-2">
-                  <div class="card app-card h-100">
+                  <a href="/reports?work_status=escalated" class="card app-card app-card-clickable h-100 text-decoration-none text-reset" title="Buka tiket eskalasi">
                     <div class="card-body">
                       <div class="text-muted small">Eskalasi</div>
                       <div class="fs-4 fw-bold mb-0 text-status-escalated"><%= summary.total_escalated %></div>
                     </div>
-                  </div>
+                  </a>
                 </div>
               </div>
             </div>
@@ -578,9 +592,23 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/app.js?v=f025-telegram-sender-identity"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script id="supervisor-dashboard-data" type="application/json"><%- JSON.stringify({ charts: charts || {} }) %></script>
+  <script id="supervisor-dashboard-filters" type="application/json"><%- JSON.stringify(filters || {}) %></script>
   <script>
-    window.SUPERVISOR_DASHBOARD_DATA = <%- JSON.stringify({ charts: charts || {} }) %>;
-    window.SUPERVISOR_DASHBOARD_FILTERS = <%- JSON.stringify(filters || {}) %>;
+    (function () {
+      function parseJsonPayload(id) {
+        var el = document.getElementById(id);
+        if (!el) return {};
+        try {
+          return JSON.parse(el.textContent || '{}');
+        } catch (e) {
+          return {};
+        }
+      }
+
+      window.SUPERVISOR_DASHBOARD_DATA = parseJsonPayload('supervisor-dashboard-data');
+      window.SUPERVISOR_DASHBOARD_FILTERS = parseJsonPayload('supervisor-dashboard-filters');
+    })();
   </script>
   <script src="/js/supervisor-dashboard.js"></script>
 </body>

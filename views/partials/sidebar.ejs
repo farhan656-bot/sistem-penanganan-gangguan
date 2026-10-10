@@ -31,33 +31,102 @@
 
       <nav class="nav nav-pills flex-column gap-1">
         <% if (role === 'super_admin') { %>
-          <a class="nav-link <%= isActive('/dashboard/super-admin') ? 'active' : '' %>" href="/dashboard/super-admin">Dashboard</a>
-          <a class="nav-link <%= isActive('/users') ? 'active' : '' %>" href="/users">Kelola User</a>
-          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Antrean Laporan</a>
-          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">Laporan Manual</a>
+          <div class="app-sidebar-section-title">Menu Utama</div>
+          <a class="nav-link <%= isActive('/dashboard/super-admin') ? 'active' : '' %>" href="/dashboard/super-admin">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="nav-link <%= isActive('/users') ? 'active' : '' %>" href="/users">
+            <i class="bi bi-people"></i>
+            <span>Kelola User</span>
+          </a>
+
+          <div class="app-sidebar-section-title mt-2">Operasional Tiket</div>
+          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Antrean Laporan</span>
+          </a>
+          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
         <% } %>
 
         <% if (role === 'supervisor') { %>
-          <a class="nav-link" href="/dashboard/supervisor#dashboard-ringkasan">Dashboard Ringkasan</a>
-          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
-          <a class="nav-link" href="/dashboard/supervisor#analisis-wilayah">Analisis Wilayah</a>
-          <a class="nav-link" href="/dashboard/supervisor#kinerja-eksekutor">Kinerja Eksekutor</a>
-          <a class="nav-link" href="/dashboard/supervisor#tiket-perlu-perhatian">Tiket Perlu Perhatian</a>
-          <a class="nav-link" href="/dashboard/supervisor#riwayat-region-switch">Riwayat Region Switch</a>
+          <div class="app-sidebar-section-title">Monitoring & KPI</div>
+          <a class="nav-link" href="/dashboard/supervisor#dashboard-ringkasan">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard Ringkasan</span>
+          </a>
+          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <a class="nav-link" href="/dashboard/supervisor#analisis-wilayah">
+            <i class="bi bi-geo-alt"></i>
+            <span>Analisis Wilayah</span>
+          </a>
+          <a class="nav-link" href="/dashboard/supervisor#kinerja-eksekutor">
+            <i class="bi bi-person-lines-fill"></i>
+            <span>Kinerja Eksekutor</span>
+          </a>
+          <a class="nav-link" href="/dashboard/supervisor#tiket-perlu-perhatian">
+            <i class="bi bi-exclamation-triangle"></i>
+            <span>Tiket Perlu Perhatian</span>
+          </a>
+          <a class="nav-link" href="/dashboard/supervisor#riwayat-region-switch">
+            <i class="bi bi-clock-history"></i>
+            <span>Riwayat Region Switch</span>
+          </a>
         <% } %>
 
         <% if (role === 'eksekutor') { %>
-          <a class="nav-link <%= isActive('/dashboard/eksekutor') ? 'active' : '' %>" href="/dashboard/eksekutor">Dashboard</a>
-          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
-          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">Laporan Manual</a>
-          <a class="nav-link <%= isActive('/region-switch/my') ? 'active' : '' %>" href="/region-switch/my">Pengajuan Switch Region</a>
+          <div class="app-sidebar-section-title">Menu Operasional</div>
+          <a class="nav-link <%= isActive('/dashboard/eksekutor') ? 'active' : '' %>" href="/dashboard/eksekutor">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
+
+          <div class="app-sidebar-section-title mt-2">Akses Wilayah</div>
+          <a class="nav-link <%= isActive('/region-switch/my') ? 'active' : '' %>" href="/region-switch/my">
+            <i class="bi bi-arrow-left-right"></i>
+            <span>Pengajuan Switch Region</span>
+          </a>
         <% } %>
 
         <% if (role === 'koordinator') { %>
-          <a class="nav-link <%= isActive('/dashboard/koordinator') ? 'active' : '' %>" href="/dashboard/koordinator">Dashboard</a>
-          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">Daftar Antrean Kerja</a>
-          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">Laporan Manual</a>
-          <a class="nav-link <%= isActive('/region-switch/pending') ? 'active' : '' %>" href="/region-switch/pending">Approval Switch Region</a>
+          <div class="app-sidebar-section-title">Menu Operasional</div>
+          <a class="nav-link <%= isActive('/dashboard/koordinator') ? 'active' : '' %>" href="/dashboard/koordinator">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="nav-link <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <a class="nav-link <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
+
+          <div class="app-sidebar-section-title mt-2">Otorisasi</div>
+          <a class="nav-link <%= isActive('/region-switch/pending') ? 'active' : '' %> d-flex align-items-center justify-content-between" href="/region-switch/pending">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-shield-check"></i>
+              <span>Approval Switch Region</span>
+            </div>
+            <% if (typeof pendingSwitchCount !== 'undefined' && pendingSwitchCount > 0) { %>
+              <span class="badge rounded-pill text-bg-warning font-monospace px-2" title="<%= pendingSwitchCount %> pengajuan menunggu persetujuan"><%= pendingSwitchCount %></span>
+            <% } %>
+          </a>
         <% } %>
       </nav>
     </div>

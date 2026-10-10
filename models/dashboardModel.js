@@ -68,7 +68,7 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
 
   summaryParams.push(userId);
 
-  const [summaryResult, assignedResult] = await Promise.all([
+  const [summaryResult, assignedResult, regionStatsResult] = await Promise.all([
     pool.query(
       `
       SELECT
@@ -109,11 +109,13 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
         reports.order_id,
         reports.summary,
         reports.status_internal,
+        reports.reported_region_id,
         reports.received_at,
         reports.taken_at,
         reports.updated_at,
         regions.code AS region_code,
         regions.name AS region_name,
+        ra.assignment_type,
         u.region_id AS assigned_user_region_id
       FROM reports
       JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
@@ -133,6 +135,21 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
       LIMIT ?
       `,
       [userId, safeAssignedLimit]
+    ),
+    pool.query(
+      `
+      SELECT
+        regions.id AS region_id,
+        regions.code AS region_code,
+        regions.name AS region_name,
+        COALESCE(SUM(reports.status_internal = 'tersedia'), 0) AS total_available,
+        COALESCE(SUM(DATE(reports.received_at) = CURDATE()), 0) AS today_incoming
+      FROM regions
+      LEFT JOIN reports ON reports.reported_region_id = regions.id
+      WHERE regions.code IN ('PDG', 'BKT')
+      GROUP BY regions.id, regions.code, regions.name
+      ORDER BY FIELD(regions.code, 'PDG', 'BKT')
+      `
     )
   ]);
 
@@ -140,6 +157,92 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
     counts[row.metric] = toNumber(row.total);
     return counts;
   }, {});
+
+  const homeRegionId = Number(currentUser.region_id);
+  const activeExtraSet = new Set(extraRegionIds.map(Number));
+
+  const regionComparison = (regionStatsResult[0] || []).map((row) => {
+    const regId = Number(row.region_id);
+    const isHome = regId === homeRegionId;
+    const isSwitched = !isHome && activeExtraSet.has(regId);
+    return {
+      region_id: regId,
+      region_code: row.region_code,
+      region_name: row.region_name,
+      total_available: toNumber(row.total_available),
+      today_incoming: toNumber(row.today_incoming),
+      is_home: isHome,
+      is_accessible: isHome || activeExtraSet.has(regId),
+      is_switched_active: isSwitched
+    };
+  });
+
+  const homeRegionStat = regionComparison.find((r) => r.is_home);
+  const otherRegionStat = regionComparison.find((r) => !r.is_home);
+
+  let switchRecommendation = {
+    type: 'balanced',
+    title: 'Beban Kerja Seimbang',
+    message: 'Distribusi tiket antar wilayah terpantau seimbang dan terkendali.',
+    actionText: null,
+    actionUrl: null,
+    badgeClass: 'text-bg-secondary'
+  };
+
+  const isSwitchedActive = Boolean(otherRegionStat && otherRegionStat.is_switched_active);
+
+  if (isSwitchedActive && otherRegionStat) {
+    switchRecommendation = {
+      type: 'switch_active',
+      title: 'Mode Perbantuan Aktif',
+      message: `Anda sedang memiliki akses sementara ke ${otherRegionStat.region_name} (berlaku hingga 23:59 WIB).`,
+      actionText: `Lihat Antrean ${otherRegionStat.region_name}`,
+      actionUrl: '/reports?work_status=available',
+      badgeClass: 'text-bg-success'
+    };
+  } else if (homeRegionStat && otherRegionStat) {
+    const homeAvailable = homeRegionStat.total_available;
+    const otherAvailable = otherRegionStat.total_available;
+
+    if (otherAvailable > homeAvailable && otherAvailable > 0) {
+      switchRecommendation = {
+        type: 'recommend_switch',
+        title: 'Disarankan Perbantuan Wilayah',
+        message: `Antrean di ${otherRegionStat.region_name} lebih tinggi (${otherAvailable} tiket menunggu penanganan) dibanding antrean ${homeRegionStat.region_name} (${homeAvailable} tiket). Pertimbangkan perbantuan wilayah.`,
+        actionText: 'Ajukan Switch Region',
+        actionUrl: '/region-switch/my',
+        badgeClass: 'text-bg-warning'
+      };
+    } else if (homeAvailable > 0) {
+      switchRecommendation = {
+        type: 'focus_home',
+        title: 'Fokus Wilayah Utama',
+        message: `Wilayah utama Anda (${homeRegionStat.region_name}) masih memiliki ${homeAvailable} tiket antrean siap diambil. Prioritaskan tiket di wilayah utama.`,
+        actionText: 'Lihat Antrean Wilayah',
+        actionUrl: '/reports?work_status=available',
+        badgeClass: 'text-bg-info'
+      };
+    }
+  }
+
+  const latestAssignedReports = (assignedResult[0] || []).map((row) => {
+    const isDelegated = row.assignment_type === 'delegation';
+    const isCrossRegion = Boolean(
+      row.reported_region_id &&
+      row.assigned_user_region_id &&
+      Number(row.reported_region_id) !== Number(row.assigned_user_region_id)
+    );
+    const isRegionSwitch = Boolean(
+      row.assignment_type === 'self_take' &&
+      isCrossRegion
+    );
+    return {
+      ...row,
+      is_delegated: isDelegated,
+      is_cross_region: isCrossRegion,
+      is_region_switch: isRegionSwitch
+    };
+  });
 
   return {
     summary: {
@@ -150,11 +253,25 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
       total_follow_up: toNumber(countByMetric.perlu_tindak_lanjut),
       total_escalated: toNumber(countByMetric.eskalasi)
     },
-    latestAssignedReports: assignedResult[0] || []
+    latestAssignedReports,
+    regionComparison,
+    switchRecommendation
   };
 }
 
-async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
+async function getKoordinatorDashboard(currentUserOrOptions = {}, options = {}) {
+  let currentUser = {};
+  let opts = {};
+
+  if (currentUserOrOptions && (currentUserOrOptions.id || currentUserOrOptions.role)) {
+    currentUser = currentUserOrOptions;
+    opts = options || {};
+  } else {
+    opts = currentUserOrOptions || {};
+  }
+  const activityLimit = opts.activityLimit || 8;
+  const currentUserId = Number(currentUser.id) || 0;
+
   const regions = await getCoordinatorRegions();
   const regionIds = uniquePositiveIds(regions.map((region) => region.id));
   const safeActivityLimit = normalizeLimit(activityLimit, 8, 20);
@@ -165,18 +282,40 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
         total_reports: 0,
         total_available: 0,
         total_in_progress: 0,
+        total_team_in_progress: 0,
+        total_my_in_progress: 0,
         total_delegated: 0,
         total_completed: 0,
         total_follow_up: 0,
         total_escalated: 0
       },
       regionSummary: [],
-      latestActivities: []
+      latestActivities: [],
+      myActiveReports: []
     };
   }
 
   const placeholders = buildPlaceholders(regionIds);
-  const [regionSummaryResult, activityResult] = await Promise.all([
+
+  let reportDateCondition = '';
+  const regionSummaryParams = [];
+  if (opts.startDateTime && opts.endDateTime) {
+    reportDateCondition = 'AND reports.received_at BETWEEN ? AND ?';
+    regionSummaryParams.push(opts.startDateTime, opts.endDateTime);
+  }
+  regionSummaryParams.push(...regionIds);
+
+  let periodTakenCondition = '';
+  let periodCompletedCondition = '';
+  const eksekutorParams = [];
+  if (opts.startDateTime && opts.endDateTime) {
+    periodTakenCondition = 'AND (ra.assigned_at BETWEEN ? AND ?)';
+    eksekutorParams.push(opts.startDateTime, opts.endDateTime);
+    periodCompletedCondition = 'AND (rep.resolved_at BETWEEN ? AND ?)';
+    eksekutorParams.push(opts.startDateTime, opts.endDateTime);
+  }
+
+  const queries = [
     pool.query(
       `
       SELECT
@@ -186,17 +325,20 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
         COUNT(reports.ticket_id) AS total_reports,
         COALESCE(SUM(reports.status_internal = 'tersedia'), 0) AS total_available,
         COALESCE(SUM(reports.status_internal = 'diambil'), 0) AS total_in_progress,
+        COALESCE(SUM(reports.status_internal = 'diambil' AND (ra.assigned_to_user_id IS NULL OR ra.assigned_to_user_id != ${currentUserId})), 0) AS total_team_in_progress,
+        COALESCE(SUM(reports.status_internal = 'diambil' AND ra.assigned_to_user_id = ${currentUserId}), 0) AS total_my_in_progress,
         COALESCE(SUM(reports.status_internal = 'didelegasikan'), 0) AS total_delegated,
         COALESCE(SUM(reports.status_internal = 'selesai'), 0) AS total_completed,
         COALESCE(SUM(reports.status_internal = 'perlu_tindak_lanjut'), 0) AS total_follow_up,
         COALESCE(SUM(reports.status_internal = 'eskalasi'), 0) AS total_escalated
       FROM regions
-      LEFT JOIN reports ON reports.reported_region_id = regions.id
+      LEFT JOIN reports ON reports.reported_region_id = regions.id ${reportDateCondition}
+      LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
       WHERE regions.id IN (${placeholders})
       GROUP BY regions.id, regions.code, regions.name
       ORDER BY FIELD(regions.code, 'PDG', 'BKT')
       `,
-      regionIds
+      regionSummaryParams
     ),
     pool.query(
       `
@@ -227,23 +369,181 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
       LIMIT ?
       `,
       [...regionIds, safeActivityLimit]
+    ),
+    pool.query(
+      `
+      SELECT
+        u.id,
+        u.full_name,
+        u.username,
+        r.code AS region_code,
+        r.name AS region_name,
+        (
+          SELECT COUNT(*)
+          FROM report_assignments ra
+          JOIN reports rep ON rep.ticket_id = ra.ticket_id
+          WHERE ra.assigned_to_user_id = u.id
+            AND ra.is_active = 1
+            AND rep.status_internal = 'diambil'
+        ) AS active_tickets,
+        (
+          SELECT COUNT(*)
+          FROM report_assignments ra
+          WHERE ra.assigned_to_user_id = u.id
+            ${periodTakenCondition}
+        ) AS period_taken,
+        (
+          SELECT COUNT(*)
+          FROM report_assignments ra
+          JOIN reports rep ON rep.ticket_id = ra.ticket_id
+          WHERE ra.assigned_to_user_id = u.id
+            AND rep.status_internal = 'selesai'
+            ${periodCompletedCondition}
+        ) AS period_completed
+      FROM users u
+      JOIN roles ro ON u.role_id = ro.id
+      JOIN regions r ON u.region_id = r.id
+      WHERE ro.name = 'eksekutor' AND r.code IN ('PDG', 'BKT') AND u.is_active = 1
+      ORDER BY FIELD(r.code, 'PDG', 'BKT'), active_tickets ASC, u.full_name ASC
+      `,
+      eksekutorParams
     )
-  ]);
+  ];
+
+  if (currentUserId > 0) {
+    queries.push(
+      pool.query(
+        `
+        SELECT
+          reports.ticket_id,
+          reports.order_id,
+          reports.summary,
+          reports.status_internal,
+          reports.received_at,
+          reports.taken_at,
+          reports.updated_at,
+          regions.code AS region_code,
+          regions.name AS region_name
+        FROM reports
+        JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
+        LEFT JOIN regions ON reports.reported_region_id = regions.id
+        WHERE ra.assigned_to_user_id = ?
+          AND reports.status_internal = 'diambil'
+        ORDER BY COALESCE(reports.taken_at, reports.updated_at, reports.received_at) DESC
+        LIMIT 5
+        `,
+        [currentUserId]
+      )
+    );
+  }
+
+  const results = await Promise.all(queries);
+  const regionSummaryResult = results[0];
+  const activityResult = results[1];
+  const eksekutorResult = results[2];
+  const myActiveResult = results[3];
 
   const regionSummary = (regionSummaryResult[0] || []).map((row) => ({
     ...row,
     total_reports: toNumber(row.total_reports),
     total_available: toNumber(row.total_available),
     total_in_progress: toNumber(row.total_in_progress),
+    total_team_in_progress: toNumber(row.total_team_in_progress),
+    total_my_in_progress: toNumber(row.total_my_in_progress),
     total_delegated: toNumber(row.total_delegated),
     total_completed: toNumber(row.total_completed),
     total_follow_up: toNumber(row.total_follow_up),
-    total_escalated: toNumber(row.total_escalated)
+    total_escalated: toNumber(row.total_escalated),
+    is_overloaded: false
   }));
+
+  // Disparity evaluation between PDG and BKT
+  const pdgStat = regionSummary.find((r) => r.region_code === 'PDG');
+  const bktStat = regionSummary.find((r) => r.region_code === 'BKT');
+  let disparityAlert = null;
+
+  if (pdgStat && bktStat) {
+    const pdgAvail = pdgStat.total_available;
+    const bktAvail = bktStat.total_available;
+    const diff = pdgAvail - bktAvail;
+
+    if (diff >= 3 && (pdgAvail >= bktAvail * 2 || bktAvail <= 2)) {
+      pdgStat.is_overloaded = true;
+      disparityAlert = {
+        overloaded_region_code: 'PDG',
+        overloaded_region_name: 'Padang',
+        overloaded_count: pdgAvail,
+        other_region_code: 'BKT',
+        other_region_name: 'Bukittinggi',
+        other_count: bktAvail,
+        difference: diff,
+        message: `Antrean tiket di wilayah Padang (PDG) tinggi (${pdgAvail} tiket tersedia) dibanding Bukittinggi (${bktAvail} tiket). Disarankan mendelegasikan tiket Padang ke teknisi Bukittinggi yang memiliki beban kerja ringan.`
+      };
+    } else if (diff <= -3 && (bktAvail >= pdgAvail * 2 || pdgAvail <= 2)) {
+      bktStat.is_overloaded = true;
+      disparityAlert = {
+        overloaded_region_code: 'BKT',
+        overloaded_region_name: 'Bukittinggi',
+        overloaded_count: bktAvail,
+        other_region_code: 'PDG',
+        other_region_name: 'Padang',
+        other_count: pdgAvail,
+        difference: Math.abs(diff),
+        message: `Antrean tiket di wilayah Bukittinggi (BKT) tinggi (${bktAvail} tiket tersedia) dibanding Padang (${pdgAvail} tiket). Disarankan mendelegasikan tiket Bukittinggi ke teknisi Padang yang memiliki beban kerja ringan.`
+      };
+    }
+  }
+
+  const eksekutorWorkload = (eksekutorResult[0] || []).map((row) => {
+    const active = toNumber(row.active_tickets);
+    let load_badge = {
+      level: 'senggang',
+      label: 'Senggang (0 Aktif)',
+      badgeClass: 'text-bg-success-subtle text-success border border-success-subtle',
+      canDelegate: true,
+      recommendation: 'Sangat Disarankan'
+    };
+    if (active === 1) {
+      load_badge = {
+        level: 'ringan',
+        label: 'Ringan (1 Aktif)',
+        badgeClass: 'text-bg-info-subtle text-info border border-info-subtle',
+        canDelegate: true,
+        recommendation: 'Siap Terima Delegasi'
+      };
+    } else if (active >= 2 && active <= 3) {
+      load_badge = {
+        level: 'sedang',
+        label: `${active} Aktif (Sedang)`,
+        badgeClass: 'text-bg-warning-subtle text-warning-emphasis border border-warning-subtle',
+        canDelegate: false,
+        recommendation: 'Sedang Beroperasi'
+      };
+    } else if (active >= 4) {
+      load_badge = {
+        level: 'padat',
+        label: `${active} Aktif (Padat)`,
+        badgeClass: 'text-bg-danger-subtle text-danger border border-danger-subtle',
+        canDelegate: false,
+        recommendation: 'Kapasitas Penuh'
+      };
+    }
+
+    return {
+      ...row,
+      active_tickets: active,
+      period_taken: toNumber(row.period_taken),
+      period_completed: toNumber(row.period_completed),
+      load_badge
+    };
+  });
+
   const summary = regionSummary.reduce((totals, row) => ({
     total_reports: totals.total_reports + row.total_reports,
     total_available: totals.total_available + row.total_available,
     total_in_progress: totals.total_in_progress + row.total_in_progress,
+    total_team_in_progress: totals.total_team_in_progress + row.total_team_in_progress,
+    total_my_in_progress: totals.total_my_in_progress + row.total_my_in_progress,
     total_delegated: totals.total_delegated + row.total_delegated,
     total_completed: totals.total_completed + row.total_completed,
     total_follow_up: totals.total_follow_up + row.total_follow_up,
@@ -252,6 +552,8 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
     total_reports: 0,
     total_available: 0,
     total_in_progress: 0,
+    total_team_in_progress: 0,
+    total_my_in_progress: 0,
     total_delegated: 0,
     total_completed: 0,
     total_follow_up: 0,
@@ -261,7 +563,10 @@ async function getKoordinatorDashboard({ activityLimit = 8 } = {}) {
   return {
     summary,
     regionSummary,
-    latestActivities: activityResult[0] || []
+    disparityAlert,
+    eksekutorWorkload,
+    latestActivities: activityResult[0] || [],
+    myActiveReports: (myActiveResult && myActiveResult[0]) || []
   };
 }
 

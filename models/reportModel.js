@@ -27,7 +27,10 @@ const PUBLIC_DIR = path.join(__dirname, '../public');
 const WORK_STATUS_STATUS_MAP = Object.freeze({
   all: null,
   available: ['baru', 'tersedia'],
-  in_progress: ['diambil', 'didelegasikan'],
+  in_progress: ['diambil'],
+  team_in_progress: ['diambil'],
+  my_in_progress: ['diambil'],
+  delegated: ['didelegasikan'],
   completed: ['selesai'],
   follow_up: ['perlu_tindak_lanjut'],
   escalated: ['eskalasi']
@@ -270,7 +273,7 @@ async function applyReportListScope(
     if (regionIds.length > 0) {
       const placeholders = buildPlaceholders(regionIds);
       sql += ` AND (
-        reports.reported_region_id IN (${placeholders})
+        (reports.status_internal IN ('baru', 'tersedia') AND reports.reported_region_id IN (${placeholders}))
         OR ra.assigned_to_user_id = ?
       ) `;
       params.push(...regionIds, currentUser.id);
@@ -300,7 +303,27 @@ async function applyReportListScope(
   return { sql, params };
 }
 
-function applyWorkStatusFilter(sql, params, workStatus) {
+function applyWorkStatusFilter(sql, params, workStatus, currentUser = null) {
+  if (workStatus === 'team_in_progress') {
+    sql += ` AND reports.status_internal = 'diambil' `;
+    if (currentUser && currentUser.id) {
+      sql += ` AND (ra.assigned_to_user_id IS NULL OR ra.assigned_to_user_id != ?) `;
+      params.push(currentUser.id);
+    }
+    return { sql, params };
+  }
+
+  if (workStatus === 'my_in_progress') {
+    sql += ` AND reports.status_internal = 'diambil' `;
+    if (currentUser && currentUser.id) {
+      sql += ` AND ra.assigned_to_user_id = ? `;
+      params.push(currentUser.id);
+    } else {
+      sql += ` AND 1=0 `;
+    }
+    return { sql, params };
+  }
+
   const statuses = WORK_STATUS_STATUS_MAP[workStatus];
 
   if (!Array.isArray(statuses) || statuses.length === 0) {
@@ -330,9 +353,12 @@ async function getReports(
       reports.sto,
       reports.summary,
       reports.status_internal,
+      reports.reported_region_id,
       ra.assigned_to_user_id,
+      ra.assignment_type,
       regions.code AS region_code,
-      users.full_name AS assigned_user_name
+      users.full_name AS assigned_user_name,
+      users.region_id AS assigned_user_home_region_id
     FROM reports
     LEFT JOIN regions ON reports.reported_region_id = regions.id
     LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
@@ -350,7 +376,8 @@ async function getReports(
   const filteredQuery = applyWorkStatusFilter(
     scopedQuery.sql,
     scopedQuery.params,
-    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
+    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all',
+    currentUser
   );
   const normalizedLimit = Number.isSafeInteger(Number(limit)) && Number(limit) > 0
     ? Number(limit)
@@ -365,6 +392,16 @@ async function getReports(
   const [rows] = await pool.query(sql, filteredQuery.params);
   for (const row of rows) {
     row.current_assigned_user_id = row.assigned_to_user_id;
+    row.is_delegated = row.assignment_type === 'delegation';
+    row.is_cross_region = Boolean(
+      row.reported_region_id &&
+      row.assigned_user_home_region_id &&
+      Number(row.reported_region_id) !== Number(row.assigned_user_home_region_id)
+    );
+    row.is_region_switch = Boolean(
+      row.assignment_type === 'self_take' &&
+      row.is_cross_region
+    );
   }
   return rows;
 }
@@ -392,7 +429,8 @@ async function getReportCount(
   const filteredQuery = applyWorkStatusFilter(
     scopedQuery.sql,
     scopedQuery.params,
-    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
+    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all',
+    currentUser
   );
   const [rows] = await pool.query(filteredQuery.sql, filteredQuery.params);
 
@@ -404,11 +442,15 @@ async function getReportWorkStatusCounts(
   currentUser,
   accessContext = null
 ) {
+  const currentUserId = Number(currentUser && currentUser.id) || 0;
   let sql = `
     SELECT
       COUNT(*) AS total_all,
       COALESCE(SUM(CASE WHEN reports.status_internal IN ('baru', 'tersedia') THEN 1 ELSE 0 END), 0) AS available,
-      COALESCE(SUM(CASE WHEN reports.status_internal IN ('diambil', 'didelegasikan') THEN 1 ELSE 0 END), 0) AS in_progress,
+      COALESCE(SUM(CASE WHEN reports.status_internal = 'diambil' THEN 1 ELSE 0 END), 0) AS in_progress,
+      COALESCE(SUM(CASE WHEN reports.status_internal = 'diambil' AND (ra.assigned_to_user_id IS NULL OR ra.assigned_to_user_id != ${currentUserId}) THEN 1 ELSE 0 END), 0) AS team_in_progress,
+      COALESCE(SUM(CASE WHEN reports.status_internal = 'diambil' AND ra.assigned_to_user_id = ${currentUserId} THEN 1 ELSE 0 END), 0) AS my_in_progress,
+      COALESCE(SUM(CASE WHEN reports.status_internal = 'didelegasikan' THEN 1 ELSE 0 END), 0) AS delegated,
       COALESCE(SUM(CASE WHEN reports.status_internal = 'selesai' THEN 1 ELSE 0 END), 0) AS completed,
       COALESCE(SUM(CASE WHEN reports.status_internal = 'perlu_tindak_lanjut' THEN 1 ELSE 0 END), 0) AS follow_up,
       COALESCE(SUM(CASE WHEN reports.status_internal = 'eskalasi' THEN 1 ELSE 0 END), 0) AS escalated
@@ -432,6 +474,9 @@ async function getReportWorkStatusCounts(
     all: Number(counts.total_all) || 0,
     available: Number(counts.available) || 0,
     in_progress: Number(counts.in_progress) || 0,
+    team_in_progress: Number(counts.team_in_progress) || 0,
+    my_in_progress: Number(counts.my_in_progress) || 0,
+    delegated: Number(counts.delegated) || 0,
     completed: Number(counts.completed) || 0,
     follow_up: Number(counts.follow_up) || 0,
     escalated: Number(counts.escalated) || 0
@@ -481,7 +526,8 @@ async function getNewReportStats(
   const filteredQuery = applyWorkStatusFilter(
     scopedQuery.sql,
     scopedQuery.params,
-    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all'
+    Object.prototype.hasOwnProperty.call(WORK_STATUS_STATUS_MAP, workStatus) ? workStatus : 'all',
+    currentUser
   );
   const [rows] = await pool.query(
     `SELECT COUNT(*) AS new_count
@@ -909,11 +955,17 @@ async function getReportByTicketId(ticketId, currentUser) {
       rr.code AS region_code,
       rr.name AS region_name,
       ra.assigned_to_user_id,
-      u.full_name AS assigned_user_name
+      ra.assignment_type,
+      ra.notes AS assignment_notes,
+      ra.assigned_at,
+      u.full_name AS assigned_user_name,
+      u.region_id AS assigned_user_home_region_id,
+      assigner.full_name AS assigned_by_user_name
     FROM reports
     LEFT JOIN regions rr ON reports.reported_region_id = rr.id
     LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
     LEFT JOIN users u ON ra.assigned_to_user_id = u.id
+    LEFT JOIN users assigner ON ra.assigned_by_user_id = assigner.id
     WHERE reports.ticket_id = ?
   `;
 
@@ -932,7 +984,7 @@ async function getReportByTicketId(ticketId, currentUser) {
     if (allowedRegionIds.length > 0) {
       const placeholders = buildPlaceholders(allowedRegionIds);
       sql += ` AND (
-        reports.reported_region_id IN (${placeholders})
+        (reports.status_internal IN ('baru', 'tersedia') AND reports.reported_region_id IN (${placeholders}))
         OR ra.assigned_to_user_id = ?
       ) `;
       params.push(...allowedRegionIds, currentUser.id);
@@ -948,6 +1000,16 @@ async function getReportByTicketId(ticketId, currentUser) {
     row.current_region_code = row.reported_region_code;
     row.current_region_name = row.reported_region_name;
     row.current_assigned_user_id = row.assigned_to_user_id;
+    row.is_delegated = row.assignment_type === 'delegation';
+    row.is_cross_region = Boolean(
+      row.reported_region_id &&
+      row.assigned_user_home_region_id &&
+      Number(row.reported_region_id) !== Number(row.assigned_user_home_region_id)
+    );
+    row.is_region_switch = Boolean(
+      row.assignment_type === 'self_take' &&
+      row.is_cross_region
+    );
   }
   return row;
 }
@@ -1030,9 +1092,16 @@ async function takeReport(ticketIdOrId, currentUser) {
       }
     }
 
+    const isCrossRegionTake = currentUserRole === 'eksekutor' &&
+      currentUser.region_id &&
+      report.reported_region_id &&
+      Number(currentUser.region_id) !== Number(report.reported_region_id);
+
     const assignmentNotes = currentUserRole === 'koordinator'
       ? 'Laporan diambil oleh koordinator untuk membantu penanganan.'
-      : 'Laporan diambil sendiri oleh eksekutor.';
+      : (isCrossRegionTake
+        ? 'Laporan diambil melalui perbantuan switch region.'
+        : 'Laporan diambil sendiri oleh eksekutor.');
 
     await connection.query(
       `
@@ -1072,7 +1141,9 @@ async function takeReport(ticketIdOrId, currentUser) {
       ticket_id: report.ticket_id,
       user_id: currentUser.id,
       action: 'take_report',
-      description: `Laporan diambil oleh ${currentUser.full_name}.`
+      description: isCrossRegionTake
+        ? `Laporan diambil oleh ${currentUser.full_name} via perbantuan switch region.`
+        : `Laporan diambil oleh ${currentUser.full_name}.`
     }, connection);
 
     await connection.commit();
@@ -1122,26 +1193,29 @@ async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
 
     if (getCurrentUserRole(currentUser) === 'koordinator') {
       await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
-    } else {
-      const [assignmentRows] = await connection.query(
-        `
-        SELECT assigned_to_user_id
-        FROM report_assignments
-        WHERE ticket_id = ?
-          AND is_active = 1
-        ORDER BY id DESC
-        LIMIT 1
-        `,
-        [report.ticket_id]
-      );
+    }
 
-      const activeAssignedUserId = assignmentRows.length > 0
-        ? assignmentRows[0].assigned_to_user_id
-        : null;
+    const [assignmentRows] = await connection.query(
+      `
+      SELECT assigned_to_user_id
+      FROM report_assignments
+      WHERE ticket_id = ?
+        AND is_active = 1
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [report.ticket_id]
+    );
 
-      if (!activeAssignedUserId || Number(activeAssignedUserId) !== Number(currentUser.id)) {
-        throw new Error('Anda bukan penanggung jawab laporan ini.');
+    const activeAssignedUserId = assignmentRows.length > 0
+      ? assignmentRows[0].assigned_to_user_id
+      : null;
+
+    if (!activeAssignedUserId || Number(activeAssignedUserId) !== Number(currentUser.id)) {
+      if (getCurrentUserRole(currentUser) === 'koordinator') {
+        throw new Error('Tiket ini sedang ditangani oleh teknisi lain. Batalkan penugasan terlebih dahulu jika ingin mengambil alih pengerjaan.');
       }
+      throw new Error('Anda bukan penanggung jawab laporan ini.');
     }
 
     const completionNotes =
@@ -1268,26 +1342,29 @@ async function markReportInProgress(ticketIdOrId, currentUser) {
 
     if (getCurrentUserRole(currentUser) === 'koordinator') {
       await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
-    } else {
-      const [assignmentRows] = await connection.query(
-        `
-        SELECT assigned_to_user_id
-        FROM report_assignments
-        WHERE ticket_id = ?
-          AND is_active = 1
-        ORDER BY id DESC
-        LIMIT 1
-        `,
-        [report.ticket_id]
-      );
+    }
 
-      const activeAssignedUserId = assignmentRows.length > 0
-        ? assignmentRows[0].assigned_to_user_id
-        : null;
+    const [assignmentRows] = await connection.query(
+      `
+      SELECT assigned_to_user_id
+      FROM report_assignments
+      WHERE ticket_id = ?
+        AND is_active = 1
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [report.ticket_id]
+    );
 
-      if (!activeAssignedUserId || Number(activeAssignedUserId) !== Number(currentUser.id)) {
-        throw new Error('Anda bukan penanggung jawab aktif laporan ini.');
+    const activeAssignedUserId = assignmentRows.length > 0
+      ? assignmentRows[0].assigned_to_user_id
+      : null;
+
+    if (!activeAssignedUserId || Number(activeAssignedUserId) !== Number(currentUser.id)) {
+      if (getCurrentUserRole(currentUser) === 'koordinator') {
+        throw new Error('Tiket ini sedang ditangani oleh teknisi lain. Batalkan penugasan terlebih dahulu jika ingin mengambil alih pengerjaan.');
       }
+      throw new Error('Anda bukan penanggung jawab aktif laporan ini.');
     }
 
     await connection.query(
@@ -1351,8 +1428,8 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
 
     await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
 
-    if (!['tersedia', 'diambil', 'didelegasikan'].includes(report.status_internal)) {
-      throw new Error('Delegasi hanya dapat dilakukan pada laporan yang tersedia atau sedang ditangani.');
+    if (report.status_internal !== 'tersedia') {
+      throw new Error('Tiket sudah memiliki penanggung jawab aktif atau tidak tersedia. Batalkan penugasan terlebih dahulu sebelum melakukan delegasi.');
     }
 
     const [targetUserRows] = await connection.query(
@@ -1413,15 +1490,8 @@ async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
       [report.ticket_id]
     );
 
-    const currentActiveUserId = activeAssignmentRows.length > 0
-      ? activeAssignmentRows[0].assigned_to_user_id
-      : null;
-
-    if (
-      currentActiveUserId &&
-      Number(currentActiveUserId) === Number(targetUserId)
-    ) {
-      throw new Error('Pegawai tujuan delegasi tidak boleh sama dengan penanggung jawab saat ini.');
+    if (activeAssignmentRows.length > 0) {
+      throw new Error('Tiket sudah memiliki penanggung jawab aktif. Batalkan penugasan terlebih dahulu sebelum melakukan delegasi.');
     }
 
     await connection.query(
