@@ -44,7 +44,12 @@
   <% } %>
 
   <% if (canContinueTicket) { %>
-    <a href="/reports/<%= report.ticket_id %>" class="btn btn-sm btn-primary">Kerjakan</a>
+    <a
+      href="/reports/<%= report.ticket_id %>"
+      class="btn btn-sm btn-primary"
+      data-report-detail-url="/reports/<%= report.ticket_id %>/detail-json"
+      data-open-action-tab="true"
+    >Kerjakan</a>
   <% } %>
 
   <% if (canDelegateTicket) { %>

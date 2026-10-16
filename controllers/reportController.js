@@ -323,6 +323,7 @@ function buildReportDetailPayload(report) {
     reported_region_name: normalizeJsonValue(report.reported_region_name),
     current_region_code: normalizeJsonValue(report.current_region_code),
     current_region_name: normalizeJsonValue(report.current_region_name),
+    assigned_to_user_id: normalizeJsonValue(report.assigned_to_user_id),
     assigned_user_name: normalizeJsonValue(report.assigned_user_name),
     assigned_user_home_region_id: normalizeJsonValue(report.assigned_user_home_region_id),
     assignment_type: normalizeJsonValue(report.assignment_type),
@@ -460,7 +461,8 @@ function splitReportAttachments(attachments) {
 async function redirectCompleteWithError(req, res, ticketId, message) {
   await cleanupUploadedFiles(req);
   req.flash('error_msg', message);
-  return res.redirect(`/reports/${ticketId}`);
+  const redirectPath = normalizeReportReturnPath(req, `/reports/${ticketId}`);
+  return res.redirect(redirectPath);
 }
 
 async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, options = {}) {
@@ -791,9 +793,33 @@ async function showReportDetailJson(req, res) {
     const telegramLogMedia = await reportModel.getTelegramAdditionalMediaByTicketId(report.ticket_id);
     const reportLogs = await reportModel.getReportLogsByTicketId(report.ticket_id);
 
+    const currentUser = req.session.user || {};
+    const currentUserId = currentUser.id ? Number(currentUser.id) : null;
+    const currentUserRole = currentUser.role ? String(currentUser.role).toLowerCase() : '';
+    const reportAssignedUserId = report.assigned_to_user_id ? Number(report.assigned_to_user_id) : null;
+    const isAssignedToCurrentUser = Boolean(
+      currentUserId &&
+      reportAssignedUserId &&
+      currentUserId === reportAssignedUserId
+    );
+    const canComplete = Boolean(
+      ['eksekutor', 'koordinator'].includes(currentUserRole) &&
+      ['diambil', 'didelegasikan'].includes(report.status_internal) &&
+      isAssignedToCurrentUser
+    );
+    const canInProgress = Boolean(
+      ['eksekutor', 'koordinator'].includes(currentUserRole) &&
+      ['diambil', 'didelegasikan'].includes(report.status_internal) &&
+      isAssignedToCurrentUser
+    );
+
     return res.json({
       success: true,
       fallbackUrl: `/reports/${report.ticket_id}`,
+      canComplete,
+      canInProgress,
+      currentUserRole,
+      currentUserId,
       report: buildReportDetailPayload(report),
       attachments: (attachments || [])
         .filter((file) => !isTelegramAttachment(file))
@@ -930,12 +956,15 @@ async function completeReport(req, res) {
     }
 
     req.flash('success_msg', result.message);
-    return res.redirect(`/reports/${report.ticket_id}`);
+    const redirectPath = normalizeReportReturnPath(req, `/reports/${report.ticket_id}`);
+    return res.redirect(redirectPath);
   } catch (error) {
     console.error(error);
     await cleanupUploadedFiles(req);
     req.flash('error_msg', error.message || 'Gagal menyelesaikan laporan.');
-    return res.redirect(report ? `/reports/${report.ticket_id}` : '/reports');
+    const fallbackPath = report ? `/reports/${report.ticket_id}` : '/reports';
+    const redirectPath = normalizeReportReturnPath(req, fallbackPath);
+    return res.redirect(redirectPath);
   }
 }
 

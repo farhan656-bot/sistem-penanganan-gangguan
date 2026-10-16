@@ -34,6 +34,20 @@
                 data-report-detail-info-tab
               >Informasi Tiket</button>
             </li>
+            <!-- TAB PENGERJAAN TIKET: Tampil di sebelah Informasi Tiket saat Eksekutor / Koordinator berwenang -->
+            <li class="nav-item d-none" role="presentation" data-report-detail-action-tab-item>
+              <button
+                class="nav-link"
+                id="report-detail-action-tab"
+                data-bs-toggle="tab"
+                data-bs-target="#report-detail-action-pane"
+                type="button"
+                role="tab"
+                aria-controls="report-detail-action-pane"
+                aria-selected="false"
+                data-report-detail-action-tab
+              ><i class="bi bi-tools me-1"></i>Pengerjaan Tiket</button>
+            </li>
             <li class="nav-item" role="presentation">
               <button
                 class="nav-link"
@@ -81,6 +95,15 @@
               tabindex="0"
               data-report-detail-info-pane
             ></div>
+            <!-- ACTION PANE FOR IN-PROGRESS & RESOLUTION -->
+            <div
+              class="tab-pane fade"
+              id="report-detail-action-pane"
+              role="tabpanel"
+              aria-labelledby="report-detail-action-tab"
+              tabindex="0"
+              data-report-detail-action-pane
+            ></div>
             <div
               class="tab-pane fade"
               id="report-detail-proof-pane"
@@ -110,7 +133,6 @@
       </div>
 
       <div class="modal-footer">
-        <a href="#" class="btn btn-outline-primary d-none" data-report-detail-fallback>Buka Halaman Detail</a>
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
       </div>
     </div>

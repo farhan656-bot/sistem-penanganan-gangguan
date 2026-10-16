@@ -1,53 +1,290 @@
 <%
   const user = (typeof currentUser !== 'undefined') ? currentUser : null;
   const role = user && user.role ? String(user.role) : null;
-  const roleBadge = roleMeta(role);
+  const roleBadge = (typeof roleMeta === 'function') ? roleMeta(role) : { label: role || '-', cls: 'text-bg-secondary' };
+  const current = (typeof activePath !== 'undefined' && activePath)
+    ? activePath
+    : (typeof currentPath !== 'undefined' && currentPath ? currentPath : '');
+
+  const isActive = (target) => {
+    if (!target) return false;
+    if (current === target) return true;
+    if (target === '/reports' && current.startsWith('/reports')) return true;
+    if (target === '/manual-reports' && current.startsWith('/manual-reports')) return true;
+    if (target === '/users' && current.startsWith('/users')) return true;
+    if (target === '/region-switch/my' && current.startsWith('/region-switch/my')) return true;
+    if (target === '/region-switch/pending' && current.startsWith('/region-switch/pending')) return true;
+    return false;
+  };
 %>
 
-<header class="app-topbar">
-  <div class="app-topbar-inner">
-    <div class="d-flex align-items-center gap-2"></div>
+<header class="app-topbar sticky-top">
+  <div class="container-fluid px-3 px-xl-4">
+    <div class="d-flex align-items-center justify-content-between py-2 gap-2">
+      
+      <!-- Brand Logo & App Title -->
+      <a href="/" class="app-brand-topbar d-flex align-items-center gap-2 text-decoration-none">
+        <div class="app-brand-mark">
+          <img
+            src="/images/telkom-logo.png"
+            alt="Telkom"
+            class="app-brand-logo"
+            onerror="this.hidden=true; this.nextElementSibling.hidden=false;"
+          >
+          <span class="app-brand-fallback" hidden>Telkom</span>
+        </div>
+        <div class="d-none d-sm-block">
+          <div class="app-brand-title">Sistem Pelaporan &amp; Monitoring</div>
+        </div>
+      </a>
 
-    <div class="d-flex align-items-center gap-3">
-      <% if (user) { %>
-        <div class="app-user-info text-end d-flex align-items-center gap-2">
-          <div class="text-end">
-            <div class="app-user-name fw-semibold"><%= user.full_name || user.username || 'User' %></div>
-            <div class="app-user-role d-inline-flex align-items-center gap-1 justify-content-end">
-              <span class="badge <%= roleBadge.cls %>"><%= roleBadge.label %></span>
-              <% if (user.region_code) { %>
-                <% if (typeof activeRegionSwitch !== 'undefined' && activeRegionSwitch) { %>
-                  <span
-                    class="badge text-bg-success d-inline-flex align-items-center gap-1"
-                    title="Switch Region Aktif: <%= user.region_code %> + <%= activeRegionSwitch.target_region_code %> (s.d <%= new Date(activeRegionSwitch.end_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) %> WIB)"
-                  >
-                    <i class="bi bi-arrow-left-right"></i>
-                    <span><%= user.region_code %> + <%= activeRegionSwitch.target_region_code %></span>
-                  </span>
-                <% } else { %>
-                  <span
-                    class="badge text-bg-light border text-secondary d-inline-flex align-items-center gap-1"
-                    title="Wilayah Utama: <%= user.region_name || user.region_code %>"
-                  >
-                    <i class="bi bi-geo-alt"></i>
-                    <span><%= user.region_code %></span>
-                  </span>
-                <% } %>
+      <!-- Center: Role-based Navigation (Pill Tabs) -->
+      <nav class="d-none d-lg-flex align-items-center gap-1 app-topbar-nav" aria-label="Navigasi Utama">
+        <% if (role === 'eksekutor') { %>
+          <a class="app-nav-pill <%= isActive('/dashboard/eksekutor') ? 'active' : '' %>" href="/dashboard/eksekutor">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/region-switch/my') ? 'active' : '' %>" href="/region-switch/my">
+            <i class="bi bi-arrow-left-right"></i>
+            <span>Pengajuan Switch Region</span>
+          </a>
+        <% } %>
+
+        <% if (role === 'koordinator') { %>
+          <a class="app-nav-pill <%= isActive('/dashboard/koordinator') ? 'active' : '' %>" href="/dashboard/koordinator">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/region-switch/pending') ? 'active' : '' %>" href="/region-switch/pending">
+            <i class="bi bi-shield-check"></i>
+            <span>Approval Switch Region</span>
+            <% if (typeof pendingSwitchCount !== 'undefined' && pendingSwitchCount > 0) { %>
+              <span class="badge rounded-pill text-bg-warning font-monospace px-2 ms-1" title="<%= pendingSwitchCount %> pengajuan menunggu persetujuan"><%= pendingSwitchCount %></span>
+            <% } %>
+          </a>
+        <% } %>
+
+        <% if (role === 'super_admin') { %>
+          <a class="app-nav-pill <%= isActive('/dashboard/super-admin') ? 'active' : '' %>" href="/dashboard/super-admin">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/users') ? 'active' : '' %>" href="/users">
+            <i class="bi bi-people"></i>
+            <span>Kelola User</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Antrean Laporan</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
+        <% } %>
+
+        <% if (role === 'supervisor') { %>
+          <a class="app-nav-pill <%= isActive('/dashboard/supervisor') ? 'active' : '' %>" href="/dashboard/supervisor#dashboard-ringkasan">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard Ringkasan</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <div class="dropdown d-inline-block">
+            <button class="app-nav-pill dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-graph-up-arrow"></i>
+              <span>Analisis &amp; KPI</span>
+              <% if (typeof attentionTicketsCount !== 'undefined' && attentionTicketsCount > 0) { %>
+                <span class="badge badge-status-escalated ms-1 px-1" style="font-size: 0.65rem;" title="<%= attentionTicketsCount %> tiket perlu perhatian"><%= attentionTicketsCount %></span>
               <% } %>
+            </button>
+            <ul class="dropdown-menu shadow-sm border py-1">
+              <li><a class="dropdown-item py-2" href="/dashboard/supervisor#analisis-wilayah"><i class="bi bi-geo-alt me-2 text-secondary"></i>Analisis Wilayah</a></li>
+              <li><a class="dropdown-item py-2" href="/dashboard/supervisor#kinerja-eksekutor"><i class="bi bi-person-lines-fill me-2 text-secondary"></i>Kinerja Eksekutor</a></li>
+              <li>
+                <a class="dropdown-item py-2 d-flex align-items-center justify-content-between" href="/dashboard/supervisor#tiket-perlu-perhatian">
+                  <span><i class="bi bi-exclamation-triangle me-2 text-warning"></i>Tiket Perlu Perhatian</span>
+                  <% if (typeof attentionTicketsCount !== 'undefined' && attentionTicketsCount > 0) { %>
+                    <span class="badge badge-status-escalated ms-2"><%= attentionTicketsCount %></span>
+                  <% } %>
+                </a>
+              </li>
+              <li><a class="dropdown-item py-2" href="/dashboard/supervisor#riwayat-region-switch"><i class="bi bi-clock-history me-2 text-info"></i>Riwayat Region Switch</a></li>
+            </ul>
+          </div>
+        <% } %>
+      </nav>
+
+      <!-- Right: User Info & Logout Button -->
+      <div class="d-flex align-items-center gap-2 gap-sm-3">
+        <% if (user) { %>
+          <div class="app-user-info text-end d-flex align-items-center gap-2">
+            <div class="text-end">
+              <div class="app-user-name fw-semibold"><%= user.full_name || user.username || 'User' %></div>
+              <div class="app-user-role d-inline-flex align-items-center gap-1 justify-content-end">
+                <span class="badge <%= roleBadge.cls %>"><%= roleBadge.label %></span>
+                <% if (user.region_code) { %>
+                  <% if (typeof activeRegionSwitch !== 'undefined' && activeRegionSwitch) { %>
+                    <span
+                      class="badge text-bg-success d-inline-flex align-items-center gap-1"
+                      title="Switch Region Aktif: <%= user.region_code %> + <%= activeRegionSwitch.target_region_code %> (s.d <%= new Date(activeRegionSwitch.end_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) %> WIB)"
+                    >
+                      <i class="bi bi-arrow-left-right"></i>
+                      <span><%= user.region_code %> + <%= activeRegionSwitch.target_region_code %></span>
+                    </span>
+                  <% } else { %>
+                    <span
+                      class="badge text-bg-light border text-secondary d-inline-flex align-items-center gap-1"
+                      title="Wilayah Utama: <%= user.region_name || user.region_code %>"
+                    >
+                      <i class="bi bi-geo-alt"></i>
+                      <span><%= user.region_code %></span>
+                    </span>
+                  <% } %>
+                <% } %>
+              </div>
+            </div>
+            <div class="app-user-avatar text-secondary">
+              <i class="bi bi-person-circle fs-4"></i>
             </div>
           </div>
-          <div class="app-user-avatar text-secondary">
-            <i class="bi bi-person-circle fs-4"></i>
-          </div>
-        </div>
-      <% } %>
+        <% } %>
 
-      <form action="/auth/logout" method="POST" class="m-0">
-        <button type="submit" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1" title="Keluar dari sistem">
-          <i class="bi bi-box-arrow-right"></i>
-          <span class="d-none d-sm-inline">Logout</span>
+        <form action="/auth/logout" method="POST" class="m-0">
+          <button type="submit" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1" title="Keluar dari sistem">
+            <i class="bi bi-box-arrow-right"></i>
+            <span class="d-none d-sm-inline">Logout</span>
+          </button>
+        </form>
+
+        <!-- Mobile Menu Toggle Button (visible on < lg) -->
+        <button
+          class="btn btn-sm btn-light border d-lg-none p-1 px-2"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#appMobileNav"
+          aria-controls="appMobileNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <i class="bi bi-list fs-5"></i>
         </button>
-      </form>
+      </div>
+
     </div>
+
+    <!-- Mobile Navigation Drawer (collapsible on < lg) -->
+    <div class="collapse d-lg-none border-top py-2" id="appMobileNav">
+      <nav class="d-flex flex-column gap-1">
+        <% if (role === 'eksekutor') { %>
+          <a class="app-nav-pill <%= isActive('/dashboard/eksekutor') ? 'active' : '' %>" href="/dashboard/eksekutor">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/region-switch/my') ? 'active' : '' %>" href="/region-switch/my">
+            <i class="bi bi-arrow-left-right"></i>
+            <span>Pengajuan Switch Region</span>
+          </a>
+        <% } %>
+
+        <% if (role === 'koordinator') { %>
+          <a class="app-nav-pill <%= isActive('/dashboard/koordinator') ? 'active' : '' %>" href="/dashboard/koordinator">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/region-switch/pending') ? 'active' : '' %>" href="/region-switch/pending">
+            <i class="bi bi-shield-check"></i>
+            <span>Approval Switch Region</span>
+            <% if (typeof pendingSwitchCount !== 'undefined' && pendingSwitchCount > 0) { %>
+              <span class="badge rounded-pill text-bg-warning font-monospace px-2 ms-1"><%= pendingSwitchCount %></span>
+            <% } %>
+          </a>
+        <% } %>
+
+        <% if (role === 'super_admin') { %>
+          <a class="app-nav-pill <%= isActive('/dashboard/super-admin') ? 'active' : '' %>" href="/dashboard/super-admin">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/users') ? 'active' : '' %>" href="/users">
+            <i class="bi bi-people"></i>
+            <span>Kelola User</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Antrean Laporan</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/manual-reports') ? 'active' : '' %>" href="/manual-reports">
+            <i class="bi bi-pencil-square"></i>
+            <span>Laporan Manual</span>
+          </a>
+        <% } %>
+
+        <% if (role === 'supervisor') { %>
+          <a class="app-nav-pill <%= isActive('/dashboard/supervisor') ? 'active' : '' %>" href="/dashboard/supervisor#dashboard-ringkasan">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard Ringkasan</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
+            <i class="bi bi-ticket-perforated"></i>
+            <span>Daftar Antrean Kerja</span>
+          </a>
+          <a class="app-nav-pill" href="/dashboard/supervisor#analisis-wilayah">
+            <i class="bi bi-geo-alt"></i>
+            <span>Analisis Wilayah</span>
+          </a>
+          <a class="app-nav-pill" href="/dashboard/supervisor#kinerja-eksekutor">
+            <i class="bi bi-person-lines-fill"></i>
+            <span>Kinerja Eksekutor</span>
+          </a>
+          <a class="app-nav-pill d-flex align-items-center justify-content-between" href="/dashboard/supervisor#tiket-perlu-perhatian">
+            <span><i class="bi bi-exclamation-triangle me-1"></i>Tiket Perlu Perhatian</span>
+            <% if (typeof attentionTicketsCount !== 'undefined' && attentionTicketsCount > 0) { %>
+              <span class="badge badge-status-escalated ms-2"><%= attentionTicketsCount %></span>
+            <% } %>
+          </a>
+          <a class="app-nav-pill" href="/dashboard/supervisor#riwayat-region-switch">
+            <i class="bi bi-clock-history"></i>
+            <span>Riwayat Region Switch</span>
+          </a>
+        <% } %>
+      </nav>
+    </div>
+
   </div>
 </header>

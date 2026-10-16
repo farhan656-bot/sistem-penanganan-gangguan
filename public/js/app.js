@@ -856,22 +856,37 @@
     }).join('');
   }
 
-  function renderActivityLogItem(log) {
+  function renderActivityLogItem(log, index, total) {
     var item = typeof log === 'string' ? { description: log } : (log || {});
     var action = displayValue(item.action || item.event || item.type || 'Aktivitas');
     var actor = displayValue(item.actor_name || item.user_name || item.full_name || item.created_by_name);
     var description = displayValue(item.description || item.message || item.notes);
     var createdAt = item.created_at || item.timestamp || item.time;
-    var actorHtml = actor !== '-' ? '<div class="small text-muted">Pelaku: ' + escapeHtml(actor) + '</div>' : '';
+    var isLatest = index === total - 1;
+
+    var actorHtml = actor !== '-'
+      ? '<span class="badge text-bg-light border text-secondary small fw-normal"><i class="bi bi-person me-1"></i>Pelaku: ' + escapeHtml(actor) + '</span>'
+      : '';
     var descriptionHtml = description !== '-'
-      ? '<div class="app-modal-prewrap mt-1">' + escapeHtml(description) + '</div>'
-      : '<div class="text-muted mt-1">Tidak ada catatan aktivitas.</div>';
+      ? '<div class="app-modal-prewrap mt-1 text-dark small">' + escapeHtml(description) + '</div>'
+      : '<div class="text-muted mt-1 small fst-italic">Tidak ada catatan aktivitas.</div>';
+
+    var latestBadge = isLatest
+      ? '<span class="badge text-bg-danger ms-2 fw-medium" style="font-size: 0.68rem; vertical-align: middle;"><span class="spinner-grow spinner-grow-sm me-1" style="width: 0.38rem; height: 0.38rem;" role="status"></span>Terbaru</span>'
+      : '';
 
     return [
-      '<div class="report-detail-log-item">',
-      '<div class="small text-muted">' + escapeHtml(formatDateTime(createdAt)) + '</div>',
+      '<div class="report-detail-timeline-item' + (isLatest ? ' is-latest' : '') + '">',
+      '<div class="report-detail-timeline-marker">',
+      '<div class="report-detail-timeline-dot" title="' + (isLatest ? 'Aktivitas Terbaru' : 'Aktivitas') + '"></div>',
+      '</div>',
+      '<div class="report-detail-timeline-content">',
+      '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2">',
+      '<div class="small text-muted font-monospace"><i class="bi bi-clock me-1"></i>' + escapeHtml(formatDateTime(createdAt)) + latestBadge + '</div>',
       actorHtml,
+      '</div>',
       descriptionHtml,
+      '</div>',
       '</div>'
     ].join('');
   }
@@ -883,9 +898,12 @@
       return renderEmptyState('Belum ada riwayat aktivitas yang tersedia untuk detail modal ini.');
     }
 
+    var total = safeLogs.length;
     return [
-      '<div class="report-detail-log-list">',
-      safeLogs.map(renderActivityLogItem).join(''),
+      '<div class="report-detail-timeline">',
+      safeLogs.map(function (log, idx) {
+        return renderActivityLogItem(log, idx, total);
+      }).join(''),
       '</div>'
     ].join('');
   }
@@ -1016,6 +1034,168 @@
     };
   }
 
+  function renderDetailActionForm(payload) {
+    var report = payload.report || {};
+    var ticketId = escapeHtml(displayValue(report.ticket_id));
+    var isTicketTaken = ['diambil', 'didelegasikan'].indexOf(report.status_internal) >= 0;
+
+    var inProgressHtml = '';
+    if (payload.canInProgress && isTicketTaken) {
+      inProgressHtml = [
+        '<div class="card app-card mb-3 border">',
+        '<div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">',
+        '<div>',
+        '<div class="fw-semibold text-dark mb-1">Mulai Penanganan Lapangan</div>',
+        '<p class="mb-0 text-muted small">Tandai status tiket menjadi Sedang Dikerjakan agar status diperbarui dan notifikasi terkirim ke pelapor Telegram.</p>',
+        '</div>',
+        '<form action="/reports/' + ticketId + '/in-progress" method="POST" class="m-0" data-ticket-quick-action data-action-type="in-progress" data-ticket-id="' + ticketId + '">',
+        '<input type="hidden" name="return_to" value="/reports">',
+        '<button type="submit" class="btn btn-warning fw-semibold px-3" onclick="return confirm(\'Tandai tiket sedang dikerjakan?\');">',
+        'Tandai In Progress',
+        '</button>',
+        '</form>',
+        '</div>',
+        '</div>'
+      ].join('');
+    }
+
+    var completionHtml = [
+      '<div class="card app-card border">',
+      '<div class="card-header bg-light fw-semibold">',
+      'Konfirmasi Penyelesaian Laporan',
+      '</div>',
+      '<div class="card-body">',
+      '<p class="text-muted small mb-3">',
+      'Pilih status akhir penanganan gangguan. Catatan dan bukti penyelesaian bersifat opsional kecuali jika status penanganan memerlukan tindak lanjut khusus.',
+      '</p>',
+      '<form action="/reports/' + ticketId + '/complete" method="POST" enctype="multipart/form-data" data-completion-form>',
+      '<input type="hidden" name="return_to" value="/reports">',
+      '<div class="mb-3">',
+      '<label class="form-label fw-semibold" for="modal_completion_status">',
+      'Status Akhir Penanganan <span class="app-required">*</span>',
+      '</label>',
+      '<select id="modal_completion_status" name="completion_status" class="form-select" required data-completion-status>',
+      '<option value="">Pilih status akhir penanganan</option>',
+      '<option value="selesai">Selesai</option>',
+      '<option value="perlu_tindak_lanjut">Perlu Tindak Lanjut</option>',
+      '<option value="eskalasi">Eskalasi</option>',
+      '</select>',
+      '<div class="form-text">',
+      'Pilih \'Selesai\' untuk gangguan tertangani, \'Perlu Tindak Lanjut\' jika butuh tindak lanjut teknis lanjutan, atau \'Eskalasi\' untuk kendala eksternal.',
+      '</div>',
+      '</div>',
+      '<div class="mb-3 d-none" data-diit-code-group>',
+      '<div class="p-3 border rounded bg-light">',
+      '<label class="form-label fw-semibold text-danger" for="modal_diit_code">',
+      'Kode DIIT Eskalasi <span class="app-required">*</span>',
+      '</label>',
+      '<input type="text" id="modal_diit_code" name="diit_code" class="form-control font-monospace" placeholder="Contoh: DIIT-2026-..." maxlength="100" autocomplete="off" data-diit-code>',
+      '<div class="form-text text-muted">',
+      'Wajib diisi saat status Eskalasi. Masukkan kode rujukan penanganan DIIT dari unit eksternal.',
+      '</div>',
+      '</div>',
+      '</div>',
+      '<div class="mb-3">',
+      '<div class="d-flex align-items-center justify-content-between mb-1">',
+      '<label class="form-label fw-semibold mb-0" for="modal_completion_notes">',
+      'Catatan Penyelesaian <span class="app-required d-none" data-completion-notes-required>*</span>',
+      '</label>',
+      '<span class="badge text-bg-light border text-muted small fw-normal">Opsional</span>',
+      '</div>',
+      '<textarea id="modal_completion_notes" name="completion_notes" class="form-control" rows="3" placeholder="Tuliskan ringkasan tindakan atau hasil penanganan di lapangan..." data-completion-notes></textarea>',
+      '<div class="form-text">',
+      'Opsional untuk status Selesai dan Eskalasi. Wajib diisi jika status Perlu Tindak Lanjut agar catatan feedback tersampaikan ke pelapor Telegram.',
+      '</div>',
+      '</div>',
+      '<div class="mb-4">',
+      '<div class="d-flex align-items-center justify-content-between mb-1">',
+      '<label class="form-label fw-semibold mb-0" for="modal_proof_file">',
+      'Bukti Penanganan / Evidence',
+      '</label>',
+      '<span class="badge text-bg-light border text-muted small fw-normal">Opsional</span>',
+      '</div>',
+      '<p class="text-muted small mb-2">',
+      'Unggah berkas atau tempel screenshot dari clipboard jika tersedia dokumentasi lapangan.',
+      '</p>',
+      '<div class="mb-2">',
+      '<input type="file" id="modal_proof_file" name="proof_file" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple data-proof-file-input>',
+      '<div class="form-text">',
+      'Format yang didukung: JPG, JPEG, PNG, WEBP, atau PDF. Maksimal 5 berkas (ukuran maks. 5 MB per berkas).',
+      '</div>',
+      '</div>',
+      '<div class="completion-evidence-paste mt-2" tabindex="0" role="button" aria-label="Area paste screenshot bukti penyelesaian" data-evidence-paste-area>',
+      '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2">',
+      '<div class="fw-semibold text-dark">Area Paste Screenshot Clipboard</div>',
+      '<span class="badge text-bg-light border text-muted small fw-normal">Ctrl + V</span>',
+      '</div>',
+      '<div class="small text-muted mt-1">',
+      'Klik di area ini lalu tekan <kbd class="bg-light text-dark border">Ctrl</kbd> + <kbd class="bg-light text-dark border">V</kbd> untuk menempelkan tangkapan layar langsung dari clipboard.',
+      '</div>',
+      '<div class="small mt-2 text-muted fw-medium" aria-live="polite" data-evidence-paste-status>',
+      'Belum ada screenshot yang ditempel.',
+      '</div>',
+      '<div class="completion-evidence-preview d-none mt-3" data-evidence-preview>',
+      '<div class="d-flex align-items-start gap-3">',
+      '<img src="" alt="Preview bukti penyelesaian" class="completion-evidence-preview-image d-none" data-evidence-preview-image>',
+      '<div class="min-w-0 flex-grow-1">',
+      '<div class="fw-semibold text-truncate" data-evidence-file-name></div>',
+      '<div class="small text-muted" data-evidence-file-size></div>',
+      '<div class="small text-muted" data-evidence-file-note></div>',
+      '</div>',
+      '<button type="button" class="btn btn-sm btn-outline-danger" data-evidence-clear>Hapus</button>',
+      '</div>',
+      '</div>',
+      '</div>',
+      '</div>',
+      '<div class="d-flex align-items-center justify-content-between pt-3 border-top">',
+      '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>',
+      '<button type="submit" class="btn btn-success fw-semibold px-4" onclick="return confirm(\'Yakin ingin menyelesaikan laporan ini?\');">',
+      'Konfirmasi Selesai',
+      '</button>',
+      '</div>',
+      '</form>',
+      '</div>',
+      '</div>'
+    ].join('');
+
+    return inProgressHtml + completionHtml;
+  }
+
+  function bindModalCompletionValidation(form) {
+    if (!form || form.dataset.modalValidationBound === '1') return;
+    form.dataset.modalValidationBound = '1';
+
+    var statusField = form.querySelector('[data-completion-status]');
+    var notesField = form.querySelector('[data-completion-notes]');
+    var notesRequiredIndicator = form.querySelector('[data-completion-notes-required]');
+    var diitCodeGroup = form.querySelector('[data-diit-code-group]');
+    var diitCodeField = form.querySelector('[data-diit-code]');
+    if (!statusField || !notesField) return;
+
+    function syncModalCompletionRequirements() {
+      var requiresNotes = statusField.value === 'perlu_tindak_lanjut';
+      var requiresDiitCode = statusField.value === 'eskalasi';
+
+      notesField.required = Boolean(requiresNotes);
+      if (notesRequiredIndicator) {
+        notesRequiredIndicator.classList.toggle('d-none', !requiresNotes);
+      }
+
+      if (diitCodeGroup && diitCodeField) {
+        diitCodeGroup.classList.toggle('d-none', !requiresDiitCode);
+        diitCodeField.required = requiresDiitCode;
+        diitCodeField.disabled = !requiresDiitCode;
+
+        if (!requiresDiitCode) {
+          diitCodeField.value = '';
+        }
+      }
+    }
+
+    statusField.addEventListener('change', syncModalCompletionRequirements);
+    syncModalCompletionRequirements();
+  }
+
   function setupReportDetailModal() {
     var modalEl = document.getElementById('reportDetailModal');
     if (!modalEl || modalEl.dataset.reportDetailBound === '1') return;
@@ -1030,8 +1210,11 @@
     var proofPaneEl = modalEl.querySelector('[data-report-detail-proof-pane]');
     var telegramPaneEl = modalEl.querySelector('[data-report-detail-telegram-pane]');
     var activityPaneEl = modalEl.querySelector('[data-report-detail-activity-pane]');
+    var actionTabItemEl = modalEl.querySelector('[data-report-detail-action-tab-item]');
+    var actionTabEl = modalEl.querySelector('[data-report-detail-action-tab]');
+    var actionPaneEl = modalEl.querySelector('[data-report-detail-action-pane]');
 
-    if (!loadingEl || !errorEl || !contentEl || !subtitleEl || !fallbackEl || !infoTabEl || !infoPaneEl || !proofPaneEl || !telegramPaneEl || !activityPaneEl) return;
+    if (!loadingEl || !errorEl || !contentEl || !subtitleEl || !infoTabEl || !infoPaneEl || !proofPaneEl || !telegramPaneEl || !activityPaneEl) return;
 
     modalEl.dataset.reportDetailBound = '1';
     var activeDetailRequestId = 0;
@@ -1041,6 +1224,7 @@
       proofPaneEl.innerHTML = '';
       telegramPaneEl.innerHTML = '';
       activityPaneEl.innerHTML = '';
+      if (actionPaneEl) actionPaneEl.innerHTML = '';
     }
 
     function resetActiveTab() {
@@ -1052,21 +1236,25 @@
       loadingEl.classList.remove('d-none');
       errorEl.classList.add('d-none');
       contentEl.classList.add('d-none');
+      if (actionTabItemEl) actionTabItemEl.classList.add('d-none');
       clearDetailPanes();
       resetActiveTab();
       subtitleEl.textContent = 'Memuat data laporan...';
-      fallbackEl.href = fallbackUrl || '#';
-      fallbackEl.classList.toggle('d-none', !fallbackUrl);
+      if (fallbackEl) {
+        fallbackEl.href = fallbackUrl || '#';
+        fallbackEl.classList.toggle('d-none', !fallbackUrl);
+      }
     }
 
     function showError(message) {
       loadingEl.classList.add('d-none');
       contentEl.classList.add('d-none');
+      if (actionTabItemEl) actionTabItemEl.classList.add('d-none');
       errorEl.textContent = message || 'Gagal memuat detail laporan.';
       errorEl.classList.remove('d-none');
     }
 
-    function showContent(payload) {
+    function showContent(payload, shouldOpenActionTab) {
       var report = payload.report || {};
       var detailHtml = renderReportDetail(payload);
       loadingEl.classList.add('d-none');
@@ -1075,11 +1263,38 @@
       proofPaneEl.innerHTML = detailHtml.proof;
       telegramPaneEl.innerHTML = detailHtml.telegram;
       activityPaneEl.innerHTML = detailHtml.activity;
-      resetActiveTab();
+
+      var hasActionPermission = Boolean(payload.canComplete || payload.canInProgress);
+      if (hasActionPermission && actionPaneEl && actionTabItemEl) {
+        actionTabItemEl.classList.remove('d-none');
+        actionPaneEl.innerHTML = renderDetailActionForm(payload);
+
+        var compForm = actionPaneEl.querySelector('[data-completion-form]');
+        if (compForm) {
+          bindCompletionEvidencePasteUpload(compForm);
+          bindModalCompletionValidation(compForm);
+        }
+
+        var quickForm = actionPaneEl.querySelector('[data-ticket-quick-action]');
+        if (quickForm) {
+          bindQuickTicketAction(quickForm);
+        }
+
+        if (shouldOpenActionTab && actionTabEl && window.bootstrap && window.bootstrap.Tab) {
+          window.bootstrap.Tab.getOrCreateInstance(actionTabEl).show();
+        } else {
+          resetActiveTab();
+        }
+      } else {
+        if (actionTabItemEl) actionTabItemEl.classList.add('d-none');
+        if (actionPaneEl) actionPaneEl.innerHTML = '';
+        resetActiveTab();
+      }
+
       contentEl.classList.remove('d-none');
       subtitleEl.textContent = 'Ticket ID: ' + displayValue(report.ticket_id);
 
-      if (payload.fallbackUrl) {
+      if (fallbackEl && payload.fallbackUrl) {
         fallbackEl.href = payload.fallbackUrl;
         fallbackEl.classList.remove('d-none');
       }
@@ -1102,6 +1317,7 @@
 
       var detailUrl = button.getAttribute('data-report-detail-url');
       var fallbackUrl = button.getAttribute('href') || '';
+      var shouldOpenActionTab = button.getAttribute('data-open-action-tab') === 'true';
 
       if (!detailUrl) return;
 
@@ -1133,7 +1349,7 @@
           if (!payload || payload.success === false) {
             throw new Error(payload && payload.message ? payload.message : 'Gagal memuat detail laporan.');
           }
-          showContent(payload);
+          showContent(payload, shouldOpenActionTab);
         })
         .catch(function (error) {
           if (requestId !== activeDetailRequestId) return;
@@ -1414,10 +1630,10 @@
   }
 
   function updateSidebarHashActive() {
-    var sidebar = document.querySelector('.app-sidebar');
-    if (!sidebar) return;
+    var navContainer = document.querySelector('.app-topbar') || document.querySelector('.app-sidebar');
+    if (!navContainer) return;
 
-    var hashLinks = Array.prototype.slice.call(sidebar.querySelectorAll('a.nav-link[href*="#"]'));
+    var hashLinks = Array.prototype.slice.call(navContainer.querySelectorAll('a[href*="#"]'));
     if (hashLinks.length === 0) return;
 
     var currentPath = normalizePathname(window.location.pathname);
@@ -1435,6 +1651,8 @@
 
     if (relevant.length === 0) return;
 
+    var dropdownHasActiveChild = false;
+
     for (var j = 0; j < relevant.length; j += 1) {
       var a = relevant[j];
       try {
@@ -1444,9 +1662,18 @@
         else a.classList.remove('active');
         if (isActive) a.setAttribute('aria-current', 'page');
         else a.removeAttribute('aria-current');
+
+        if (isActive && a.closest('.dropdown-menu')) {
+          dropdownHasActiveChild = true;
+        }
       } catch (e2) {
         // ignore individual link errors
       }
+    }
+
+    var dropdownToggles = Array.prototype.slice.call(navContainer.querySelectorAll('.dropdown > .dropdown-toggle'));
+    for (var k = 0; k < dropdownToggles.length; k += 1) {
+      dropdownToggles[k].classList.toggle('active', dropdownHasActiveChild);
     }
   }
 

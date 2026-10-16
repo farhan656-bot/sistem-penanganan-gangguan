@@ -5,9 +5,9 @@
 %>
 
 <div class="card app-card">
-  <div class="card-body">
+  <div class="card-body p-0">
     <div class="table-responsive">
-      <table class="table table-hover align-middle">
+      <table class="table table-hover align-middle mb-0">
         <thead>
           <tr>
             <th class="app-col-num">No</th>
@@ -97,6 +97,6 @@
       </table>
     </div>
 
-    <%- include('./report-pagination', { pagination, filters: selectedFilters }) %>
+    <div class="p-3 pt-2 border-top"><%- include('./report-pagination', { pagination, filters: selectedFilters }) %></div>
   </div>
 </div>
