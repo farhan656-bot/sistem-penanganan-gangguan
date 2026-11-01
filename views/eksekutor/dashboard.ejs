@@ -173,6 +173,9 @@
                             </td>
                             <td>
                               <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                              <% if (report.is_resubmitted) { %>
+                                <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle d-block mt-1" style="font-size: 0.7rem;" title="Laporan telah diperbaiki dan dikirim ulang oleh pelapor"><i class="bi bi-arrow-repeat me-1"></i>Resubmit</span>
+                              <% } %>
                               <% if (report.status_internal === 'didelegasikan') { %>
                                 <span class="badge text-bg-info d-block mt-1">Delegasi Aktif</span>
                               <% } else if (report.is_delegated) { %>

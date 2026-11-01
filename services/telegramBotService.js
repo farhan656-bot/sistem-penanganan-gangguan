@@ -10,6 +10,7 @@ const {
   extractTicketIdFromText,
   buildFormatExample,
   parseTelegramEnrichmentMessage,
+  parseTelegramAllFields,
   hasCoreIntakeStructure
 } = require('../utils/telegramParser');
 
@@ -133,6 +134,37 @@ async function handleTextEnrichment(bot, message, text, enrichmentParsed) {
   }
 
   await bot.sendMessage(chatId, buildEnrichmentNoChangeReply(result.ticketId));
+  return true;
+}
+
+async function handleFollowUpResubmission(bot, message, text, report, incomingFields = {}, telegramMeta = null, attachedFiles = []) {
+  const chatId = message.chat.id;
+  const meta = telegramMeta || getTelegramMetaFromMessage(message);
+
+  const result = await reportModel.resubmitFollowUpReport(report.ticket_id, {
+    fields: incomingFields,
+    raw_text: text,
+    telegram_meta: meta
+  });
+
+  const fieldList = result.updatedFields && result.updatedFields.length > 0
+    ? result.updatedFields.join(', ')
+    : 'Data dikonfirmasi ulang';
+
+  const replyLines = [
+    'PERBAIKAN LAPORAN DITERIMA (RESUBMIT)',
+    `Tiket: ${report.ticket_id}`,
+    `Order ID: ${result.orderId || report.order_id || '-'}`,
+    '',
+    'Status tiket telah dikembalikan ke antrean kerja (TERSEDIA) untuk ditangani kembali oleh tim HD Data Management.',
+    `Field diperbarui: ${fieldList}`
+  ];
+
+  if (attachedFiles.length > 0) {
+    replyLines.push(`Lampiran bukti: ${attachedFiles.join(', ')}`);
+  }
+
+  await bot.sendMessage(chatId, replyLines.join('\n'));
   return true;
 }
 
@@ -383,6 +415,21 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
       uploaded_by_user_id: null
     });
 
+    if (report.status_internal === 'perlu_tindak_lanjut') {
+      const allParsed = parseTelegramAllFields(text);
+      const telegramMeta = getTelegramMetaFromMessage(message);
+      await handleFollowUpResubmission(
+        bot,
+        message,
+        text,
+        report,
+        allParsed.fields,
+        telegramMeta,
+        [persistedMedia.original_name]
+      );
+      return;
+    }
+
     await bot.sendMessage(chatId, `Media Telegram berhasil disatukan ke tiket: ${report.ticket_id}`);
     return;
   }
@@ -424,6 +471,25 @@ async function tryLinkPendingMediaFromTicketText(bot, chatId, text) {
   }
 
   await linkPendingMediaToReport(report, pendingMedia);
+
+  if (report.status_internal === 'perlu_tindak_lanjut') {
+    const allParsed = parseTelegramAllFields(text);
+    const telegramMeta = getTelegramMetaFromMessage({
+      chat: { id: chatId },
+      from: {}
+    });
+    await handleFollowUpResubmission(
+      bot,
+      { chat: { id: chatId } },
+      text,
+      report,
+      allParsed.fields,
+      telegramMeta,
+      [pendingMedia.original_name]
+    );
+    return true;
+  }
+
   await bot.sendMessage(chatId, `Media pending berhasil disatukan ke tiket: ${report.ticket_id}`);
   return true;
 }
@@ -446,6 +512,16 @@ async function handleIncomingMessage(bot, message) {
   if (messageType === 'photo' || messageType === 'document') {
     await handleMediaMessage(bot, message, chatId, text, mediaMetadata);
     return;
+  }
+
+  const allParsed = parseTelegramAllFields(text);
+  if (allParsed.ticketId) {
+    const existingTicket = await reportModel.findByTicketId(allParsed.ticketId);
+    if (existingTicket && existingTicket.status_internal === 'perlu_tindak_lanjut') {
+      const telegramMeta = getTelegramMetaFromMessage(message);
+      await handleFollowUpResubmission(bot, message, text, existingTicket, allParsed.fields, telegramMeta);
+      return;
+    }
   }
 
   const parsed = parseTelegramCoreMessage(text);
@@ -474,6 +550,12 @@ async function handleIncomingMessage(bot, message) {
   try {
     const existingByTicket = await reportModel.findByTicketId(parsed.data.ticket_id);
     if (existingByTicket) {
+      if (existingByTicket.status_internal === 'perlu_tindak_lanjut') {
+        const telegramMeta = getTelegramMetaFromMessage(message);
+        await handleFollowUpResubmission(bot, message, text, existingByTicket, parsed.data, telegramMeta);
+        return;
+      }
+
       const enrichmentParsed = parseTelegramEnrichmentMessage(text);
       await handleTextEnrichment(bot, message, text, enrichmentParsed);
       return;

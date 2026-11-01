@@ -305,11 +305,71 @@ function parseTelegramEnrichmentMessage(text) {
   };
 }
 
+function parseTelegramAllFields(text) {
+  if (typeof text !== 'string' || !text.trim()) {
+    return {
+      ticketId: null,
+      fields: {},
+      rawText: ''
+    };
+  }
+
+  const rawText = text.trim();
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const data = {};
+
+  for (const line of lines) {
+    const separatorIndex = line.indexOf(':');
+
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const rawLabel = line.slice(0, separatorIndex).trim();
+    const rawValue = line.slice(separatorIndex + 1).trim();
+
+    const normalizedLabel = normalizeLabel(rawLabel);
+    const mappedKey = KEY_ALIASES[normalizedLabel];
+
+    if (!mappedKey) {
+      continue;
+    }
+
+    data[mappedKey] = rawValue;
+  }
+
+  const ticketValue = typeof data.ticket_id === 'string' ? data.ticket_id.trim() : '';
+  const ticketId = ticketValue ? ticketValue.split(/\s+/)[0].toUpperCase() : extractTicketIdFromText(text);
+
+  const fields = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (key === 'ticket_id') {
+      continue;
+    }
+
+    const trimmedValue = typeof value === 'string' ? value.trim() : '';
+    if (trimmedValue) {
+      fields[key] = trimmedValue;
+    }
+  }
+
+  return {
+    ticketId,
+    fields,
+    rawText
+  };
+}
+
 module.exports = {
   parseTelegramCoreMessage,
   buildFormatExample,
   extractTicketIdFromText,
   parseAdditionalDataMessage,
   parseTelegramEnrichmentMessage,
+  parseTelegramAllFields,
   hasCoreIntakeStructure
 };

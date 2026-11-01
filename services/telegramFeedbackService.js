@@ -28,7 +28,9 @@ function buildReturnEvidenceMessage(ticketId, orderId, notes) {
     `Tiket ${ticketId} dikembalikan / perlu tindak lanjut.`,
     `Order ID: ${orderId}`,
     '',
-    `Catatan: ${returnNotes || '-'}`
+    `Catatan: ${returnNotes || '-'}`,
+    '',
+    `Silakan perbaiki data laporan Anda dan kirimkan kembali via pesan Telegram ini dengan menyertakan TICKET ID: ${ticketId}.`
   ];
 
   return messageLines.join('\n');

@@ -184,7 +184,7 @@
                             <td>
                               <div class="d-flex align-items-center gap-2">
                                 <div class="progress flex-grow-1" style="height: 6px;">
-                                  <div class="progress-bar bg-primary" role="progressbar" style="width: <%= rolePct %>%;" aria-valuenow="<%= rolePct %>" aria-valuemin="0" aria-valuemax="100"></div>
+                                  <div class="progress-bar bg-primary" role="progressbar" aria-valuenow="<%= rolePct %>" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"></div>
                                 </div>
                                 <span class="text-muted small font-monospace" style="min-width: 32px;"><%= rolePct %>%</span>
                               </div>
@@ -225,7 +225,7 @@
                       <strong class="text-success"><%= activePercent %>% (<%= summary.total_active_users %>/<%= summary.total_users %> Akun Aktif)</strong>
                     </div>
                     <div class="progress" style="height: 6px;">
-                      <div class="progress-bar bg-success" role="progressbar" style="width: <%= activePercent %>%;" aria-valuenow="<%= activePercent %>" aria-valuemin="0" aria-valuemax="100"></div>
+                      <div class="progress-bar bg-success" role="progressbar" aria-valuenow="<%= activePercent %>" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"></div>
                     </div>
                   </div>
                 </div>
@@ -241,19 +241,34 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="/js/app.js?v=flash-auto-dismiss-20260505-2"></script>
+  <script type="application/json" id="superAdminRoleData">
+    <%- JSON.stringify(usersByRole || []) %>
+  </script>
   <script>
     document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.progress-bar[aria-valuenow]').forEach(function (bar) {
+        var val = bar.getAttribute('aria-valuenow');
+        if (val !== null) {
+          bar.style.width = val + '%';
+        }
+      });
+
       var canvas = document.getElementById('superAdminRoleChart');
       if (!canvas || !window.Chart) return;
 
-      var roleData = <%- JSON.stringify(usersByRole || []) %>;
+      var roleDataEl = document.getElementById('superAdminRoleData');
+      var roleData = [];
+      try {
+        roleData = roleDataEl ? JSON.parse(roleDataEl.textContent || '[]') : [];
+      } catch (e) {
+        roleData = [];
+      }
       var labels = roleData.map(function (r) {
         var name = String(r.role_name || '').toLowerCase();
         if (name === 'super_admin') return 'Super Admin';
         if (name === 'supervisor') return 'Supervisor';
         if (name === 'koordinator') return 'Koordinator';
         if (name === 'eksekutor') return 'Eksekutor';
-        if (name === 'pelapor') return 'Pelapor';
         return r.role_name;
       });
       var counts = roleData.map(function (r) { return Number(r.total_users) || 0; });
@@ -263,7 +278,6 @@
         if (name === 'supervisor') return '#64748b';
         if (name === 'koordinator') return '#0284c7';
         if (name === 'eksekutor') return '#2563eb';
-        if (name === 'pelapor') return '#94a3b8';
         return '#6c757d';
       });
 

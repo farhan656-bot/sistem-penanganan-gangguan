@@ -210,7 +210,9 @@
       form.appendChild(field);
     }
 
-    field.value = getCurrentPagePath();
+    if (!field.value) {
+      field.value = getCurrentPagePath();
+    }
   }
 
   function getQuickActionSubmitButton(form, event) {
@@ -245,7 +247,12 @@
 
   function buildQuickActionBody(form) {
     var body = new URLSearchParams(new FormData(form));
-    body.set('return_to', getCurrentPagePath());
+    var returnToField = form.querySelector('input[name="return_to"]');
+    if (returnToField && returnToField.value) {
+      body.set('return_to', returnToField.value);
+    } else {
+      body.set('return_to', getCurrentPagePath());
+    }
     return body;
   }
 
@@ -271,6 +278,9 @@
       var button = getQuickActionSubmitButton(form, event);
       var actionUrl = form.getAttribute('action');
       var method = String(form.getAttribute('method') || 'POST').toUpperCase();
+      var actionType = form.getAttribute('data-action-type');
+      var ticketId = form.getAttribute('data-ticket-id');
+      var isInsideModal = Boolean(form.closest('#reportDetailModal'));
 
       setQuickActionLoading(form, button, true);
 
@@ -300,11 +310,25 @@
         })
         .then(function (payload) {
           var message = payload && payload.message ? payload.message : 'Aksi laporan berhasil diproses.';
+
+          // Jika aksi in-progress dijalankan dari dalam pop-up modal detail:
+          // JANGAN reload halaman dan JANGAN keluar dari pop-up modal!
+          // Perbarui konten modal secara reaktif dan tetap berada di tab pengerjaan tiket.
+          if (isInsideModal && actionType === 'in-progress' && typeof window.reloadReportDetailModal === 'function') {
+            setQuickActionLoading(form, button, false);
+            form.dataset.appConfirmed = '0';
+            window.reloadReportDetailModal(ticketId, message);
+            return;
+          }
+
           saveQuickActionScroll();
           saveQuickActionFlash('success', message);
           showQuickActionFlash('success', message);
 
           window.setTimeout(function () {
+            if (window.location.pathname.indexOf('/reports/') === 0 && !window.location.hash) {
+              window.location.hash = 'pengerjaan-tiket';
+            }
             window.location.reload();
           }, 250);
         })
@@ -612,6 +636,7 @@
       }
     });
 
+    window.refreshQueueFragment = refreshQueueFragment;
     schedulePolling();
   }
 
@@ -938,6 +963,7 @@
       '<div class="text-muted small">Status Internal</div>',
       '<div class="mt-1 d-flex flex-wrap align-items-center gap-1">',
       ticketStatusBadge(report.status_internal),
+      report.is_resubmitted ? '<span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle" title="Laporan telah diperbaiki dan dikirim ulang oleh pelapor"><i class="bi bi-arrow-repeat me-1"></i>Resubmit</span>' : '',
       originBadge,
       '</div>',
       '</div>',
@@ -1034,29 +1060,57 @@
     };
   }
 
-  function renderDetailActionForm(payload) {
+  function renderDetailActionForm(payload, alertMessage) {
     var report = payload.report || {};
     var ticketId = escapeHtml(displayValue(report.ticket_id));
     var isTicketTaken = ['diambil', 'didelegasikan'].indexOf(report.status_internal) >= 0;
+    var isAlreadyInProgress = String(report.status_wfm || '').trim().toLowerCase() === 'in progress';
+
+    var alertHtml = '';
+    if (alertMessage) {
+      alertHtml = [
+        '<div class="alert alert-success alert-dismissible fade show d-flex align-items-center mb-3" role="alert">',
+        '<i class="bi bi-check-circle-fill me-2 fs-5"></i>',
+        '<div class="flex-grow-1"><strong>Status Diperbarui:</strong> ' + escapeHtml(alertMessage) + '</div>',
+        '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>',
+        '</div>'
+      ].join('');
+    }
 
     var inProgressHtml = '';
     if (payload.canInProgress && isTicketTaken) {
-      inProgressHtml = [
-        '<div class="card app-card mb-3 border">',
-        '<div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">',
-        '<div>',
-        '<div class="fw-semibold text-dark mb-1">Mulai Penanganan Lapangan</div>',
-        '<p class="mb-0 text-muted small">Tandai status tiket menjadi Sedang Dikerjakan agar status diperbarui dan notifikasi terkirim ke pelapor Telegram.</p>',
-        '</div>',
-        '<form action="/reports/' + ticketId + '/in-progress" method="POST" class="m-0" data-ticket-quick-action data-action-type="in-progress" data-ticket-id="' + ticketId + '">',
-        '<input type="hidden" name="return_to" value="/reports">',
-        '<button type="submit" class="btn btn-warning fw-semibold px-3" onclick="return confirm(\'Tandai tiket sedang dikerjakan?\');">',
-        'Tandai In Progress',
-        '</button>',
-        '</form>',
-        '</div>',
-        '</div>'
-      ].join('');
+      if (isAlreadyInProgress) {
+        inProgressHtml = [
+          '<div class="card app-card mb-3 border border-warning-subtle bg-warning-subtle bg-opacity-10">',
+          '<div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">',
+          '<div>',
+          '<div class="fw-semibold text-dark mb-1 d-flex align-items-center gap-2">',
+          '<span class="badge text-bg-warning px-2 py-1"><i class="bi bi-clock-history me-1"></i> Sedang Dikerjakan</span>',
+          '<span>Penanganan Lapangan Sedang Berjalan</span>',
+          '</div>',
+          '<p class="mb-0 text-muted small">Status tiket telah ditandai In Progress dan notifikasi telah dikirim ke pelapor Telegram. Silakan selesaikan laporan melalui formulir di bawah jika penanganan telah rampung.</p>',
+          '</div>',
+          '</div>',
+          '</div>'
+        ].join('');
+      } else {
+        inProgressHtml = [
+          '<div class="card app-card mb-3 border">',
+          '<div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">',
+          '<div>',
+          '<div class="fw-semibold text-dark mb-1">Mulai Penanganan Lapangan</div>',
+          '<p class="mb-0 text-muted small">Tandai status tiket menjadi Sedang Dikerjakan agar status diperbarui dan notifikasi terkirim ke pelapor Telegram.</p>',
+          '</div>',
+          '<form action="/reports/' + ticketId + '/in-progress" method="POST" class="m-0" data-ticket-quick-action data-action-type="in-progress" data-ticket-id="' + ticketId + '" data-confirm="Tandai tiket sedang dikerjakan?" data-confirm-title="Mulai Penanganan" data-confirm-btn="Ya, Mulai" data-confirm-variant="warning">',
+          '<input type="hidden" name="return_to" value="/reports/' + ticketId + '#pengerjaan-tiket">',
+          '<button type="submit" class="btn btn-warning fw-semibold px-3">',
+          'Tandai In Progress',
+          '</button>',
+          '</form>',
+          '</div>',
+          '</div>'
+        ].join('');
+      }
     }
 
     var completionHtml = [
@@ -1068,19 +1122,54 @@
       '<p class="text-muted small mb-3">',
       'Pilih status akhir penanganan gangguan. Catatan dan bukti penyelesaian bersifat opsional kecuali jika status penanganan memerlukan tindak lanjut khusus.',
       '</p>',
-      '<form action="/reports/' + ticketId + '/complete" method="POST" enctype="multipart/form-data" data-completion-form>',
+      '<form action="/reports/' + ticketId + '/complete" method="POST" enctype="multipart/form-data" data-completion-form data-confirm="Yakin ingin menyelesaikan laporan ini?" data-confirm-title="Konfirmasi Selesai" data-confirm-btn="Ya, Selesaikan" data-confirm-variant="success">',
       '<input type="hidden" name="return_to" value="/reports">',
       '<div class="mb-3">',
-      '<label class="form-label fw-semibold" for="modal_completion_status">',
+      '<label class="form-label fw-semibold" id="modal_status_choice_label">',
       'Status Akhir Penanganan <span class="app-required">*</span>',
       '</label>',
-      '<select id="modal_completion_status" name="completion_status" class="form-select" required data-completion-status>',
-      '<option value="">Pilih status akhir penanganan</option>',
-      '<option value="selesai">Selesai</option>',
-      '<option value="perlu_tindak_lanjut">Perlu Tindak Lanjut</option>',
-      '<option value="eskalasi">Eskalasi</option>',
-      '</select>',
-      '<div class="form-text">',
+      '<input type="hidden" id="modal_completion_status" name="completion_status" value="" data-completion-status>',
+      '<div class="status-choice-group" role="group" aria-labelledby="modal_status_choice_label">',
+      '<div class="row g-2">',
+      '<div class="col-12 col-md-4">',
+      '<button type="button" class="status-choice-btn status-choice-selesai w-100" data-status-value="selesai" aria-pressed="false">',
+      '<div class="d-flex align-items-center justify-content-center gap-2 py-1">',
+      '<i class="bi bi-check-circle-fill fs-5"></i>',
+      '<div>',
+      '<div class="fw-bold choice-title">Selesai</div>',
+      '<div class="small choice-desc">Gangguan tertangani</div>',
+      '</div>',
+      '</div>',
+      '</button>',
+      '</div>',
+      '<div class="col-12 col-md-4">',
+      '<button type="button" class="status-choice-btn status-choice-tindak-lanjut w-100" data-status-value="perlu_tindak_lanjut" aria-pressed="false">',
+      '<div class="d-flex align-items-center justify-content-center gap-2 py-1">',
+      '<i class="bi bi-arrow-repeat fs-5"></i>',
+      '<div>',
+      '<div class="fw-bold choice-title">Perlu Tindak Lanjut</div>',
+      '<div class="small choice-desc">Butuh tindakan lanjutan</div>',
+      '</div>',
+      '</div>',
+      '</button>',
+      '</div>',
+      '<div class="col-12 col-md-4">',
+      '<button type="button" class="status-choice-btn status-choice-eskalasi w-100" data-status-value="eskalasi" aria-pressed="false">',
+      '<div class="d-flex align-items-center justify-content-center gap-2 py-1">',
+      '<i class="bi bi-exclamation-triangle-fill fs-5"></i>',
+      '<div>',
+      '<div class="fw-bold choice-title">Eskalasi</div>',
+      '<div class="small choice-desc">Kendala eksternal (DIIT)</div>',
+      '</div>',
+      '</div>',
+      '</button>',
+      '</div>',
+      '</div>',
+      '<div class="status-choice-error text-danger small mt-2 d-none">',
+      '<i class="bi bi-exclamation-circle me-1"></i>Silakan tentukan status akhir penanganan di atas.',
+      '</div>',
+      '</div>',
+      '<div class="form-text mt-2">',
       'Pilih \'Selesai\' untuk gangguan tertangani, \'Perlu Tindak Lanjut\' jika butuh tindak lanjut teknis lanjutan, atau \'Eskalasi\' untuk kendala eksternal.',
       '</div>',
       '</div>',
@@ -1149,7 +1238,7 @@
       '</div>',
       '<div class="d-flex align-items-center justify-content-between pt-3 border-top">',
       '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>',
-      '<button type="submit" class="btn btn-success fw-semibold px-4" onclick="return confirm(\'Yakin ingin menyelesaikan laporan ini?\');">',
+      '<button type="submit" class="btn btn-success fw-semibold px-4">',
       'Konfirmasi Selesai',
       '</button>',
       '</div>',
@@ -1158,7 +1247,7 @@
       '</div>'
     ].join('');
 
-    return inProgressHtml + completionHtml;
+    return alertHtml + inProgressHtml + completionHtml;
   }
 
   function bindModalCompletionValidation(form) {
@@ -1170,11 +1259,31 @@
     var notesRequiredIndicator = form.querySelector('[data-completion-notes-required]');
     var diitCodeGroup = form.querySelector('[data-diit-code-group]');
     var diitCodeField = form.querySelector('[data-diit-code]');
+    var choiceButtons = Array.prototype.slice.call(form.querySelectorAll('.status-choice-btn'));
+    var errorMsg = form.querySelector('.status-choice-error');
     if (!statusField || !notesField) return;
 
+    choiceButtons.forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        var val = btn.getAttribute('data-status-value');
+        statusField.value = val;
+
+        choiceButtons.forEach(function (b) {
+          var isSelected = b === btn;
+          b.classList.toggle('active', isSelected);
+          b.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+        });
+
+        if (errorMsg) errorMsg.classList.add('d-none');
+        statusField.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+
     function syncModalCompletionRequirements() {
-      var requiresNotes = statusField.value === 'perlu_tindak_lanjut';
-      var requiresDiitCode = statusField.value === 'eskalasi';
+      var statusVal = statusField.value;
+      var requiresNotes = statusVal === 'perlu_tindak_lanjut';
+      var requiresDiitCode = statusVal === 'eskalasi';
 
       notesField.required = Boolean(requiresNotes);
       if (notesRequiredIndicator) {
@@ -1190,7 +1299,34 @@
           diitCodeField.value = '';
         }
       }
+
+      if (statusVal === 'selesai') {
+        form.setAttribute('data-confirm-title', 'Konfirmasi Selesai');
+        form.setAttribute('data-confirm', 'Yakin ingin menyelesaikan laporan ini? Tiket akan ditandai selesai dan ditutup.');
+        form.setAttribute('data-confirm-btn', 'Ya, Selesaikan');
+        form.setAttribute('data-confirm-variant', 'success');
+      } else if (statusVal === 'perlu_tindak_lanjut') {
+        form.setAttribute('data-confirm-title', 'Konfirmasi Tindak Lanjut');
+        form.setAttribute('data-confirm', 'Laporan akan ditandai Perlu Tindak Lanjut. Pastikan catatan telah diisi dengan jelas.');
+        form.setAttribute('data-confirm-btn', 'Ya, Simpan Tindak Lanjut');
+        form.setAttribute('data-confirm-variant', 'warning');
+      } else if (statusVal === 'eskalasi') {
+        form.setAttribute('data-confirm-title', 'Konfirmasi Eskalasi');
+        form.setAttribute('data-confirm', 'Laporan akan dieskalasikan ke unit eksternal dengan rujukan Kode DIIT.');
+        form.setAttribute('data-confirm-btn', 'Ya, Eskalasikan');
+        form.setAttribute('data-confirm-variant', 'danger');
+      }
     }
+
+    form.addEventListener('submit', function (e) {
+      if (!statusField.value) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (errorMsg) errorMsg.classList.remove('d-none');
+        if (choiceButtons[0]) choiceButtons[0].focus();
+        return false;
+      }
+    }, true);
 
     statusField.addEventListener('change', syncModalCompletionRequirements);
     syncModalCompletionRequirements();
@@ -1254,7 +1390,7 @@
       errorEl.classList.remove('d-none');
     }
 
-    function showContent(payload, shouldOpenActionTab) {
+    function showContent(payload, shouldOpenActionTab, alertMessage) {
       var report = payload.report || {};
       var detailHtml = renderReportDetail(payload);
       loadingEl.classList.add('d-none');
@@ -1267,7 +1403,7 @@
       var hasActionPermission = Boolean(payload.canComplete || payload.canInProgress);
       if (hasActionPermission && actionPaneEl && actionTabItemEl) {
         actionTabItemEl.classList.remove('d-none');
-        actionPaneEl.innerHTML = renderDetailActionForm(payload);
+        actionPaneEl.innerHTML = renderDetailActionForm(payload, alertMessage);
 
         var compForm = actionPaneEl.querySelector('[data-completion-form]');
         if (compForm) {
@@ -1292,13 +1428,51 @@
       }
 
       contentEl.classList.remove('d-none');
-      subtitleEl.textContent = 'Ticket ID: ' + displayValue(report.ticket_id);
+      var resubmitBadge = report.is_resubmitted ? ' <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle ms-2"><i class="bi bi-arrow-repeat me-1"></i>Resubmit</span>' : '';
+      subtitleEl.innerHTML = 'Ticket ID: ' + escapeHtml(displayValue(report.ticket_id)) + resubmitBadge;
 
       if (fallbackEl && payload.fallbackUrl) {
         fallbackEl.href = payload.fallbackUrl;
         fallbackEl.classList.remove('d-none');
       }
     }
+
+    function reloadModalDetail(targetTicketId, alertMessage) {
+      if (!targetTicketId) return;
+
+      activeDetailRequestId += 1;
+      var requestId = activeDetailRequestId;
+      var detailUrl = '/reports/' + encodeURIComponent(targetTicketId) + '/detail-json';
+
+      window.fetch(detailUrl, {
+        headers: {
+          Accept: 'application/json'
+        }
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            throw new Error('Gagal memuat pembaruan detail laporan.');
+          }
+          return response.json();
+        })
+        .then(function (payload) {
+          if (requestId !== activeDetailRequestId) return;
+          if (!payload || payload.success === false) {
+            throw new Error(payload && payload.message ? payload.message : 'Gagal memuat pembaruan detail laporan.');
+          }
+          showContent(payload, true, alertMessage);
+
+          if (typeof window.refreshQueueFragment === 'function') {
+            try { window.refreshQueueFragment(); } catch (e) {}
+          }
+        })
+        .catch(function (err) {
+          if (requestId !== activeDetailRequestId) return;
+          showQuickActionFlash('danger', err && err.message ? err.message : 'Gagal memperbarui detail laporan.');
+        });
+    }
+
+    window.reloadReportDetailModal = reloadModalDetail;
 
     modalEl.addEventListener('hidden.bs.modal', function () {
       activeDetailRequestId += 1;
@@ -1611,6 +1785,236 @@
     }
   }
 
+  function ensureAppConfirmModal() {
+    var existing = document.getElementById('appConfirmModal');
+    if (existing) return existing;
+
+    var modalHtml = [
+      '<div class="modal fade app-confirm-modal" id="appConfirmModal" tabindex="-1" aria-labelledby="appConfirmModalTitle" aria-hidden="true" data-bs-backdrop="static">',
+      '  <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">',
+      '    <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">',
+      '      <div class="modal-body p-4 text-center">',
+      '        <div class="app-confirm-icon-box mb-3 mx-auto variant-primary" id="appConfirmModalIconBox">',
+      '          <i class="bi bi-question-circle-fill" id="appConfirmModalIcon"></i>',
+      '        </div>',
+      '        <h5 class="app-confirm-title mb-2" id="appConfirmModalTitle">Konfirmasi Tindakan</h5>',
+      '        <p class="app-confirm-message mb-4" id="appConfirmModalMessage">Apakah Anda yakin ingin melanjutkan tindakan ini?</p>',
+      '        <div class="app-confirm-actions justify-content-center" id="appConfirmModalActions">',
+      '          <button type="button" class="btn app-confirm-btn-cancel" data-bs-dismiss="modal" id="appConfirmModalCancelBtn">',
+      '            Batal',
+      '          </button>',
+      '          <button type="button" class="btn app-confirm-btn-action btn-primary" id="appConfirmModalConfirmBtn">',
+      '            Ya, Lanjutkan',
+      '          </button>',
+      '        </div>',
+      '      </div>',
+      '    </div>',
+      '  </div>',
+      '</div>'
+    ].join('');
+
+    var div = document.createElement('div');
+    div.innerHTML = modalHtml;
+    var modalEl = div.firstElementChild;
+    document.body.appendChild(modalEl);
+    return modalEl;
+  }
+
+  var appConfirmCallback = null;
+
+  function showAppConfirmModal(options) {
+    options = options || {};
+    var modalEl = ensureAppConfirmModal();
+    if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) {
+      if (typeof options.onConfirm === 'function') options.onConfirm();
+      return;
+    }
+
+    var titleEl = document.getElementById('appConfirmModalTitle');
+    var messageEl = document.getElementById('appConfirmModalMessage');
+    var iconBoxEl = document.getElementById('appConfirmModalIconBox');
+    var iconEl = document.getElementById('appConfirmModalIcon');
+    var cancelBtn = document.getElementById('appConfirmModalCancelBtn');
+    var confirmBtn = document.getElementById('appConfirmModalConfirmBtn');
+
+    var variant = options.variant || 'primary';
+    var defaultIcons = {
+      primary: 'bi-question-circle-fill',
+      warning: 'bi-exclamation-triangle-fill',
+      success: 'bi-check-circle-fill',
+      danger: 'bi-exclamation-octagon-fill',
+      info: 'bi-info-circle-fill'
+    };
+
+    var iconClass = options.icon || defaultIcons[variant] || 'bi-question-circle-fill';
+
+    if (iconBoxEl) {
+      iconBoxEl.className = 'app-confirm-icon-box mb-3 mx-auto variant-' + variant;
+    }
+    if (iconEl) {
+      iconEl.className = 'bi ' + iconClass;
+    }
+    if (titleEl) {
+      titleEl.textContent = options.title || 'Konfirmasi Tindakan';
+    }
+    if (messageEl) {
+      messageEl.textContent = options.message || 'Apakah Anda yakin ingin melanjutkan tindakan ini?';
+    }
+    if (cancelBtn) {
+      cancelBtn.classList.remove('d-none');
+      cancelBtn.textContent = options.cancelText || 'Batal';
+    }
+    if (confirmBtn) {
+      confirmBtn.className = 'btn app-confirm-btn-action btn-' + variant;
+      confirmBtn.textContent = options.confirmText || 'Ya, Lanjutkan';
+    }
+
+    appConfirmCallback = typeof options.onConfirm === 'function' ? options.onConfirm : null;
+
+    var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+
+  function showAppAlertModal(options) {
+    options = options || {};
+    var modalEl = ensureAppConfirmModal();
+    if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) {
+      return;
+    }
+
+    var titleEl = document.getElementById('appConfirmModalTitle');
+    var messageEl = document.getElementById('appConfirmModalMessage');
+    var iconBoxEl = document.getElementById('appConfirmModalIconBox');
+    var iconEl = document.getElementById('appConfirmModalIcon');
+    var cancelBtn = document.getElementById('appConfirmModalCancelBtn');
+    var confirmBtn = document.getElementById('appConfirmModalConfirmBtn');
+
+    var variant = options.variant || 'primary';
+    var iconClass = options.icon || (variant === 'danger' ? 'bi-x-circle-fill' : 'bi-info-circle-fill');
+
+    if (iconBoxEl) {
+      iconBoxEl.className = 'app-confirm-icon-box mb-3 mx-auto variant-' + variant;
+    }
+    if (iconEl) {
+      iconEl.className = 'bi ' + iconClass;
+    }
+    if (titleEl) {
+      titleEl.textContent = options.title || 'Informasi';
+    }
+    if (messageEl) {
+      messageEl.textContent = options.message || '';
+    }
+    if (cancelBtn) {
+      cancelBtn.classList.add('d-none');
+    }
+    if (confirmBtn) {
+      confirmBtn.className = 'btn app-confirm-btn-action btn-' + variant;
+      confirmBtn.textContent = options.btnText || 'OK, Mengerti';
+    }
+
+    appConfirmCallback = typeof options.onConfirm === 'function' ? options.onConfirm : null;
+
+    var modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+  }
+
+  function setupAppConfirmModal() {
+    var modalEl = ensureAppConfirmModal();
+    if (!modalEl) return;
+
+    var confirmBtn = document.getElementById('appConfirmModalConfirmBtn');
+    if (confirmBtn && confirmBtn.dataset.bound !== '1') {
+      confirmBtn.dataset.bound = '1';
+      confirmBtn.addEventListener('click', function () {
+        var modal = window.bootstrap ? window.bootstrap.Modal.getInstance(modalEl) : null;
+        if (modal) modal.hide();
+
+        var cb = appConfirmCallback;
+        appConfirmCallback = null;
+        if (typeof cb === 'function') {
+          window.setTimeout(function () {
+            cb();
+            var openModal = document.querySelector('.modal.show');
+            if (openModal && !document.body.classList.contains('modal-open')) {
+              document.body.classList.add('modal-open');
+            }
+          }, 100);
+        }
+      });
+    }
+
+    document.addEventListener('submit', function (event) {
+      var form = event.target;
+      if (!form || !form.hasAttribute('data-confirm')) return;
+
+      if (form.dataset.appConfirmed === '1') {
+        form.dataset.appConfirmed = '0';
+        return;
+      }
+
+      var completionStatusField = form.querySelector('[data-completion-status]');
+      if (completionStatusField && !completionStatusField.value) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var err = form.querySelector('.status-choice-error');
+        if (err) err.classList.remove('d-none');
+        var firstBtn = form.querySelector('.status-choice-btn');
+        if (firstBtn) firstBtn.focus();
+        return;
+      }
+
+      if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        form.reportValidity();
+        return;
+      }
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      var submitter = event.submitter || form.querySelector('button[type="submit"], input[type="submit"]');
+      var msg = form.getAttribute('data-confirm') || 'Lanjutkan tindakan ini?';
+      var title = form.getAttribute('data-confirm-title') || 'Konfirmasi Tindakan';
+      var confirmBtnText = form.getAttribute('data-confirm-btn') || 'Ya, Lanjutkan';
+      var cancelBtnText = form.getAttribute('data-confirm-cancel') || 'Batal';
+      var variant = form.getAttribute('data-confirm-variant') || 'primary';
+      var icon = form.getAttribute('data-confirm-icon') || '';
+
+      showAppConfirmModal({
+        title: title,
+        message: msg,
+        confirmText: confirmBtnText,
+        cancelText: cancelBtnText,
+        variant: variant,
+        icon: icon,
+        onConfirm: function () {
+          form.dataset.appConfirmed = '1';
+          if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit(submitter);
+          } else {
+            form.submit();
+          }
+        }
+      });
+    }, true);
+
+    document.addEventListener('click', function (event) {
+      var alertTrigger = event.target.closest('[data-app-alert]');
+      if (alertTrigger) {
+        event.preventDefault();
+        showAppAlertModal({
+          title: alertTrigger.getAttribute('data-app-alert-title') || 'Informasi',
+          message: alertTrigger.getAttribute('data-app-alert') || '',
+          variant: alertTrigger.getAttribute('data-app-alert-variant') || 'primary'
+        });
+      }
+    });
+  }
+
+  window.showAppConfirmModal = showAppConfirmModal;
+  window.showAppAlertModal = showAppAlertModal;
+
   function initAppUi() {
     try { setupAutoDismissAlerts(); } catch (e) {}
     try { setupSupervisorSectionSwitcher(); } catch (e1) {}
@@ -1619,6 +2023,7 @@
     try { setupCompletionEvidencePasteUpload(); } catch (e4) {}
     try { setupQuickTicketActions(); } catch (e5) {}
     try { setupQueueAutoRefreshPolling(); } catch (e6) {}
+    try { setupAppConfirmModal(); } catch (e7) {}
   }
 
   function normalizePathname(pathname) {

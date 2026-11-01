@@ -37,7 +37,10 @@
       data-ticket-quick-action
       data-action-type="take"
       data-ticket-id="<%= report.ticket_id %>"
-      onsubmit="return confirm('Ambil laporan ini?');"
+      data-confirm="Ambil laporan ini dan mulai pengerjaan penanganan gangguan?"
+      data-confirm-title="Konfirmasi Ambil Laporan"
+      data-confirm-btn="Ya, Ambil"
+      data-confirm-variant="primary"
     >
       <button type="submit" class="btn btn-sm btn-primary">Ambil</button>
     </form>

@@ -119,6 +119,7 @@ async function getAllRoles() {
   const [rows] = await pool.query(
     `SELECT id, name
      FROM roles
+     WHERE name != 'pelapor'
      ORDER BY name ASC`
   );
 

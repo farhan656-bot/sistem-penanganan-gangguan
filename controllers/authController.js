@@ -1,7 +1,26 @@
 const bcrypt = require('bcrypt');
 const userModel = require('../models/userModel');
 
+function getRoleDashboardPath(role) {
+  switch (role) {
+    case 'eksekutor':
+      return '/dashboard/eksekutor';
+    case 'koordinator':
+      return '/dashboard/koordinator';
+    case 'supervisor':
+      return '/dashboard/supervisor';
+    case 'super_admin':
+      return '/dashboard/super-admin';
+    default:
+      return '/';
+  }
+}
+
 function showLoginPage(req, res) {
+  if (req.session && req.session.user) {
+    return res.redirect(getRoleDashboardPath(req.session.user.role));
+  }
+
   res.render('auth/login', {
     title: 'Login'
   });
@@ -35,37 +54,37 @@ async function login(req, res) {
       return res.redirect('/auth/login');
     }
 
-    req.session.user = {
-      id: user.id,
-      full_name: user.full_name,
-      username: user.username,
-      role: user.role_name,
-      region_id: user.region_id,
-      region_code: user.region_code,
-      region_name: user.region_name
-    };
+    req.session.regenerate((regenErr) => {
+      if (regenErr) {
+        console.error('Session regenerate error:', regenErr);
+        req.flash('error_msg', 'Terjadi kesalahan saat menginisialisasi sesi.');
+        return res.redirect('/auth/login');
+      }
 
-    req.flash('success_msg', 'Login berhasil.');
+      req.session.user = {
+        id: user.id,
+        full_name: user.full_name,
+        username: user.username,
+        role: user.role_name,
+        region_id: user.region_id,
+        region_code: user.region_code,
+        region_name: user.region_name
+      };
 
-    if (user.role_name === 'eksekutor') {
-      return res.redirect('/dashboard/eksekutor');
-    }
+      req.flash('success_msg', 'Login berhasil.');
 
-    if (user.role_name === 'koordinator') {
-      return res.redirect('/dashboard/koordinator');
-    }
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          console.error('Session save error during login:', saveErr);
+          req.flash('error_msg', 'Terjadi kesalahan saat menyimpan sesi login.');
+          return res.redirect('/auth/login');
+        }
 
-    if (user.role_name === 'supervisor') {
-      return res.redirect('/dashboard/supervisor');
-    }
-
-    if (user.role_name === 'super_admin') {
-      return res.redirect('/dashboard/super-admin');
-    }
-
-    return res.redirect('/');
+        return res.redirect(getRoleDashboardPath(user.role_name));
+      });
+    });
   } catch (error) {
-    console.error(error);
+    console.error('Login error:', error);
     req.flash('error_msg', 'Terjadi kesalahan saat login.');
     return res.redirect('/auth/login');
   }
@@ -74,15 +93,15 @@ async function login(req, res) {
 function logout(req, res) {
   req.session.destroy(err => {
     if (err) {
-      console.error(err);
-      return res.redirect('/');
+      console.error('Logout error:', err);
     }
-    res.clearCookie('sid');
+    res.clearCookie('sid', { path: '/' });
     return res.redirect('/auth/login');
   });
 }
 
 module.exports = {
+  getRoleDashboardPath,
   showLoginPage,
   login,
   logout

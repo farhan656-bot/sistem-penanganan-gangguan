@@ -40,6 +40,9 @@
                 <div class="d-flex flex-wrap align-items-center gap-2">
                   <span class="fs-5 fw-bold font-monospace text-dark"><%= report.ticket_id %></span>
                   <%- include('../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                  <% if (report.is_resubmitted) { %>
+                    <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle" title="Laporan telah diperbaiki dan dikirim ulang oleh pelapor"><i class="bi bi-arrow-repeat me-1"></i>Resubmit</span>
+                  <% } %>
                   <% if (report.status_internal === 'didelegasikan') { %>
                     <span class="badge text-bg-info">Delegasi Aktif</span>
                   <% } else if (report.is_delegated) { %>
@@ -219,25 +222,46 @@
       ['diambil', 'didelegasikan'].includes(report.status_internal) &&
       Number(report.assigned_to_user_id) === Number(currentUser.id)
     ) { %>
-      <div class="card app-card mb-3">
+      <% const isAlreadyInProgress = String(report.status_wfm || '').trim().toLowerCase() === 'in progress'; %>
+      <div class="card app-card mb-3" id="pengerjaan-tiket">
         <div class="card-header fw-semibold">Update Status Pengerjaan</div>
         <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
           <div>
-            <div class="fw-semibold text-dark mb-1">Mulai Penanganan Lapangan</div>
-            <p class="mb-0 text-muted small">Gunakan tombol ini saat pengerjaan teknis dimulai agar status tiket diperbarui dan notifikasi terkirim ke pelapor.</p>
+            <div class="fw-semibold text-dark mb-1 d-flex align-items-center gap-2">
+              <% if (isAlreadyInProgress) { %>
+                <span class="badge text-bg-warning px-2 py-1"><i class="bi bi-clock-history me-1"></i> Sedang Dikerjakan</span>
+                <span>Penanganan Lapangan Sedang Berjalan</span>
+              <% } else { %>
+                <span>Mulai Penanganan Lapangan</span>
+              <% } %>
+            </div>
+            <p class="mb-0 text-muted small">
+              <% if (isAlreadyInProgress) { %>
+                Status tiket telah ditandai In Progress dan notifikasi telah dikirim ke pelapor Telegram. Silakan selesaikan laporan melalui formulir di bawah jika pengerjaan telah rampung.
+              <% } else { %>
+                Gunakan tombol ini saat pengerjaan teknis dimulai agar status tiket diperbarui dan notifikasi terkirim ke pelapor.
+              <% } %>
+            </p>
           </div>
-          <form
-            action="/reports/<%= report.ticket_id %>/in-progress"
-            method="POST"
-            class="m-0"
-            data-ticket-quick-action
-            data-action-type="in-progress"
-            data-ticket-id="<%= report.ticket_id %>"
-          >
-            <button type="submit" class="btn btn-warning fw-semibold px-3" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
-              Tandai In Progress
-            </button>
-          </form>
+          <% if (!isAlreadyInProgress) { %>
+            <form
+              action="/reports/<%= report.ticket_id %>/in-progress"
+              method="POST"
+              class="m-0"
+              data-ticket-quick-action
+              data-action-type="in-progress"
+              data-ticket-id="<%= report.ticket_id %>"
+              data-confirm="Tandai tiket sedang dikerjakan?"
+              data-confirm-title="Mulai Penanganan Lapangan"
+              data-confirm-btn="Ya, Mulai"
+              data-confirm-variant="warning"
+            >
+              <input type="hidden" name="return_to" value="/reports/<%= report.ticket_id %>#pengerjaan-tiket">
+              <button type="submit" class="btn btn-warning fw-semibold px-3">
+                Tandai In Progress
+              </button>
+            </form>
+          <% } %>
         </div>
       </div>
 
@@ -248,18 +272,79 @@
             Pilih status akhir penanganan gangguan. Catatan dan bukti penyelesaian bersifat opsional kecuali jika status penanganan memerlukan tindak lanjut khusus.
           </p>
 
-          <form action="/reports/<%= report.ticket_id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
+          <form
+            action="/reports/<%= report.ticket_id %>/complete"
+            method="POST"
+            enctype="multipart/form-data"
+            data-completion-form
+            data-confirm="Yakin ingin menyelesaikan laporan ini?"
+            data-confirm-title="Konfirmasi Penyelesaian"
+            data-confirm-btn="Ya, Selesaikan"
+            data-confirm-variant="success"
+          >
             <div class="mb-3">
-              <label class="form-label fw-semibold" for="completion_status">
+              <label class="form-label fw-semibold">
                 Status Akhir Penanganan <span class="app-required">*</span>
               </label>
-              <select id="completion_status" name="completion_status" class="form-select" required data-completion-status>
-                <option value="">Pilih status akhir penanganan</option>
-                <option value="selesai">Selesai</option>
-                <option value="perlu_tindak_lanjut">Perlu Tindak Lanjut</option>
-                <option value="eskalasi">Eskalasi</option>
-              </select>
-              <div class="form-text">
+              <div class="status-choice-group" role="radiogroup" aria-label="Status Akhir Penanganan">
+                <input type="hidden" id="completion_status" name="completion_status" value="" data-completion-status>
+                <div class="row g-2">
+                  <div class="col-12 col-md-4">
+                    <button
+                      type="button"
+                      class="status-choice-btn status-choice-selesai w-100"
+                      data-status-value="selesai"
+                      aria-pressed="false"
+                    >
+                      <div class="d-flex align-items-center justify-content-center gap-2 py-1">
+                        <i class="bi bi-check-circle-fill fs-5"></i>
+                        <div>
+                          <div class="fw-bold choice-title">Selesai</div>
+                          <div class="small choice-desc">Gangguan tertangani</div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div class="col-12 col-md-4">
+                    <button
+                      type="button"
+                      class="status-choice-btn status-choice-tindak-lanjut w-100"
+                      data-status-value="perlu_tindak_lanjut"
+                      aria-pressed="false"
+                    >
+                      <div class="d-flex align-items-center justify-content-center gap-2 py-1">
+                        <i class="bi bi-arrow-repeat fs-5"></i>
+                        <div>
+                          <div class="fw-bold choice-title">Perlu Tindak Lanjut</div>
+                          <div class="small choice-desc">Butuh tindakan lanjutan</div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div class="col-12 col-md-4">
+                    <button
+                      type="button"
+                      class="status-choice-btn status-choice-eskalasi w-100"
+                      data-status-value="eskalasi"
+                      aria-pressed="false"
+                    >
+                      <div class="d-flex align-items-center justify-content-center gap-2 py-1">
+                        <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                        <div>
+                          <div class="fw-bold choice-title">Eskalasi</div>
+                          <div class="small choice-desc">Kendala eksternal (DIIT)</div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+                <div class="status-choice-error text-danger small mt-2 d-none">
+                  <i class="bi bi-exclamation-circle me-1"></i>Silakan tentukan status akhir penanganan di atas.
+                </div>
+              </div>
+              <div class="form-text mt-2">
                 Pilih 'Selesai' untuk gangguan tertangani, 'Perlu Tindak Lanjut' jika butuh tindak lanjut teknis lanjutan, atau 'Eskalasi' untuk kendala eksternal.
               </div>
             </div>
@@ -374,7 +459,7 @@
             </div>
 
             <div class="d-flex align-items-center gap-2 pt-2 border-top">
-              <button type="submit" class="btn btn-success fw-semibold px-4" onclick="return confirm('Yakin ingin menyelesaikan laporan ini?');">
+              <button type="submit" class="btn btn-success fw-semibold px-4">
                 Konfirmasi Selesai
               </button>
             </div>
@@ -390,7 +475,14 @@
       <div class="card app-card mb-3">
         <div class="card-header fw-semibold">Delegasi Penanggung Jawab Lintas Wilayah</div>
         <div class="card-body">
-          <form action="/reports/<%= report.ticket_id %>/delegate" method="POST">
+          <form
+            action="/reports/<%= report.ticket_id %>/delegate"
+            method="POST"
+            data-confirm="Yakin ingin mendelegasikan laporan ini ke teknisi yang dipilih?"
+            data-confirm-title="Konfirmasi Delegasi"
+            data-confirm-btn="Ya, Delegasikan"
+            data-confirm-variant="primary"
+          >
             <div class="mb-3">
               <label class="form-label fw-semibold" for="target_user_id">Pilih Pegawai Tujuan <span class="app-required">*</span></label>
               <select id="target_user_id" name="target_user_id" class="form-select" required>
@@ -419,7 +511,7 @@
               <textarea id="delegation_notes" name="delegation_notes" class="form-control" rows="3" required></textarea>
             </div>
 
-            <button type="submit" class="btn btn-primary fw-semibold px-3" onclick="return confirm('Yakin ingin mendelegasikan laporan ini?');">
+            <button type="submit" class="btn btn-primary fw-semibold px-3">
               Delegasikan
             </button>
           </form>
@@ -435,13 +527,20 @@
       <div class="card app-card">
         <div class="card-header fw-semibold">Batalkan Penugasan</div>
         <div class="card-body">
-          <form action="/reports/<%= report.ticket_id %>/cancel-assignment" method="POST">
+          <form
+            action="/reports/<%= report.ticket_id %>/cancel-assignment"
+            method="POST"
+            data-confirm="Yakin ingin membatalkan penugasan ini? Status tiket akan kembali menjadi tersedia."
+            data-confirm-title="Batalkan Penugasan"
+            data-confirm-btn="Ya, Batalkan"
+            data-confirm-variant="danger"
+          >
             <div class="mb-3">
               <label class="form-label fw-semibold" for="cancel_notes">Alasan Pembatalan <span class="app-required">*</span></label>
               <textarea id="cancel_notes" name="cancel_notes" class="form-control" rows="3" required></textarea>
             </div>
 
-            <button type="submit" class="btn btn-danger fw-semibold px-3" onclick="return confirm('Yakin ingin membatalkan penugasan ini?');">
+            <button type="submit" class="btn btn-danger fw-semibold px-3">
               Batalkan Tugas
             </button>
           </form>
@@ -465,11 +564,31 @@
       var notesRequiredIndicator = form.querySelector('[data-completion-notes-required]');
       var diitCodeGroup = form.querySelector('[data-diit-code-group]');
       var diitCodeField = form.querySelector('[data-diit-code]');
+      var choiceButtons = Array.prototype.slice.call(form.querySelectorAll('.status-choice-btn'));
+      var errorMsg = form.querySelector('.status-choice-error');
       if (!statusField || !notesField) return;
 
+      choiceButtons.forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          var val = btn.getAttribute('data-status-value');
+          statusField.value = val;
+
+          choiceButtons.forEach(function (b) {
+            var isSelected = b === btn;
+            b.classList.toggle('active', isSelected);
+            b.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+          });
+
+          if (errorMsg) errorMsg.classList.add('d-none');
+          statusField.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      });
+
       function syncCompletionRequirements() {
-        var requiresNotes = statusField.value === 'perlu_tindak_lanjut';
-        var requiresDiitCode = statusField.value === 'eskalasi';
+        var statusVal = statusField.value;
+        var requiresNotes = statusVal === 'perlu_tindak_lanjut';
+        var requiresDiitCode = statusVal === 'eskalasi';
 
         notesField.required = Boolean(requiresNotes);
         if (notesRequiredIndicator) {
@@ -485,7 +604,34 @@
             diitCodeField.value = '';
           }
         }
+
+        if (statusVal === 'selesai') {
+          form.setAttribute('data-confirm-title', 'Konfirmasi Selesai');
+          form.setAttribute('data-confirm', 'Yakin ingin menyelesaikan laporan ini? Tiket akan ditandai selesai dan ditutup.');
+          form.setAttribute('data-confirm-btn', 'Ya, Selesaikan');
+          form.setAttribute('data-confirm-variant', 'success');
+        } else if (statusVal === 'perlu_tindak_lanjut') {
+          form.setAttribute('data-confirm-title', 'Konfirmasi Tindak Lanjut');
+          form.setAttribute('data-confirm', 'Laporan akan ditandai Perlu Tindak Lanjut. Pastikan catatan telah diisi dengan jelas.');
+          form.setAttribute('data-confirm-btn', 'Ya, Simpan Tindak Lanjut');
+          form.setAttribute('data-confirm-variant', 'warning');
+        } else if (statusVal === 'eskalasi') {
+          form.setAttribute('data-confirm-title', 'Konfirmasi Eskalasi');
+          form.setAttribute('data-confirm', 'Laporan akan dieskalasikan ke unit eksternal dengan rujukan Kode DIIT.');
+          form.setAttribute('data-confirm-btn', 'Ya, Eskalasikan');
+          form.setAttribute('data-confirm-variant', 'danger');
+        }
       }
+
+      form.addEventListener('submit', function (e) {
+        if (!statusField.value) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          if (errorMsg) errorMsg.classList.remove('d-none');
+          if (choiceButtons[0]) choiceButtons[0].focus();
+          return false;
+        }
+      }, true);
 
       statusField.addEventListener('change', syncCompletionRequirements);
       syncCompletionRequirements();

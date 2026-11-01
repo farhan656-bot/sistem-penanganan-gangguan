@@ -391,13 +391,36 @@
             <div class="row g-3">
               <div class="col-12">
                 <div class="card app-card">
-                  <div class="card-header d-flex justify-content-between align-items-center">
-                    <strong>Rekap Kinerja Pegawai Eksekutor</strong>
-                    <span class="text-muted small">Produktivitas dan rata-rata waktu penyelesaian</span>
+                  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 py-2">
+                    <div>
+                      <strong class="text-dark">Rekap Kinerja Pegawai Eksekutor</strong>
+                      <div class="text-muted small">Produktivitas dan rata-rata waktu penyelesaian</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="input-group input-group-sm" style="max-width: 260px;">
+                        <span class="input-group-text bg-light border-end-0 text-muted">
+                          <i class="bi bi-search"></i>
+                        </span>
+                        <input
+                          type="text"
+                          class="form-control form-control-sm border-start-0"
+                          id="searchEksekutorInput"
+                          placeholder="Cari nama pegawai..."
+                          autocomplete="off"
+                          aria-label="Cari nama pegawai eksekutor"
+                        >
+                        <button class="btn btn-outline-secondary d-none" type="button" id="clearSearchEksekutorBtn" title="Reset pencarian" aria-label="Reset pencarian">
+                          <i class="bi bi-x-lg" style="font-size: 0.75rem;"></i>
+                        </button>
+                      </div>
+                      <span class="badge text-bg-light border text-secondary font-monospace" id="eksekutorCountBadge" style="font-size: 0.72rem;">
+                        <%= userPerformance.length %> Pegawai
+                      </span>
+                    </div>
                   </div>
                   <div class="card-body p-0">
                     <div class="table-responsive">
-                      <table class="table table-hover align-middle">
+                      <table class="table table-hover align-middle mb-0" id="eksekutorPerformanceTable">
                         <thead>
                           <tr>
                             <th class="app-col-num">No</th>
@@ -410,21 +433,30 @@
                         </thead>
                         <tbody>
                           <% if (userPerformance.length === 0) { %>
-                            <tr>
+                            <tr id="emptyEksekutorRow">
                               <td colspan="6" class="text-center text-muted py-4">Belum ada data kinerja pegawai eksekutor.</td>
                             </tr>
                           <% } %>
 
                           <% userPerformance.forEach((user, index) => { %>
-                            <tr>
+                            <tr class="eksekutor-row" data-name="<%= (user.full_name || '').toLowerCase() %>" data-region="<%= (user.region_code || '').toLowerCase() %>">
                               <td class="app-col-num text-muted"><%= index + 1 %></td>
-                              <td class="fw-semibold"><%= user.full_name %></td>
-                              <td><span class="badge text-bg-light border"><%= user.region_code || '-' %></span></td>
+                              <td class="fw-semibold text-dark"><%= user.full_name %></td>
+                              <td><span class="badge text-bg-light border font-monospace"><%= user.region_code || '-' %></span></td>
                               <td class="text-center"><%= user.total_handled %></td>
                               <td class="text-center text-status-completed fw-semibold"><%= user.total_completed %></td>
                               <td><span class="text-secondary"><%= formatMinutes(user.avg_resolution_minutes) %></span></td>
                             </tr>
                           <% }) %>
+
+                          <tr id="noMatchEksekutorRow" class="d-none">
+                            <td colspan="6" class="text-center text-muted py-4">
+                              <div class="d-flex flex-column align-items-center gap-1">
+                                <i class="bi bi-person-x text-muted fs-3"></i>
+                                <span>Pegawai dengan nama "<strong id="noMatchQuery"></strong>" tidak ditemukan.</span>
+                              </div>
+                            </td>
+                          </tr>
                         </tbody>
                       </table>
                     </div>
@@ -512,17 +544,19 @@
                       <strong>Riwayat Temporary Region Switch</strong>
                       <div class="text-muted small">Informasi pemantauan perbantuan teknisi lintas wilayah</div>
                     </div>
+                    <span class="badge text-bg-light border text-secondary font-monospace" style="font-size: 0.72rem;">Total: <%= (regionSwitchHistory || []).length %> Riwayat</span>
                   </div>
                   <div class="card-body p-0">
                     <div class="table-responsive">
-                      <table class="table table-hover align-middle">
-                        <thead>
+                      <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
                           <tr>
                             <th class="app-col-num">No</th>
                             <th>Eksekutor</th>
                             <th>Asal</th>
                             <th>Tujuan</th>
                             <th>Status</th>
+                            <th>Alasan / Keterangan</th>
                             <th class="app-col-time">Diajukan</th>
                             <th class="app-col-time">Disetujui</th>
                             <th class="app-col-time">Berakhir</th>
@@ -531,31 +565,40 @@
                         <tbody>
                           <% if (!regionSwitchHistory || regionSwitchHistory.length === 0) { %>
                             <tr>
-                              <td colspan="8" class="text-center text-muted py-4">Belum ada data riwayat Region Switch.</td>
+                              <td colspan="9" class="text-center text-muted py-4">Belum ada data riwayat Region Switch.</td>
                             </tr>
                           <% } %>
 
                           <% (regionSwitchHistory || []).forEach((item, index) => { %>
                             <tr>
                               <td class="app-col-num text-muted"><%= index + 1 %></td>
-                              <td class="fw-semibold"><%= item.requester_name || '-' %></td>
-                              <td><span class="badge text-bg-light border"><%= item.home_region_code || '-' %></span></td>
-                              <td><span class="badge text-bg-light border"><%= item.target_region_code || '-' %></span></td>
+                              <td class="fw-semibold text-dark"><%= item.requester_name || '-' %></td>
+                              <td><span class="badge text-bg-light border font-monospace"><%= item.home_region_code || '-' %></span></td>
+                              <td><span class="badge text-bg-light border font-monospace"><%= item.target_region_code || '-' %></span></td>
                               <td>
                                 <%- include('../partials/status-badge', { type: 'region_switch', value: item.status }) %>
                               </td>
+                              <td>
+                                <% if (item.status === 'rejected') { %>
+                                  <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle text-wrap text-start fw-normal" style="max-width: 280px; line-height: 1.3;">
+                                    <i class="bi bi-x-circle me-1"></i><%= item.rejection_reason || 'Ditolak tanpa catatan' %>
+                                  </span>
+                                <% } else if (item.reason) { %>
+                                  <span class="text-muted small text-truncate d-inline-block" style="max-width: 240px;" title="<%= item.reason %>">
+                                    <%= item.reason %>
+                                  </span>
+                                <% } else { %>
+                                  <span class="text-muted small">-</span>
+                                <% } %>
+                              </td>
                               <td class="app-col-time text-muted small"><%= formatDateTime(item.requested_at) %></td>
-                              <td class="app-col-time text-muted small"><%= formatDateTime(item.approved_at) %></td>
-                              <td class="app-col-time text-muted small"><%= formatDateTime(item.end_at) %></td>
+                              <td class="app-col-time text-muted small">
+                                <%= item.status === 'rejected' ? '-' : (formatDateTime(item.approved_at) || '-') %>
+                              </td>
+                              <td class="app-col-time text-muted small">
+                                <%= item.status === 'rejected' ? '-' : (formatDateTime(item.end_at) || '-') %>
+                              </td>
                             </tr>
-                            <% if (item.rejection_reason) { %>
-                              <tr>
-                                <td></td>
-                                <td colspan="7" class="text-muted small bg-light">
-                                  Alasan penolakan: <%= item.rejection_reason %>
-                                </td>
-                              </tr>
-                            <% } %>
                           <% }) %>
                         </tbody>
                       </table>
@@ -594,6 +637,6 @@
       window.SUPERVISOR_DASHBOARD_FILTERS = parseJsonPayload('supervisor-dashboard-filters');
     })();
   </script>
-  <script src="/js/supervisor-dashboard.js?v=modern-charts-3"></script>
+  <script src="/js/supervisor-dashboard.js?v=search-eksekutor-1"></script>
 </body>
 </html>

@@ -492,9 +492,87 @@
     syncTabs();
   }
 
+  function initEksekutorSearchUX() {
+    var searchInput = document.getElementById('searchEksekutorInput');
+    var clearBtn = document.getElementById('clearSearchEksekutorBtn');
+    var countBadge = document.getElementById('eksekutorCountBadge');
+    var table = document.getElementById('eksekutorPerformanceTable');
+    if (!searchInput || !table) return;
+
+    var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr.eksekutor-row'));
+    var noMatchRow = document.getElementById('noMatchEksekutorRow');
+    var noMatchQuery = document.getElementById('noMatchQuery');
+    var totalCount = rows.length;
+
+    function filterRows() {
+      var query = (searchInput.value || '').trim().toLowerCase();
+      var visibleCount = 0;
+
+      if (clearBtn) {
+        clearBtn.classList.toggle('d-none', !query);
+      }
+
+      rows.forEach(function (row) {
+        var name = (row.getAttribute('data-name') || '').toLowerCase();
+        var region = (row.getAttribute('data-region') || '').toLowerCase();
+        var textContent = (row.textContent || '').toLowerCase();
+        var matches = !query || name.indexOf(query) !== -1 || region.indexOf(query) !== -1 || textContent.indexOf(query) !== -1;
+
+        if (matches) {
+          row.style.display = '';
+          visibleCount += 1;
+          var numCell = row.querySelector('.app-col-num');
+          if (numCell) {
+            numCell.textContent = visibleCount;
+          }
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      if (noMatchRow) {
+        if (visibleCount === 0 && totalCount > 0 && query) {
+          noMatchRow.classList.remove('d-none');
+          if (noMatchQuery) {
+            noMatchQuery.textContent = searchInput.value.trim();
+          }
+        } else {
+          noMatchRow.classList.add('d-none');
+        }
+      }
+
+      if (countBadge) {
+        if (query) {
+          countBadge.textContent = visibleCount + ' dari ' + totalCount + ' Pegawai';
+        } else {
+          countBadge.textContent = totalCount + ' Pegawai';
+        }
+      }
+    }
+
+    searchInput.addEventListener('input', filterRows);
+    searchInput.addEventListener('search', filterRows);
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        searchInput.value = '';
+        searchInput.focus();
+        filterRows();
+      });
+    }
+
+    var urlParams = new URLSearchParams(window.location.search);
+    var searchParam = urlParams.get('search_eksekutor');
+    if (searchParam) {
+      searchInput.value = searchParam;
+      filterRows();
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     initFilterFormUX();
     initSupervisorTabsUX();
+    initEksekutorSearchUX();
     initCharts();
   });
 })();

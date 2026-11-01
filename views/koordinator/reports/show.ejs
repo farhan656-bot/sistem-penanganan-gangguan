@@ -32,6 +32,9 @@
                 <div class="d-flex flex-wrap align-items-center gap-2">
                   <span class="fs-5 fw-bold font-monospace text-dark"><%= report.ticket_id %></span>
                   <%- include('../../partials/status-badge', { type: 'ticket', value: report.status_internal }) %>
+                  <% if (report.is_resubmitted) { %>
+                    <span class="badge text-bg-info-subtle text-info-emphasis border border-info-subtle" title="Laporan telah diperbaiki dan dikirim ulang oleh pelapor"><i class="bi bi-arrow-repeat me-1"></i>Resubmit</span>
+                  <% } %>
                   <% if (report.status_internal === 'didelegasikan') { %>
                     <span class="badge text-bg-info">Delegasi Aktif</span>
                   <% } else if (report.is_delegated) { %>
@@ -224,8 +227,12 @@
                   data-ticket-quick-action
                   data-action-type="take"
                   data-ticket-id="<%= report.ticket_id %>"
+                  data-confirm="Ambil tugas tiket ini sebagai penanggung jawab aktif?"
+                  data-confirm-title="Konfirmasi Ambil Tugas"
+                  data-confirm-btn="Ya, Ambil"
+                  data-confirm-variant="primary"
                 >
-                  <button type="submit" class="btn btn-primary fw-semibold px-3" onclick="return confirm('Ambil tugas tiket ini sebagai penanggung jawab aktif?');">
+                  <button type="submit" class="btn btn-primary fw-semibold px-3">
                     Ambil Tugas
                   </button>
                 </form>
@@ -235,6 +242,7 @@
 
           <%
             const isAssignedToCurrentUser = Number(report.assigned_to_user_id) === Number(currentUser.id);
+            const isAlreadyInProgress = String(report.status_wfm || '').trim().toLowerCase() === 'in progress';
           %>
 
           <% if (
@@ -242,25 +250,45 @@
             ['diambil', 'didelegasikan'].includes(report.status_internal) &&
             isAssignedToCurrentUser
           ) { %>
-            <div class="card app-card mb-3">
+            <div class="card app-card mb-3" id="pengerjaan-tiket">
               <div class="card-header fw-semibold">Update Status Pengerjaan</div>
               <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
                 <div>
-                  <div class="fw-semibold text-dark mb-1">Mulai Penanganan Lapangan</div>
-                  <p class="mb-0 text-muted small">Gunakan tombol ini saat pengerjaan teknis dimulai agar status tiket diperbarui dan notifikasi terkirim ke pelapor.</p>
+                  <div class="fw-semibold text-dark mb-1 d-flex align-items-center gap-2">
+                    <% if (isAlreadyInProgress) { %>
+                      <span class="badge text-bg-warning px-2 py-1"><i class="bi bi-clock-history me-1"></i> Sedang Dikerjakan</span>
+                      <span>Penanganan Lapangan Sedang Berjalan</span>
+                    <% } else { %>
+                      <span>Mulai Penanganan Lapangan</span>
+                    <% } %>
+                  </div>
+                  <p class="mb-0 text-muted small">
+                    <% if (isAlreadyInProgress) { %>
+                      Status tiket telah ditandai In Progress dan notifikasi telah dikirim ke pelapor Telegram. Silakan selesaikan laporan melalui formulir di bawah jika pengerjaan telah rampung.
+                    <% } else { %>
+                      Gunakan tombol ini saat pengerjaan teknis dimulai agar status tiket diperbarui dan notifikasi terkirim ke pelapor.
+                    <% } %>
+                  </p>
                 </div>
-                <form
-                  action="/reports/<%= report.ticket_id %>/in-progress"
-                  method="POST"
-                  class="m-0"
-                  data-ticket-quick-action
-                  data-action-type="in-progress"
-                  data-ticket-id="<%= report.ticket_id %>"
-                >
-                  <button type="submit" class="btn btn-warning fw-semibold px-3" onclick="return confirm('Tandai tiket sedang dikerjakan?');">
-                    Tandai In Progress
-                  </button>
-                </form>
+                <% if (!isAlreadyInProgress) { %>
+                  <form
+                    action="/reports/<%= report.ticket_id %>/in-progress"
+                    method="POST"
+                    class="m-0"
+                    data-ticket-quick-action
+                    data-action-type="in-progress"
+                    data-ticket-id="<%= report.ticket_id %>"
+                    data-confirm="Tandai tiket sedang dikerjakan?"
+                    data-confirm-title="Mulai Penanganan Lapangan"
+                    data-confirm-btn="Ya, Mulai"
+                    data-confirm-variant="warning"
+                  >
+                    <input type="hidden" name="return_to" value="/koordinator/reports/<%= report.ticket_id %>#pengerjaan-tiket">
+                    <button type="submit" class="btn btn-warning fw-semibold px-3">
+                      Tandai In Progress
+                    </button>
+                  </form>
+                <% } %>
               </div>
             </div>
 
@@ -271,7 +299,16 @@
                   Pilih status akhir penanganan gangguan. Catatan dan bukti penyelesaian bersifat opsional kecuali jika status penanganan memerlukan tindak lanjut khusus.
                 </p>
 
-                <form action="/reports/<%= report.ticket_id %>/complete" method="POST" enctype="multipart/form-data" data-completion-form>
+                <form
+                  action="/reports/<%= report.ticket_id %>/complete"
+                  method="POST"
+                  enctype="multipart/form-data"
+                  data-completion-form
+                  data-confirm="Yakin ingin menyelesaikan laporan ini?"
+                  data-confirm-title="Konfirmasi Penyelesaian"
+                  data-confirm-btn="Ya, Selesaikan"
+                  data-confirm-variant="success"
+                >
                   <div class="mb-3">
                     <label class="form-label fw-semibold" for="completion_status">
                       Status Akhir Penanganan <span class="app-required">*</span>
@@ -397,7 +434,7 @@
                   </div>
 
                   <div class="d-flex align-items-center gap-2 pt-2 border-top">
-                    <button type="submit" class="btn btn-success fw-semibold px-4" onclick="return confirm('Yakin ingin menyelesaikan laporan ini?');">
+                    <button type="submit" class="btn btn-success fw-semibold px-4">
                       Konfirmasi Selesai
                     </button>
                   </div>
@@ -610,7 +647,14 @@
                   Gunakan pembatalan penugasan bila penanggung jawab aktif berhalangan atau perlu diganti. Tiket akan kembali berstatus tersedia untuk diambil ulang.
                 </p>
 
-                <form action="/reports/<%= report.ticket_id %>/cancel-assignment" method="POST">
+                <form
+                  action="/reports/<%= report.ticket_id %>/cancel-assignment"
+                  method="POST"
+                  data-confirm="Batalkan penugasan tiket ini? Status tiket akan kembali menjadi tersedia."
+                  data-confirm-title="Batalkan Penugasan"
+                  data-confirm-btn="Ya, Batalkan"
+                  data-confirm-variant="danger"
+                >
                   <div class="mb-3">
                     <label for="cancel_notes" class="form-label fw-semibold">Alasan Pembatalan <span class="app-required">*</span></label>
                     <textarea
@@ -623,7 +667,7 @@
                     ></textarea>
                   </div>
 
-                  <button type="submit" class="btn btn-danger fw-semibold px-3" onclick="return confirm('Batalkan penugasan tiket ini? Status tiket akan kembali menjadi tersedia.');">
+                  <button type="submit" class="btn btn-danger fw-semibold px-3">
                     Batalkan Tugas
                   </button>
                 </form>
@@ -708,7 +752,17 @@
           var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
           modal.show();
         } else {
-          if (confirm('Yakin ingin mendelegasikan tiket ini ke ' + userName + ' (' + userRegion + ')?')) {
+          if (window.showAppConfirmModal) {
+            window.showAppConfirmModal({
+              title: 'Konfirmasi Delegasi',
+              message: 'Yakin ingin mendelegasikan tiket ini ke ' + userName + ' (' + userRegion + ')?',
+              confirmText: 'Ya, Delegasikan',
+              variant: 'primary',
+              onConfirm: function () {
+                form.submit();
+              }
+            });
+          } else {
             form.submit();
           }
         }

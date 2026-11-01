@@ -113,6 +113,7 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
         reports.received_at,
         reports.taken_at,
         reports.updated_at,
+        ((SELECT COUNT(1) FROM report_logs rl WHERE rl.ticket_id = reports.ticket_id AND rl.action = 'resubmit_follow_up_report') > 0) AS is_resubmitted,
         regions.code AS region_code,
         regions.name AS region_name,
         ra.assignment_type,
@@ -238,6 +239,7 @@ async function getEksekutorDashboard(currentUser, { assignedLimit = 5 } = {}) {
     );
     return {
       ...row,
+      is_resubmitted: Boolean(row.is_resubmitted),
       is_delegated: isDelegated,
       is_cross_region: isCrossRegion,
       is_region_switch: isRegionSwitch
@@ -357,6 +359,7 @@ async function getKoordinatorDashboard(currentUserOrOptions = {}, options = {}) 
           WHEN report_logs.action LIKE 'telegram_%'
             OR report_logs.action = 'create_telegram_report'
             OR report_logs.action = 'telegram_additional_data_received'
+            OR report_logs.action = 'resubmit_follow_up_report'
           THEN 'Telegram Bot'
           ELSE 'Sistem'
         END AS actor_name
@@ -422,6 +425,7 @@ async function getKoordinatorDashboard(currentUserOrOptions = {}, options = {}) 
           reports.received_at,
           reports.taken_at,
           reports.updated_at,
+          ((SELECT COUNT(1) FROM report_logs rl WHERE rl.ticket_id = reports.ticket_id AND rl.action = 'resubmit_follow_up_report') > 0) AS is_resubmitted,
           regions.code AS region_code,
           regions.name AS region_name
         FROM reports
@@ -566,7 +570,10 @@ async function getKoordinatorDashboard(currentUserOrOptions = {}, options = {}) 
     disparityAlert,
     eksekutorWorkload,
     latestActivities: activityResult[0] || [],
-    myActiveReports: (myActiveResult && myActiveResult[0]) || []
+    myActiveReports: ((myActiveResult && myActiveResult[0]) || []).map((row) => ({
+      ...row,
+      is_resubmitted: Boolean(row.is_resubmitted)
+    }))
   };
 }
 
@@ -597,6 +604,7 @@ async function getSuperAdminDashboard() {
           COALESCE(SUM(users.is_active = 0), 0) AS total_inactive_users
         FROM roles
         LEFT JOIN users ON users.role_id = roles.id
+        WHERE roles.name != 'pelapor'
         GROUP BY roles.id, roles.name
         ORDER BY roles.name ASC
         `

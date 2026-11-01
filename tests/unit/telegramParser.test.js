@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   parseTelegramCoreMessage,
   parseTelegramEnrichmentMessage,
+  parseTelegramAllFields,
   extractTicketIdFromText,
   hasCoreIntakeStructure
 } = require('../../utils/telegramParser');
@@ -360,6 +361,38 @@ describe('Unit Test: utils/telegramParser.js', () => {
       assert.equal(coreParsed.data.region, 'PDG');
       assert.equal(coreParsed.data.branch_name, 'PADANG');
       assert.equal(coreParsed.data.sto, 'BDT');
+    });
+  });
+
+  describe('parseTelegramAllFields() - Resubmit Field Parsing', () => {
+    it('1. harus mengekstrak Ticket ID dan semua field perbaikan yang dikirim', () => {
+      const resubmitText = [
+        'TICKET ID: INF770188',
+        'ORDER ID: AOI426034900040001',
+        'STO: BDT',
+        'SERVICE ID: 99887766_INTERNET',
+        'SUMMARY: Sudah diperbaiki kabel drop dan data STO'
+      ].join('\n');
+
+      const parsed = parseTelegramAllFields(resubmitText);
+      assert.equal(parsed.ticketId, 'INF770188');
+      assert.equal(parsed.fields.order_id, 'AOI426034900040001');
+      assert.equal(parsed.fields.sto, 'BDT');
+      assert.equal(parsed.fields.service_id, '99887766_INTERNET');
+      assert.equal(parsed.fields.summary, 'Sudah diperbaiki kabel drop dan data STO');
+    });
+
+    it('2. harus menangani pesan teks kosong atau non-string dengan aman', () => {
+      assert.deepEqual(parseTelegramAllFields(''), { ticketId: null, fields: {}, rawText: '' });
+      assert.deepEqual(parseTelegramAllFields(null), { ticketId: null, fields: {}, rawText: '' });
+      assert.deepEqual(parseTelegramAllFields(undefined), { ticketId: null, fields: {}, rawText: '' });
+    });
+
+    it('3. harus mengekstrak Ticket ID dari pola regex longgar jika label TICKET ID tidak terstruktur sempurna', () => {
+      const looseText = 'Tolong proses ulang tiket INF770188 ya\nSTO: PDC';
+      const parsed = parseTelegramAllFields(looseText);
+      assert.equal(parsed.ticketId, 'INF770188');
+      assert.equal(parsed.fields.sto, 'PDC');
     });
   });
 });

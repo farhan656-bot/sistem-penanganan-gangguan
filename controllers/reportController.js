@@ -247,13 +247,20 @@ function normalizeReportReturnPath(req, fallbackPath) {
     try {
       const url = new URL(candidate, `${req.protocol}://${requestHost}`);
       const isSameHost = url.host === requestHost;
-      const safePath = `${url.pathname}${url.search}`;
+      const safePath = `${url.pathname}${url.search}${url.hash || ''}`;
 
       if (
         isSameHost &&
-        (safePath === '/reports' || safePath.startsWith('/reports/') || safePath.startsWith('/reports?'))
+        (
+          safePath === '/reports' ||
+          safePath.startsWith('/reports/') ||
+          safePath.startsWith('/reports?') ||
+          safePath === '/koordinator/reports' ||
+          safePath.startsWith('/koordinator/reports/') ||
+          safePath.startsWith('/koordinator/reports?')
+        )
       ) {
-        return safePath.startsWith('/reports/') ? fallbackPath : safePath;
+        return safePath;
       }
     } catch (error) {
       // Ignore malformed return targets and use the known fallback below.
@@ -332,6 +339,7 @@ function buildReportDetailPayload(report) {
     is_delegated: Boolean(report.is_delegated),
     is_cross_region: Boolean(report.is_cross_region),
     is_region_switch: Boolean(report.is_region_switch),
+    is_resubmitted: Boolean(report.is_resubmitted),
     received_at: normalizeJsonValue(report.received_at),
     taken_at: normalizeJsonValue(report.taken_at),
     resolved_at: normalizeJsonValue(report.resolved_at),
@@ -862,7 +870,7 @@ async function takeReport(req, res) {
 }
 
 async function markReportInProgress(req, res) {
-  let redirectPath = normalizeReportReturnPath(req, '/reports');
+  let redirectPath = '/reports';
 
   try {
     const identifier = req.params.ticketId || req.params.id;
@@ -872,8 +880,25 @@ async function markReportInProgress(req, res) {
       throw new Error('Laporan tidak ditemukan atau tidak dapat diakses.');
     }
 
-    const fallbackPath = `/reports/${report.ticket_id}`;
+    const currentUserRole = req.session && req.session.user
+      ? String(req.session.user.role || req.session.user.role_name || '').trim().toLowerCase()
+      : '';
+    const isKoordinator = currentUserRole === 'koordinator';
+    const defaultDetailPath = isKoordinator
+      ? `/koordinator/reports/${report.ticket_id}`
+      : `/reports/${report.ticket_id}`;
+    const fallbackPath = `${defaultDetailPath}#pengerjaan-tiket`;
+
     redirectPath = normalizeReportReturnPath(req, fallbackPath);
+    if (
+      redirectPath === '/reports' ||
+      redirectPath.startsWith('/reports?') ||
+      redirectPath === '/koordinator/reports' ||
+      redirectPath.startsWith('/koordinator/reports?')
+    ) {
+      redirectPath = fallbackPath;
+    }
+
     const result = await reportModel.markReportInProgress(report.ticket_id, req.session.user);
     await triggerTelegramFeedback(report.ticket_id, req.session.user, 'in_progress');
 

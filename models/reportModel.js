@@ -354,6 +354,7 @@ async function getReports(
       reports.summary,
       reports.status_internal,
       reports.reported_region_id,
+      ((SELECT COUNT(1) FROM report_logs rl WHERE rl.ticket_id = reports.ticket_id AND rl.action = 'resubmit_follow_up_report') > 0) AS is_resubmitted,
       ra.assigned_to_user_id,
       ra.assignment_type,
       regions.code AS region_code,
@@ -391,6 +392,7 @@ async function getReports(
 
   const [rows] = await pool.query(sql, filteredQuery.params);
   for (const row of rows) {
+    row.is_resubmitted = Boolean(row.is_resubmitted);
     row.current_assigned_user_id = row.assigned_to_user_id;
     row.is_delegated = row.assignment_type === 'delegation';
     row.is_cross_region = Boolean(
@@ -950,6 +952,7 @@ async function getReportByTicketId(ticketId, currentUser) {
   let sql = `
     SELECT
       reports.*,
+      ((SELECT COUNT(1) FROM report_logs rl WHERE rl.ticket_id = reports.ticket_id AND rl.action = 'resubmit_follow_up_report') > 0) AS is_resubmitted,
       rr.code AS reported_region_code,
       rr.name AS reported_region_name,
       rr.code AS region_code,
@@ -997,6 +1000,7 @@ async function getReportByTicketId(ticketId, currentUser) {
   const [rows] = await pool.query(sql, params);
   const row = rows[0] || null;
   if (row) {
+    row.is_resubmitted = Boolean(row.is_resubmitted);
     row.current_region_code = row.reported_region_code;
     row.current_region_name = row.reported_region_name;
     row.current_assigned_user_id = row.assigned_to_user_id;
@@ -1399,6 +1403,198 @@ async function markReportInProgress(ticketIdOrId, currentUser) {
   }
 }
 
+async function resubmitFollowUpReport(ticketIdOrId, payload = {}) {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const normalizedTicketId = typeof ticketIdOrId === 'string'
+      ? ticketIdOrId.trim()
+      : String(ticketIdOrId || '').trim();
+
+    if (!normalizedTicketId) {
+      throw new Error('Ticket ID wajib diisi.');
+    }
+
+    const [rows] = await connection.query(
+      `
+      SELECT
+        ticket_id,
+        order_id,
+        summary,
+        reported_region_id,
+        status_internal
+      FROM reports
+      WHERE ticket_id = ?
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [normalizedTicketId]
+    );
+
+    if (rows.length === 0) {
+      throw new Error('Laporan tidak ditemukan.');
+    }
+
+    const report = rows[0];
+
+    if (report.status_internal !== 'perlu_tindak_lanjut') {
+      throw new Error('Hanya laporan berstatus perlu tindak lanjut yang dapat di-resubmit.');
+    }
+
+    const incomingFields = payload.fields || {};
+    const meta = payload.telegram_meta || {};
+    const updates = {};
+    const updatedFieldNames = [];
+
+    const ALLOWED_RESUBMIT_FIELDS = [
+      'order_id',
+      'summary',
+      'sto',
+      'service_id',
+      'wo_number',
+      'service_type',
+      'segment',
+      'provider',
+      'telkom_area',
+      'branch_name',
+      'cluster_name',
+      'fallout_type',
+      'status_andalas'
+    ];
+
+    for (const field of ALLOWED_RESUBMIT_FIELDS) {
+      if (Object.prototype.hasOwnProperty.call(incomingFields, field)) {
+        const val = normalizeOptionalField(incomingFields[field]);
+        if (val !== null && val !== undefined) {
+          updates[field] = val;
+          updatedFieldNames.push(field);
+        }
+      }
+    }
+
+    if (incomingFields.region) {
+      const regionCode = String(incomingFields.region).trim().toUpperCase();
+      const [regionRows] = await connection.query(
+        'SELECT id, code FROM regions WHERE code = ? LIMIT 1',
+        [regionCode]
+      );
+      if (regionRows.length > 0) {
+        updates.reported_region_id = regionRows[0].id;
+        updatedFieldNames.push(`region (${regionRows[0].code})`);
+      }
+    }
+
+    const telegramSenderId = normalizeOptionalTelegramMetaField(meta.sender_id ?? meta.telegram_sender_id);
+    const telegramSenderUsername = normalizeOptionalTelegramMetaField(
+      meta.sender_username ?? meta.telegram_sender_username ?? meta.username ?? meta.reporter_username
+    );
+    const telegramSenderFirstName = normalizeOptionalTelegramMetaField(
+      meta.sender_first_name ?? meta.telegram_sender_first_name
+    );
+    const telegramSenderLastName = normalizeOptionalTelegramMetaField(
+      meta.sender_last_name ?? meta.telegram_sender_last_name
+    );
+
+    if (meta.chat_id) updates.telegram_chat_id = String(meta.chat_id);
+    if (meta.message_id) updates.telegram_message_id = String(meta.message_id);
+    if (telegramSenderId) updates.telegram_sender_id = telegramSenderId;
+    if (telegramSenderUsername) updates.telegram_sender_username = telegramSenderUsername;
+    if (telegramSenderFirstName) updates.telegram_sender_first_name = telegramSenderFirstName;
+    if (telegramSenderLastName) updates.telegram_sender_last_name = telegramSenderLastName;
+
+    updates.status_internal = 'tersedia';
+    updates.status_wfm = 'OPEN';
+    updates.completion_status = null;
+    updates.completion_notes = null;
+    updates.diit_code = null;
+    updates.taken_at = null;
+    updates.resolved_at = null;
+    updates.closed_at = null;
+
+    const setClauses = Object.keys(updates).map((field) => `${field} = ?`);
+    const values = Object.keys(updates).map((field) => updates[field]);
+
+    await connection.query(
+      `
+      UPDATE reports
+      SET ${setClauses.join(', ')}, updated_at = NOW()
+      WHERE ticket_id = ?
+      `,
+      [...values, report.ticket_id]
+    );
+
+    await connection.query(
+      `
+      UPDATE report_assignments
+      SET is_active = 0
+      WHERE ticket_id = ? AND is_active = 1
+      `,
+      [report.ticket_id]
+    );
+
+    if (meta.chat_id) {
+      const [pendingMediaRows] = await connection.query(
+        `SELECT * FROM telegram_pending_media WHERE chat_id = ? AND status = 'pending' ORDER BY created_at ASC`,
+        [String(meta.chat_id)]
+      );
+
+      for (const pm of pendingMediaRows) {
+        await attachmentModel.createAttachment({
+          ticket_id: report.ticket_id,
+          report_id: report.id || null,
+          type_attachment_code: 'bukti_pelapor',
+          source: 'telegram',
+          telegram_file_id: pm.telegram_file_id,
+          telegram_file_unique_id: pm.telegram_file_unique_id,
+          file_type: pm.file_type,
+          mime_type: pm.mime_type,
+          original_name: pm.original_name,
+          stored_name: pm.stored_name,
+          file_path: pm.file_path,
+          file_size: pm.file_size,
+          caption: pm.caption,
+          uploaded_by_user_id: null
+        }, connection);
+
+        await connection.query(
+          `UPDATE telegram_pending_media SET status = 'linked', linked_ticket_id = ?, linked_at = NOW() WHERE id = ?`,
+          [report.ticket_id, pm.id]
+        );
+      }
+    }
+
+    const fieldSummary = updatedFieldNames.length > 0
+      ? `Field diperbarui: ${updatedFieldNames.join(', ')}.`
+      : 'Data dikonfirmasi ulang.';
+
+    const logDescription = `Laporan diperbaiki dan dikirim kembali (resubmit) oleh pelapor via Telegram. Status dikembalikan ke antrean kerja (tersedia). ${fieldSummary}` +
+      (meta.chat_id ? ` Chat ID: ${meta.chat_id}.` : '');
+
+    await createReportLog({
+      ticket_id: report.ticket_id,
+      user_id: null,
+      action: 'resubmit_follow_up_report',
+      description: logDescription
+    }, connection);
+
+    await connection.commit();
+
+    return {
+      success: true,
+      ticketId: report.ticket_id,
+      orderId: updates.order_id || report.order_id,
+      updatedFields: updatedFieldNames
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 async function delegateReport(ticketIdOrId, currentUser, targetUserId, notes) {
   const connection = await pool.getConnection();
 
@@ -1728,6 +1924,7 @@ async function getReportLogsByTicketId(ticketId, trxConnection = null) {
         WHEN report_logs.action LIKE 'telegram_%'
           OR report_logs.action = 'create_telegram_report'
           OR report_logs.action = 'telegram_additional_data_received'
+          OR report_logs.action = 'resubmit_follow_up_report'
         THEN 'Telegram Bot'
         ELSE 'Sistem'
       END AS actor_name
@@ -1840,6 +2037,7 @@ module.exports = {
   takeReport,
   markReportInProgress,
   completeReport,
+  resubmitFollowUpReport,
   delegateReport,
   cancelAssignment,
   getAttachmentsByReportId,
