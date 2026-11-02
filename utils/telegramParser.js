@@ -364,9 +364,105 @@ function parseTelegramAllFields(text) {
   };
 }
 
+function buildRegistrationFormatExample() {
+  return [
+    'DAFTAR',
+    'NAMA: Farhan Muhammad',
+    'NIK: 123456',
+    'ASAL: TELKOM'
+  ].join('\n');
+}
+
+function parseReporterRegistration(text) {
+  if (typeof text !== 'string' || !text.trim()) {
+    return {
+      isRegistrationAttempt: false,
+      isValid: false,
+      data: null,
+      errors: ['Format pendaftaran kosong.']
+    };
+  }
+
+  const rawText = text.trim();
+  const lowerText = rawText.toLowerCase();
+  const startsWithCommand = lowerText.startsWith('/daftar');
+  const startsWithDaftar = rawText.toUpperCase().startsWith('DAFTAR');
+  const hasKeywords = /NAMA\s*:/i.test(rawText) && /NIK\s*:/i.test(rawText);
+
+  if (!startsWithCommand && !startsWithDaftar && !hasKeywords) {
+    return {
+      isRegistrationAttempt: false,
+      isValid: false,
+      data: null,
+      errors: []
+    };
+  }
+
+  // Jika hanya mengetik "/daftar" tanpa parameter isian
+  if (startsWithCommand && rawText.length <= 8) {
+    return {
+      isRegistrationAttempt: true,
+      isValid: false,
+      isCommandOnly: true,
+      data: null,
+      errors: ['Silakan lengkapi format data pendaftaran.']
+    };
+  }
+
+  const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const parsed = {};
+  const errors = [];
+
+  for (const line of lines) {
+    const sep = line.indexOf(':');
+    if (sep === -1) continue;
+    const label = line.slice(0, sep).trim().toUpperCase();
+    const val = line.slice(sep + 1).trim();
+
+    if (label === 'NAMA' || label === 'NAMA LENGKAP') {
+      parsed.full_name = val;
+    } else if (label === 'NIK') {
+      parsed.nik = val;
+    } else if (label === 'ASAL' || label === 'UNIT' || label === 'AGENCY' || label === 'INSTANSI') {
+      parsed.agency = val.toUpperCase();
+    }
+  }
+
+  if (!parsed.full_name) {
+    errors.push('NAMA wajib diisi.');
+  }
+
+  if (!parsed.nik) {
+    errors.push('NIK wajib diisi.');
+  } else if (!/^\d{6}$/.test(parsed.nik)) {
+    errors.push('NIK harus terdiri dari tepat 6 digit angka.');
+  }
+
+  const validAgencies = ['TELKOM', 'HD', 'TELKOMSEL'];
+  if (!parsed.agency) {
+    errors.push('ASAL unit wajib diisi (Pilihan: TELKOM, HD, atau TELKOMSEL).');
+  } else if (!validAgencies.includes(parsed.agency)) {
+    errors.push(`ASAL unit '${parsed.agency}' tidak valid. Pilihan yang diperbolehkan: TELKOM, HD, atau TELKOMSEL.`);
+  }
+
+  return {
+    isRegistrationAttempt: true,
+    isValid: errors.length === 0,
+    isCommandOnly: false,
+    data: errors.length === 0 ? {
+      full_name: parsed.full_name,
+      nik: parsed.nik,
+      agency: parsed.agency
+    } : null,
+    errors
+  };
+}
+
 module.exports = {
   parseTelegramCoreMessage,
   buildFormatExample,
+  buildRegistrationFormatExample,
+  parseReporterRegistration,
   extractTicketIdFromText,
   parseAdditionalDataMessage,
   parseTelegramEnrichmentMessage,

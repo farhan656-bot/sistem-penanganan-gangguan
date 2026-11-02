@@ -8,6 +8,7 @@ const { initTelegramBotService } = require('./services/telegramBotService');
 const viewHelpers = require('./utils/viewHelpers');
 const regionSwitchModel = require('./models/regionSwitchModel');
 const userModel = require('./models/userModel');
+const telegramReporterModel = require('./models/telegramReporterModel');
 
 dotenv.config();
 const app = express();
@@ -25,6 +26,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const manualReportRoutes = require('./routes/manualReportRoutes');
 const userRoutes = require('./routes/userRoutes');
 const regionSwitchRoutes = require('./routes/regionSwitchRoutes');
+const telegramReporterRoutes = require('./routes/telegramReporterRoutes');
 // view engine
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -75,6 +77,16 @@ app.use(async (req, res, next) => {
     }
   }
 
+  res.locals.pendingReportersCount = 0;
+  if (req.session.user && req.session.user.role === 'super_admin') {
+    try {
+      const counts = await telegramReporterModel.getStatusCounts();
+      res.locals.pendingReportersCount = counts.pending;
+    } catch (err) {
+      console.error('Gagal mengambil pendingReportersCount:', err.message || err);
+    }
+  }
+
   // Shared UI helpers for EJS (badge meta + date formatting)
   // Kept in res.locals so partial includes don't need to "export" symbols.
   Object.assign(res.locals, viewHelpers);
@@ -113,6 +125,7 @@ app.use('/reports', reportRoutes);
 app.use('/manual-reports', manualReportRoutes);
 app.use('/users', userRoutes);
 app.use('/region-switch', regionSwitchRoutes);
+app.use('/super-admin/reporters', telegramReporterRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

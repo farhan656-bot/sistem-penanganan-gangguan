@@ -40,6 +40,18 @@ Enum region_switch_status {
   expired
 }
 
+Enum telegram_reporter_status {
+  pending
+  approved
+  rejected
+}
+
+Enum telegram_reporter_agency {
+  TELKOM
+  HD
+  TELKOMSEL
+}
+
 Table roles {
   id int [pk, increment]
   name varchar(50) [not null, unique, note: "Expected values: pelapor, eksekutor, koordinator, supervisor, super_admin"]
@@ -270,6 +282,30 @@ Table sessions {
   data mediumtext
 }
 
+Table telegram_reporters {
+  id int [pk, increment]
+  telegram_user_id varchar(64) [not null, unique]
+  telegram_username varchar(100)
+  telegram_chat_id varchar(64) [not null]
+  full_name varchar(150) [not null]
+  nik varchar(20) [not null]
+  agency telegram_reporter_agency [not null]
+  status telegram_reporter_status [not null, default: 'pending']
+  rejection_reason text
+  approved_by_user_id int
+  approved_at datetime
+  created_at datetime [not null]
+  updated_at datetime [not null]
+
+  indexes {
+    telegram_user_id [unique]
+    status
+    agency
+    nik
+    approved_by_user_id
+  }
+}
+
 Ref: users.role_id > roles.id
 Ref: users.region_id > regions.id
 
@@ -299,3 +335,5 @@ Ref: region_switch_requests.target_region_id > regions.id
 Ref: manual_non_ticketing_reports.region_id > regions.id
 Ref: manual_non_ticketing_reports.created_by > users.id
 Ref: manual_non_ticketing_reports.updated_by > users.id
+
+Ref: telegram_reporters.approved_by_user_id > users.id

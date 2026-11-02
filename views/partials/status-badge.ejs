@@ -7,6 +7,7 @@
   else if (resolvedType === 'region_switch') meta = regionSwitchStatusMeta(resolvedValue);
   else if (resolvedType === 'user_status') meta = userStatusMeta(resolvedValue);
   else if (resolvedType === 'role') meta = roleMeta(resolvedValue);
+  else if (resolvedType === 'reporter') meta = reporterStatusMeta(resolvedValue);
   else meta = { cls: 'text-bg-secondary', label: resolvedValue ? String(resolvedValue) : '-' };
 %>
 <span class="badge <%= meta.cls %>"><%= meta.label %></span>

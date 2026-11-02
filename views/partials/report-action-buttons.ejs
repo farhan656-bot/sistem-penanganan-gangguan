@@ -20,6 +20,10 @@
     isAssignedToCurrentUser;
   const canDelegateTicket = actionRole === 'koordinator' && ticketStatus === 'tersedia' && !hasAssignedUser;
   const canCancelAssignment = actionRole === 'koordinator' && ['diambil', 'didelegasikan'].includes(ticketStatus) && hasAssignedUser;
+  const canReopenEscalation =
+    ['eksekutor', 'koordinator'].includes(actionRole) &&
+    ticketStatus === 'eskalasi' &&
+    (isAssignedToCurrentUser || actionRole === 'koordinator');
 %>
 
 <div class="action-buttons">
@@ -28,6 +32,23 @@
     class="btn btn-sm btn-outline-secondary"
     data-report-detail-url="/reports/<%= report.ticket_id %>/detail-json"
   >Detail</a>
+
+  <% if (canReopenEscalation) { %>
+    <form
+      action="/reports/<%= report.ticket_id %>/reopen"
+      method="POST"
+      class="m-0"
+      data-ticket-quick-action
+      data-action-type="reopen"
+      data-ticket-id="<%= report.ticket_id %>"
+      data-confirm="Buka kembali tiket <%= report.ticket_id %> untuk dikerjakan ulang?"
+      data-confirm-title="Konfirmasi Re-open Tiket"
+      data-confirm-btn="Ya, Re-open"
+      data-confirm-variant="warning"
+    >
+      <button type="submit" class="btn btn-sm btn-outline-warning">Re-open</button>
+    </form>
+  <% } %>
 
   <% if (canTakeTicket) { %>
     <form

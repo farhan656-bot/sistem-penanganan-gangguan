@@ -124,6 +124,53 @@
                     <div class="p-2 rounded bg-light border text-break"><%= report.completion_notes %></div>
                   </div>
                 <% } %>
+
+                <% if (report.source_channel === 'telegram' || report.telegram_sender_id || report.registered_reporter_name) { %>
+                  <div class="col-12 mt-3 pt-3 border-top">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                      <div class="fw-semibold small text-uppercase text-secondary">
+                        <i class="bi bi-person-badge me-1"></i>Informasi Pelapor (Telegram)
+                      </div>
+                      <% if (report.registered_reporter_name) { %>
+                        <span class="badge text-bg-success">
+                          <i class="bi bi-patch-check me-1"></i>Pelapor Terverifikasi
+                        </span>
+                      <% } %>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-12 col-sm-6 col-md-3">
+                        <div class="text-muted small">Nama Pelapor</div>
+                        <div class="fw-semibold"><%= report.registered_reporter_name || report.telegram_sender_first_name || '-' %></div>
+                      </div>
+                      <div class="col-12 col-sm-6 col-md-3">
+                        <div class="text-muted small">NIK</div>
+                        <div class="font-monospace"><%= report.registered_reporter_nik || '-' %></div>
+                      </div>
+                      <div class="col-12 col-sm-6 col-md-3">
+                        <div class="text-muted small">Asal Unit / Agency</div>
+                        <div>
+                          <% if (report.registered_reporter_agency) { %>
+                            <span class="badge text-bg-primary-subtle text-primary border"><%= report.registered_reporter_agency %></span>
+                          <% } else { %>
+                            <span class="text-muted">-</span>
+                          <% } %>
+                        </div>
+                      </div>
+                      <div class="col-12 col-sm-6 col-md-3">
+                        <div class="text-muted small">Akun Telegram</div>
+                        <div>
+                          <% if (report.telegram_sender_username) { %>
+                            <span class="font-monospace text-secondary">@<%= report.telegram_sender_username %></span>
+                          <% } else if (report.telegram_sender_id) { %>
+                            <span class="font-monospace text-muted">ID: <%= report.telegram_sender_id %></span>
+                          <% } else { %>
+                            <span class="text-muted">-</span>
+                          <% } %>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% } %>
               </div>
             </div>
           </div>
@@ -240,6 +287,39 @@
             </div>
           <% } %>
 
+          <% if (
+            currentUser.role === 'koordinator' &&
+            report.status_internal === 'eskalasi'
+          ) { %>
+            <div class="card app-card mb-3 border border-warning-subtle bg-warning-subtle bg-opacity-10" id="reopen-tiket">
+              <div class="card-header fw-semibold d-flex align-items-center gap-2 text-warning-emphasis">
+                <i class="bi bi-arrow-clockwise"></i>
+                <span>Tiket Sedang Dalam Penanganan Eksternal (Eskalasi DIIT)</span>
+              </div>
+              <div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">
+                <div>
+                  <div class="fw-semibold text-dark mb-1">Buka Kembali (Re-open) Tiket</div>
+                  <p class="mb-0 text-muted small">
+                    Jika hasil perbaikan atau koordinasi dari pihak DIIT telah diperoleh, buka kembali tiket ini untuk melanjutkan pengerjaan atau melakukan re-eskalasi bila masih berkendala.
+                  </p>
+                </div>
+                <form
+                  action="/reports/<%= report.ticket_id %>/reopen"
+                  method="POST"
+                  class="m-0"
+                  data-confirm="Buka kembali tiket <%= report.ticket_id %> untuk dikerjakan ulang?"
+                  data-confirm-title="Konfirmasi Re-open Tiket"
+                  data-confirm-btn="Ya, Re-open"
+                  data-confirm-variant="warning"
+                >
+                  <button type="submit" class="btn btn-warning fw-semibold px-3">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Re-open Tiket
+                  </button>
+                </form>
+              </div>
+            </div>
+          <% } %>
+
           <%
             const isAssignedToCurrentUser = Number(report.assigned_to_user_id) === Number(currentUser.id);
             const isAlreadyInProgress = String(report.status_wfm || '').trim().toLowerCase() === 'in progress';
@@ -317,7 +397,7 @@
                       <option value="">Pilih status akhir penanganan</option>
                       <option value="selesai">Selesai</option>
                       <option value="perlu_tindak_lanjut">Perlu Tindak Lanjut</option>
-                      <option value="eskalasi">Eskalasi</option>
+                      <option value="eskalasi"><%= report.is_escalated_before ? 'Re-eskalasi' : 'Eskalasi' %></option>
                     </select>
                     <div class="form-text">
                       Pilih 'Selesai' untuk gangguan tertangani, 'Perlu Tindak Lanjut' jika butuh tindak lanjut teknis lanjutan, atau 'Eskalasi' untuk kendala eksternal.
@@ -351,7 +431,7 @@
                         Catatan Penyelesaian
                         <span class="app-required d-none" data-completion-notes-required>*</span>
                       </label>
-                      <span class="badge text-bg-light border text-muted small fw-normal">Opsional</span>
+                      <span class="badge text-bg-light border text-muted small fw-normal" data-completion-notes-optional>Opsional</span>
                     </div>
                     <textarea
                       id="completion_notes"
@@ -690,6 +770,7 @@
       var statusField = form.querySelector('[data-completion-status]');
       var notesField = form.querySelector('[data-completion-notes]');
       var notesRequiredIndicator = form.querySelector('[data-completion-notes-required]');
+      var notesOptionalBadge = form.querySelector('[data-completion-notes-optional]');
       var diitCodeGroup = form.querySelector('[data-diit-code-group]');
       var diitCodeField = form.querySelector('[data-diit-code]');
       if (!statusField || !notesField) return;
@@ -702,6 +783,9 @@
         if (notesRequiredIndicator) {
           notesRequiredIndicator.classList.toggle('d-none', !requiresNotes);
         }
+        if (notesOptionalBadge) {
+          notesOptionalBadge.classList.toggle('d-none', requiresNotes);
+        }
 
         if (diitCodeGroup && diitCodeField) {
           diitCodeGroup.classList.toggle('d-none', !requiresDiitCode);
@@ -711,6 +795,27 @@
           if (!requiresDiitCode) {
             diitCodeField.value = '';
           }
+        }
+
+        var statusVal = statusField.value;
+        if (statusVal === 'selesai') {
+          form.setAttribute('data-confirm-title', 'Konfirmasi Selesai');
+          form.setAttribute('data-confirm', 'Yakin ingin menyelesaikan laporan ini? Tiket akan ditandai selesai dan ditutup.');
+          form.setAttribute('data-confirm-btn', 'Ya, Selesaikan');
+          form.setAttribute('data-confirm-variant', 'success');
+        } else if (statusVal === 'perlu_tindak_lanjut') {
+          form.setAttribute('data-confirm-title', 'Konfirmasi Tindak Lanjut');
+          form.setAttribute('data-confirm', 'Laporan akan ditandai Perlu Tindak Lanjut. Pastikan catatan telah diisi dengan jelas.');
+          form.setAttribute('data-confirm-btn', 'Ya, Simpan Tindak Lanjut');
+          form.setAttribute('data-confirm-variant', 'warning');
+        } else if (statusVal === 'eskalasi') {
+          var isReescalation = <%= report.is_escalated_before ? 'true' : 'false' %>;
+          form.setAttribute('data-confirm-title', isReescalation ? 'Konfirmasi Re-eskalasi' : 'Konfirmasi Eskalasi');
+          form.setAttribute('data-confirm', isReescalation
+            ? 'Laporan akan dieskalasikan kembali (Re-eskalasi) ke unit eksternal dengan rujukan Kode DIIT.'
+            : 'Laporan akan dieskalasikan ke unit eksternal dengan rujukan Kode DIIT.');
+          form.setAttribute('data-confirm-btn', isReescalation ? 'Ya, Re-eskalasikan' : 'Ya, Eskalasikan');
+          form.setAttribute('data-confirm-variant', 'danger');
         }
       }
 

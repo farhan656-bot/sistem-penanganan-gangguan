@@ -14,6 +14,7 @@
     if (target === '/users' && current.startsWith('/users')) return true;
     if (target === '/region-switch/my' && current.startsWith('/region-switch/my')) return true;
     if (target === '/region-switch/pending' && current.startsWith('/region-switch/pending')) return true;
+    if (target === '/super-admin/reporters' && current.startsWith('/super-admin/reporters')) return true;
     return false;
   };
 %>
@@ -89,6 +90,13 @@
           <a class="app-nav-pill <%= isActive('/users') ? 'active' : '' %>" href="/users">
             <i class="bi bi-people"></i>
             <span>Kelola User</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/super-admin/reporters') ? 'active' : '' %>" href="/super-admin/reporters">
+            <i class="bi bi-person-check"></i>
+            <span>Pendaftar Bot</span>
+            <% if (typeof pendingReportersCount !== 'undefined' && pendingReportersCount > 0) { %>
+              <span class="badge rounded-pill text-bg-warning font-monospace px-2 ms-1" title="<%= pendingReportersCount %> pendaftar menunggu persetujuan"><%= pendingReportersCount %></span>
+            <% } %>
           </a>
           <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
             <i class="bi bi-ticket-perforated"></i>
@@ -244,6 +252,13 @@
           <a class="app-nav-pill <%= isActive('/users') ? 'active' : '' %>" href="/users">
             <i class="bi bi-people"></i>
             <span>Kelola User</span>
+          </a>
+          <a class="app-nav-pill <%= isActive('/super-admin/reporters') ? 'active' : '' %>" href="/super-admin/reporters">
+            <i class="bi bi-person-check"></i>
+            <span>Pendaftar Bot</span>
+            <% if (typeof pendingReportersCount !== 'undefined' && pendingReportersCount > 0) { %>
+              <span class="badge rounded-pill text-bg-warning font-monospace px-2 ms-1" title="<%= pendingReportersCount %> pendaftar menunggu persetujuan"><%= pendingReportersCount %></span>
+            <% } %>
           </a>
           <a class="app-nav-pill <%= isActive('/reports') ? 'active' : '' %>" href="/reports">
             <i class="bi bi-ticket-perforated"></i>

@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="app-layout">
+    <%- include('../../partials/sidebar', { activePath: '/super-admin/reporters' }) %>
+
+    <div class="app-main">
+      <%- include('../../partials/topbar', { pageTitle: title }) %>
+
+      <main class="app-page">
+        <div class="app-page-content">
+          <%- include('../../partials/flash') %>
+
+          <%- include('../../partials/page-header', {
+            pageTitle: 'Pendaftar Bot Telegram',
+            pageSubtitle: 'Verifikasi pendaftaran akun pelapor dari unit TELKOM, HD, dan TELKOMSEL sebelum diizinkan mengirim laporan gangguan.',
+            pageActions: ''
+          }) %>
+
+          <!-- Navigation Tabs: Style Standard Sistem (Enterprise Segmented Tabs) -->
+          <nav class="app-work-status-tabs mb-3" aria-label="Filter status pendaftar">
+            <ul class="nav nav-tabs flex-nowrap">
+              <li class="nav-item">
+                <a
+                  class="nav-link <%= currentStatus === 'all' ? 'active' : '' %>"
+                  href="/super-admin/reporters?status=all<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
+                >
+                  <span>Semua</span>
+                  <span class="badge <%= currentStatus === 'all' ? 'text-bg-primary' : 'text-bg-light' %>">
+                    <%= counts.total || 0 %>
+                  </span>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link <%= currentStatus === 'pending' ? 'active' : '' %>"
+                  href="/super-admin/reporters?status=pending<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
+                >
+                  <span>Menunggu Persetujuan</span>
+                  <% if (counts.pending > 0) { %>
+                    <span class="badge text-bg-warning font-monospace">
+                      <%= counts.pending %>
+                    </span>
+                  <% } else { %>
+                    <span class="badge text-bg-light font-monospace">0</span>
+                  <% } %>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link <%= currentStatus === 'approved' ? 'active' : '' %>"
+                  href="/super-admin/reporters?status=approved<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
+                >
+                  <span>Disetujui</span>
+                  <span class="badge <%= currentStatus === 'approved' ? 'text-bg-primary' : 'text-bg-light' %> font-monospace">
+                    <%= counts.approved || 0 %>
+                  </span>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a
+                  class="nav-link <%= currentStatus === 'rejected' ? 'active' : '' %>"
+                  href="/super-admin/reporters?status=rejected<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
+                >
+                  <span>Ditolak</span>
+                  <span class="badge <%= currentStatus === 'rejected' ? 'text-bg-primary' : 'text-bg-light' %> font-monospace">
+                    <%= counts.rejected || 0 %>
+                  </span>
+                </a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Filter & Search Card: Sesuai Struktur Formulir Sistem -->
+          <div class="card app-card mb-3">
+            <div class="card-body">
+              <form method="GET" action="/super-admin/reporters" class="row g-3 align-items-end">
+                <input type="hidden" name="status" value="<%= currentStatus %>">
+
+                <div class="col-12 col-md-4">
+                  <label for="agencyFilterSelect" class="form-label small fw-semibold text-secondary">Asal Unit / Agency</label>
+                  <select id="agencyFilterSelect" name="agency" class="form-select">
+                    <option value="all" <%= currentAgency === 'all' ? 'selected' : '' %>>Semua Asal Unit</option>
+                    <option value="TELKOM" <%= currentAgency === 'TELKOM' ? 'selected' : '' %>>TELKOM</option>
+                    <option value="HD" <%= currentAgency === 'HD' ? 'selected' : '' %>>HD</option>
+                    <option value="TELKOMSEL" <%= currentAgency === 'TELKOMSEL' ? 'selected' : '' %>>TELKOMSEL</option>
+                  </select>
+                </div>
+
+                <div class="col-12 col-md-5">
+                  <label for="reporterSearchInput" class="form-label small fw-semibold text-secondary">Pencarian</label>
+                  <input
+                    type="text"
+                    id="reporterSearchInput"
+                    name="search"
+                    class="form-control"
+                    placeholder="Cari nama lengkap, NIK, username telegram..."
+                    value="<%= searchQuery %>"
+                  >
+                </div>
+
+                <div class="col-12 col-md-3 d-flex gap-2">
+                  <button type="submit" class="btn btn-primary flex-grow-1">Terapkan</button>
+                  <% if (searchQuery || currentAgency !== 'all') { %>
+                    <a href="/super-admin/reporters?status=<%= currentStatus %>" class="btn btn-outline-secondary" title="Reset filter">Reset</a>
+                  <% } %>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Table of Reporters: Mengikuti Layout Standard Sistem -->
+          <div class="card app-card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div>
+                <strong>Daftar Registrasi Pelapor Telegram</strong>
+                <div class="text-muted small">Kelola hak akses dan verifikasi pendaftaran pelapor gangguan.</div>
+              </div>
+              <span class="badge text-bg-light border font-monospace">Total: <%= (reporters || []).length %> data</span>
+            </div>
+            <div class="card-body p-0">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th class="app-col-num">No</th>
+                      <th>NIK</th>
+                      <th>Nama Lengkap</th>
+                      <th>Asal Unit</th>
+                      <th>Akun Telegram</th>
+                      <th>Waktu Daftar</th>
+                      <th>Status</th>
+                      <th>Keterangan / Verifikasi</th>
+                      <th class="app-table-actions text-end">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% if (!reporters || reporters.length === 0) { %>
+                      <tr>
+                        <td colspan="9" class="text-center text-muted py-5 app-table-empty">
+                          <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
+                          Belum ada data pendaftar pelapor untuk filter yang dipilih.
+                        </td>
+                      </tr>
+                    <% } %>
+
+                    <% (reporters || []).forEach((rep, index) => { %>
+                      <tr>
+                        <td class="app-col-num text-muted small"><%= index + 1 %></td>
+                        <td class="font-monospace fw-semibold"><%= rep.nik %></td>
+                        <td class="fw-semibold text-dark"><%= rep.full_name %></td>
+                        <td>
+                          <% if (rep.agency === 'TELKOM') { %>
+                            <span class="badge text-bg-danger font-monospace">TELKOM</span>
+                          <% } else if (rep.agency === 'HD') { %>
+                            <span class="badge text-bg-primary font-monospace">HD</span>
+                          <% } else if (rep.agency === 'TELKOMSEL') { %>
+                            <span class="badge text-bg-warning font-monospace">TELKOMSEL</span>
+                          <% } else { %>
+                            <span class="badge text-bg-secondary font-monospace"><%= rep.agency %></span>
+                          <% } %>
+                        </td>
+                        <td>
+                          <% if (rep.telegram_username) { %>
+                            <a href="https://t.me/<%= rep.telegram_username %>" target="_blank" rel="noopener" class="text-decoration-none d-inline-flex align-items-center gap-1 font-monospace small">
+                              <i class="bi bi-telegram text-primary"></i>
+                              <span>@<%= rep.telegram_username %></span>
+                            </a>
+                          <% } else { %>
+                            <span class="text-muted font-monospace small">ID: <%= rep.telegram_user_id %></span>
+                          <% } %>
+                        </td>
+                        <td class="text-nowrap text-muted small">
+                          <%= formatDateTime(rep.created_at) %>
+                        </td>
+                        <td>
+                          <%- include('../../partials/status-badge', { type: 'reporter', value: rep.status }) %>
+                        </td>
+                        <td>
+                          <% if (rep.status === 'approved') { %>
+                            <div class="small text-success d-flex align-items-center gap-1">
+                              <i class="bi bi-patch-check-fill"></i>
+                              <span>Oleh <%= rep.approved_by_name || 'Super Admin' %></span>
+                            </div>
+                            <div class="text-muted small"><%= formatDateTime(rep.approved_at) %></div>
+                          <% } else if (rep.status === 'rejected') { %>
+                            <div class="small text-danger d-flex align-items-center gap-1">
+                              <i class="bi bi-x-circle-fill"></i>
+                              <span><%= rep.rejection_reason || 'Ditolak' %></span>
+                            </div>
+                            <div class="text-muted small"><%= formatDateTime(rep.approved_at) %></div>
+                          <% } else { %>
+                            <span class="text-muted small fst-italic">Menunggu peninjauan</span>
+                          <% } %>
+                        </td>
+                        <td class="app-table-actions text-end text-nowrap">
+                          <% const repTg = rep.telegram_username ? '@' + rep.telegram_username : (rep.telegram_user_id ? 'ID: ' + rep.telegram_user_id : '-'); %>
+                          <% if (rep.status === 'pending') { %>
+                            <div class="d-inline-flex gap-1 justify-content-end">
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-success btn-open-approve-modal d-inline-flex align-items-center gap-1"
+                                data-id="<%= rep.id %>"
+                                data-name="<%= rep.full_name %>"
+                                data-nik="<%= rep.nik %>"
+                                data-agency="<%= rep.agency %>"
+                                data-telegram="<%= repTg %>"
+                              >
+                                <i class="bi bi-check-lg"></i>
+                                <span>Setujui</span>
+                              </button>
+                              <button
+                                type="button"
+                                class="btn btn-sm btn-outline-danger btn-open-reject-modal d-inline-flex align-items-center gap-1"
+                                data-id="<%= rep.id %>"
+                                data-name="<%= rep.full_name %>"
+                                data-nik="<%= rep.nik %>"
+                                data-agency="<%= rep.agency %>"
+                                data-telegram="<%= repTg %>"
+                              >
+                                <i class="bi bi-x-lg"></i>
+                                <span>Tolak</span>
+                              </button>
+                            </div>
+                          <% } else if (rep.status === 'approved') { %>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-danger btn-open-reject-modal d-inline-flex align-items-center gap-1"
+                              data-id="<%= rep.id %>"
+                              data-name="<%= rep.full_name %>"
+                              data-nik="<%= rep.nik %>"
+                              data-agency="<%= rep.agency %>"
+                              data-telegram="<%= repTg %>"
+                              title="Cabut persetujuan pelapor ini"
+                            >
+                              <i class="bi bi-slash-circle"></i>
+                              <span>Tolak</span>
+                            </button>
+                          <% } else if (rep.status === 'rejected') { %>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-success btn-open-approve-modal d-inline-flex align-items-center gap-1"
+                              data-id="<%= rep.id %>"
+                              data-name="<%= rep.full_name %>"
+                              data-nik="<%= rep.nik %>"
+                              data-agency="<%= rep.agency %>"
+                              data-telegram="<%= repTg %>"
+                            >
+                              <i class="bi bi-arrow-counterclockwise"></i>
+                              <span>Setujui</span>
+                            </button>
+                          <% } %>
+                        </td>
+                      </tr>
+                    <% }) %>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal Setujui Pendaftaran: Sesuai Modal Konfirmasi Sistem -->
+  <div class="modal fade" id="approveReporterModal" tabindex="-1" aria-labelledby="approveReporterModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="approveReporterForm" method="POST" action="">
+          <div class="modal-header">
+            <h5 class="modal-title fs-6 fw-bold" id="approveReporterModalLabel">Konfirmasi Persetujuan Pelapor</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small mb-3">
+              Pastikan rincian data pelapor telah valid sebelum menyetujui. Akun yang disetujui akan dapat melaporkan gangguan secara langsung di grup.
+            </p>
+
+            <div class="border rounded p-3 bg-light mb-3">
+              <div class="row g-2 small">
+                <div class="col-4 text-muted">Nama Pelapor</div>
+                <div class="col-8 fw-semibold text-dark" id="approveReporterName">-</div>
+
+                <div class="col-4 text-muted">NIK</div>
+                <div class="col-8 font-monospace fw-semibold text-dark" id="approveReporterNik">-</div>
+
+                <div class="col-4 text-muted">Asal Unit</div>
+                <div class="col-8" id="approveReporterAgency">-</div>
+
+                <div class="col-4 text-muted">Akun Telegram</div>
+                <div class="col-8 font-monospace text-secondary" id="approveReporterTelegram">-</div>
+              </div>
+            </div>
+
+            <div class="small text-secondary">
+              <i class="bi bi-info-circle me-1 text-primary"></i>Bot Telegram akan otomatis mengirimkan pesan konfirmasi persetujuan ke chat pribadi pelapor.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+            <button type="submit" class="btn btn-success d-inline-flex align-items-center gap-1">
+              <i class="bi bi-check-lg"></i>
+              <span>Ya, Setujui Pendaftaran</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Tolak Pendaftaran: Sesuai Modal Konfirmasi Sistem -->
+  <div class="modal fade" id="rejectReporterModal" tabindex="-1" aria-labelledby="rejectReporterModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="rejectReporterForm" method="POST" action="">
+          <div class="modal-header">
+            <h5 class="modal-title fs-6 fw-bold" id="rejectReporterModalLabel">Tolak Pendaftaran Pelapor</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small mb-3">
+              Pastikan alasan penolakan jelas agar pelapor dapat memperbaiki data pendaftarannya melalui bot Telegram.
+            </p>
+
+            <div class="border rounded p-3 bg-light mb-3">
+              <div class="row g-2 small">
+                <div class="col-4 text-muted">Nama Pelapor</div>
+                <div class="col-8 fw-semibold text-dark" id="rejectReporterName">-</div>
+
+                <div class="col-4 text-muted">NIK</div>
+                <div class="col-8 font-monospace fw-semibold text-dark" id="rejectReporterNik">-</div>
+
+                <div class="col-4 text-muted">Asal Unit</div>
+                <div class="col-8" id="rejectReporterAgency">-</div>
+
+                <div class="col-4 text-muted">Akun Telegram</div>
+                <div class="col-8 font-monospace text-secondary" id="rejectReporterTelegram">-</div>
+              </div>
+            </div>
+
+            <div class="mb-2">
+              <label for="rejection_reason" class="form-label small fw-semibold text-dark">
+                Alasan Penolakan <span class="text-danger">*</span>
+              </label>
+              <textarea
+                name="rejection_reason"
+                id="rejection_reason"
+                class="form-control"
+                rows="3"
+                placeholder="Contoh: NIK tidak terdaftar di HRIS / unit kerja tidak sesuai..."
+                required
+              ></textarea>
+              <div class="form-text small">
+                Pesan ini akan dikirimkan langsung ke chat Telegram pelapor.
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Batal</button>
+            <button type="submit" class="btn btn-danger d-inline-flex align-items-center gap-1">
+              <i class="bi bi-x-circle"></i>
+              <span>Tolak Pendaftaran</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="/js/app.js?v=flash-auto-dismiss-20260505-2"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      function renderAgencyBadge(agency) {
+        var cls = 'text-bg-secondary';
+        if (agency === 'TELKOM') cls = 'text-bg-danger';
+        else if (agency === 'HD') cls = 'text-bg-primary';
+        else if (agency === 'TELKOMSEL') cls = 'text-bg-warning';
+        return '<span class="badge ' + cls + ' font-monospace">' + (agency || '-') + '</span>';
+      }
+
+      // Handler Modal Setujui (Approve)
+      var approveModalEl = document.getElementById('approveReporterModal');
+      var approveModal = approveModalEl ? new bootstrap.Modal(approveModalEl) : null;
+      var approveForm = document.getElementById('approveReporterForm');
+      var approveName = document.getElementById('approveReporterName');
+      var approveNik = document.getElementById('approveReporterNik');
+      var approveAgency = document.getElementById('approveReporterAgency');
+      var approveTelegram = document.getElementById('approveReporterTelegram');
+
+      document.querySelectorAll('.btn-open-approve-modal').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var reporterId = this.getAttribute('data-id');
+          var reporterName = this.getAttribute('data-name');
+          var reporterNik = this.getAttribute('data-nik');
+          var reporterAgency = this.getAttribute('data-agency');
+          var reporterTelegram = this.getAttribute('data-telegram');
+
+          if (approveForm && reporterId) {
+            approveForm.action = '/super-admin/reporters/' + reporterId + '/approve';
+          }
+          if (approveName) {
+            approveName.textContent = reporterName || '-';
+          }
+          if (approveNik) {
+            approveNik.textContent = reporterNik || '-';
+          }
+          if (approveAgency) {
+            approveAgency.innerHTML = renderAgencyBadge(reporterAgency);
+          }
+          if (approveTelegram) {
+            approveTelegram.textContent = reporterTelegram || '-';
+          }
+          if (approveModal) {
+            approveModal.show();
+          }
+        });
+      });
+
+      // Handler Modal Tolak (Reject)
+      var rejectModalEl = document.getElementById('rejectReporterModal');
+      var rejectModal = rejectModalEl ? new bootstrap.Modal(rejectModalEl) : null;
+      var rejectForm = document.getElementById('rejectReporterForm');
+      var rejectName = document.getElementById('rejectReporterName');
+      var rejectNik = document.getElementById('rejectReporterNik');
+      var rejectAgency = document.getElementById('rejectReporterAgency');
+      var rejectTelegram = document.getElementById('rejectReporterTelegram');
+      var rejectReason = document.getElementById('rejection_reason');
+
+      document.querySelectorAll('.btn-open-reject-modal').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var reporterId = this.getAttribute('data-id');
+          var reporterName = this.getAttribute('data-name');
+          var reporterNik = this.getAttribute('data-nik');
+          var reporterAgency = this.getAttribute('data-agency');
+          var reporterTelegram = this.getAttribute('data-telegram');
+
+          if (rejectForm && reporterId) {
+            rejectForm.action = '/super-admin/reporters/' + reporterId + '/reject';
+          }
+          if (rejectName) {
+            rejectName.textContent = reporterName || '-';
+          }
+          if (rejectNik) {
+            rejectNik.textContent = reporterNik || '-';
+          }
+          if (rejectAgency) {
+            rejectAgency.innerHTML = renderAgencyBadge(reporterAgency);
+          }
+          if (rejectTelegram) {
+            rejectTelegram.textContent = reporterTelegram || '-';
+          }
+          if (rejectReason) {
+            rejectReason.value = '';
+          }
+          if (rejectModal) {
+            rejectModal.show();
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

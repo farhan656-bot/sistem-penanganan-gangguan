@@ -355,6 +355,7 @@ async function getReports(
       reports.status_internal,
       reports.reported_region_id,
       ((SELECT COUNT(1) FROM report_logs rl WHERE rl.ticket_id = reports.ticket_id AND rl.action = 'resubmit_follow_up_report') > 0) AS is_resubmitted,
+      ((SELECT COUNT(1) FROM report_logs rl WHERE rl.ticket_id = reports.ticket_id AND rl.action IN ('escalate_report', 're_escalate_report')) > 0) AS is_escalated_before,
       ra.assigned_to_user_id,
       ra.assignment_type,
       regions.code AS region_code,
@@ -393,6 +394,7 @@ async function getReports(
   const [rows] = await pool.query(sql, filteredQuery.params);
   for (const row of rows) {
     row.is_resubmitted = Boolean(row.is_resubmitted);
+    row.is_escalated_before = Boolean(row.is_escalated_before);
     row.current_assigned_user_id = row.assigned_to_user_id;
     row.is_delegated = row.assignment_type === 'delegation';
     row.is_cross_region = Boolean(
@@ -953,6 +955,7 @@ async function getReportByTicketId(ticketId, currentUser) {
     SELECT
       reports.*,
       ((SELECT COUNT(1) FROM report_logs rl WHERE rl.ticket_id = reports.ticket_id AND rl.action = 'resubmit_follow_up_report') > 0) AS is_resubmitted,
+      ((SELECT COUNT(1) FROM report_logs rl WHERE rl.ticket_id = reports.ticket_id AND rl.action IN ('escalate_report', 're_escalate_report')) > 0) AS is_escalated_before,
       rr.code AS reported_region_code,
       rr.name AS reported_region_name,
       rr.code AS region_code,
@@ -963,12 +966,17 @@ async function getReportByTicketId(ticketId, currentUser) {
       ra.assigned_at,
       u.full_name AS assigned_user_name,
       u.region_id AS assigned_user_home_region_id,
-      assigner.full_name AS assigned_by_user_name
+      assigner.full_name AS assigned_by_user_name,
+      tr.full_name AS registered_reporter_name,
+      tr.nik AS registered_reporter_nik,
+      tr.agency AS registered_reporter_agency,
+      tr.status AS registered_reporter_status
     FROM reports
     LEFT JOIN regions rr ON reports.reported_region_id = rr.id
     LEFT JOIN report_assignments ra ON ra.ticket_id = reports.ticket_id AND ra.is_active = 1
     LEFT JOIN users u ON ra.assigned_to_user_id = u.id
     LEFT JOIN users assigner ON ra.assigned_by_user_id = assigner.id
+    LEFT JOIN telegram_reporters tr ON reports.telegram_sender_id = tr.telegram_user_id
     WHERE reports.ticket_id = ?
   `;
 
@@ -1001,6 +1009,7 @@ async function getReportByTicketId(ticketId, currentUser) {
   const row = rows[0] || null;
   if (row) {
     row.is_resubmitted = Boolean(row.is_resubmitted);
+    row.is_escalated_before = Boolean(row.is_escalated_before);
     row.current_region_code = row.reported_region_code;
     row.current_region_name = row.reported_region_name;
     row.current_assigned_user_id = row.assigned_to_user_id;
@@ -1252,7 +1261,23 @@ async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
       throw new Error('Kode DIIT maksimal 100 karakter.');
     }
 
-    const logMeta = getCompletionLogMeta(finalStatus);
+    let logMeta = getCompletionLogMeta(finalStatus);
+    let isReescalation = false;
+
+    if (finalStatus === 'eskalasi') {
+      const [escRows] = await connection.query(
+        `SELECT COUNT(1) AS cnt FROM report_logs WHERE ticket_id = ? AND action IN ('escalate_report', 're_escalate_report')`,
+        [report.ticket_id]
+      );
+      isReescalation = Boolean(escRows[0] && escRows[0].cnt > 0);
+      if (isReescalation) {
+        logMeta = {
+          action: 're_escalate_report',
+          label: 're-eskalasi'
+        };
+      }
+    }
+
     const storedDiitCode = finalStatus === 'eskalasi' ? diitCode : null;
     const logDescription =
       `Laporan diproses oleh ${currentUser.full_name} dengan hasil akhir: ${logMeta.label}.` +
@@ -1306,7 +1331,8 @@ async function completeReport(ticketIdOrId, currentUser, formData, fileData) {
 
     return {
       success: true,
-      message: `Laporan ${report.ticket_id} berhasil diproses dengan status ${logMeta.label}.`
+      message: `Laporan ${report.ticket_id} berhasil diproses dengan status ${logMeta.label}.`,
+      isReescalation
     };
   } catch (error) {
     await connection.rollback();
@@ -1394,6 +1420,137 @@ async function markReportInProgress(ticketIdOrId, currentUser) {
     return {
       success: true,
       message: `Laporan ${report.ticket_id} ditandai sedang dikerjakan.`
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function reopenReport(ticketIdOrId, currentUser) {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    const currentUserRole = getCurrentUserRole(currentUser);
+    const normalizedTicketId = typeof ticketIdOrId === 'string' ? ticketIdOrId.trim() : String(ticketIdOrId || '').trim();
+
+    const [rows] = await connection.query(
+      `
+      SELECT
+        ticket_id,
+        order_id,
+        status_internal,
+        reported_region_id,
+        diit_code
+      FROM reports
+      WHERE ticket_id = ?
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [normalizedTicketId]
+    );
+
+    if (rows.length === 0) {
+      throw new Error('Laporan tidak ditemukan.');
+    }
+
+    const report = rows[0];
+
+    if (report.status_internal !== 'eskalasi') {
+      throw new Error('Hanya laporan dengan status eskalasi yang dapat dibuka kembali (re-open).');
+    }
+
+    if (currentUserRole === 'koordinator') {
+      await ensureCoordinatorCanAccessReportRegion(report.reported_region_id, connection);
+    }
+
+    if (currentUserRole === 'eksekutor') {
+      const allowedRegionIds = await getExecutorAllowedRegionIds(currentUser);
+      const canAccessReportRegion = allowedRegionIds.some(
+        (regionId) => Number(regionId) === Number(report.reported_region_id)
+      );
+
+      if (!canAccessReportRegion) {
+        throw new Error('Anda tidak dapat membuka kembali laporan di luar wilayah aktif Anda.');
+      }
+    }
+
+    const [assignmentRows] = await connection.query(
+      `
+      SELECT id, assigned_to_user_id, is_active
+      FROM report_assignments
+      WHERE ticket_id = ?
+      ORDER BY id DESC
+      LIMIT 1
+      FOR UPDATE
+      `,
+      [report.ticket_id]
+    );
+
+    const activeAssignedUserId = assignmentRows.length > 0
+      ? assignmentRows[0].assigned_to_user_id
+      : null;
+
+    if (currentUserRole === 'eksekutor') {
+      if (!activeAssignedUserId || Number(activeAssignedUserId) !== Number(currentUser.id)) {
+        throw new Error('Anda bukan penanggung jawab laporan ini.');
+      }
+    }
+
+    await connection.query(
+      `
+      UPDATE reports
+      SET
+        status_internal = 'diambil',
+        status_wfm = 'In Progress',
+        completion_status = NULL,
+        resolved_at = NULL,
+        closed_at = NULL,
+        updated_at = NOW()
+      WHERE ticket_id = ?
+      `,
+      [report.ticket_id]
+    );
+
+    if (assignmentRows.length === 0) {
+      await connection.query(
+        `
+        INSERT INTO report_assignments
+        (
+          ticket_id,
+          assigned_to_user_id,
+          assigned_by_user_id,
+          assignment_type,
+          notes,
+          is_active,
+          assigned_at
+        )
+        VALUES (?, ?, ?, 'self_take', 'Laporan dibuka kembali (re-open) setelah eskalasi.', 1, NOW())
+        `,
+        [report.ticket_id, currentUser.id, currentUser.id]
+      );
+    } else if (!assignmentRows[0].is_active) {
+      await connection.query(
+        'UPDATE report_assignments SET is_active = 1, updated_at = NOW() WHERE id = ?',
+        [assignmentRows[0].id]
+      );
+    }
+
+    await createReportLog({
+      ticket_id: report.ticket_id,
+      user_id: currentUser.id,
+      action: 'reopen_escalated_report',
+      description: `Tiket eskalasi dibuka kembali (re-open) oleh ${currentUser.full_name} untuk dikerjakan ulang.`
+    }, connection);
+
+    await connection.commit();
+
+    return {
+      success: true,
+      message: `Tiket ${report.ticket_id} berhasil dibuka kembali (re-open) untuk dikerjakan ulang.`
     };
   } catch (error) {
     await connection.rollback();
@@ -2036,6 +2193,7 @@ module.exports = {
   getReportById,
   takeReport,
   markReportInProgress,
+  reopenReport,
   completeReport,
   resubmitFollowUpReport,
   delegateReport,

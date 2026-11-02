@@ -67,6 +67,13 @@ router.post(
 );
 
 router.post(
+  '/:ticketId/reopen',
+  ensureAuthenticated,
+  ensureRole('eksekutor', 'koordinator'),
+  reportController.reopenReport
+);
+
+router.post(
   '/:ticketId/complete',
   ensureAuthenticated,
   ensureRole('eksekutor', 'koordinator'),

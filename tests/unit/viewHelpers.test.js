@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { ticketStatusMeta } = require('../../utils/viewHelpers');
+const { ticketStatusMeta, reporterStatusMeta } = require('../../utils/viewHelpers');
 
 describe('Unit Test: utils/viewHelpers.js', () => {
   describe('ticketStatusMeta()', () => {
@@ -78,6 +78,34 @@ describe('Unit Test: utils/viewHelpers.js', () => {
       assert.deepEqual(uppercaseStatus, {
         cls: 'text-bg-primary',
         label: 'Tersedia'
+      });
+    });
+  });
+
+  describe('reporterStatusMeta()', () => {
+    it('1. harus memetakan status pending, approved, rejected ke badge dan label yang sesuai', () => {
+      assert.deepEqual(reporterStatusMeta('pending'), {
+        cls: 'text-bg-warning',
+        label: 'Menunggu Persetujuan'
+      });
+      assert.deepEqual(reporterStatusMeta('approved'), {
+        cls: 'text-bg-success',
+        label: 'Disetujui'
+      });
+      assert.deepEqual(reporterStatusMeta('rejected'), {
+        cls: 'text-bg-danger',
+        label: 'Ditolak'
+      });
+    });
+
+    it('2. harus menangani fallback status tidak dikenal atau null', () => {
+      assert.deepEqual(reporterStatusMeta(null), {
+        cls: 'text-bg-secondary',
+        label: '-'
+      });
+      assert.deepEqual(reporterStatusMeta('unknown_state'), {
+        cls: 'text-bg-secondary',
+        label: 'Unknown State'
       });
     });
   });

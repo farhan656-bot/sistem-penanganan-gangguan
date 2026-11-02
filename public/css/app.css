@@ -374,6 +374,83 @@ input[type="search"]::-webkit-search-decoration {
   opacity: 1;
 }
 
+/* Toast Notification System (Toast Bar) */
+.app-toast-container {
+  position: fixed;
+  top: calc(var(--app-topbar-height, 60px) + 0.85rem);
+  right: 1.5rem;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 380px;
+  width: calc(100% - 3rem);
+  pointer-events: none;
+}
+
+.app-toast {
+  pointer-events: auto;
+  border-radius: var(--app-radius, 8px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  border: 1px solid var(--app-border, #e2e8f0);
+  background-color: var(--app-surface, #ffffff);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  overflow: hidden;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.app-toast .toast-body {
+  padding: 0.65rem 0.75rem 0.65rem 0.25rem;
+  color: var(--app-text-primary, #0f172a);
+  font-weight: 500;
+}
+
+.app-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+  font-size: 1.15rem;
+}
+
+.app-toast-success {
+  border-left: 4px solid var(--app-success, #198754) !important;
+}
+
+.app-toast-danger {
+  border-left: 4px solid var(--app-danger, #dc3545) !important;
+}
+
+.app-toast-warning {
+  border-left: 4px solid var(--app-warning, #ffc107) !important;
+}
+
+.app-toast-info {
+  border-left: 4px solid var(--app-info, #0dcaf0) !important;
+}
+
+.app-toast .btn-close {
+  padding: 0.35rem;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.app-toast .btn-close:hover {
+  opacity: 1;
+}
+
+@media (max-width: 575.98px) {
+  .app-toast-container {
+    right: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    max-width: none;
+    top: calc(var(--app-topbar-height, 60px) + 0.5rem);
+  }
+}
+
 /* Active region switch banner close button */
 #active-region-switch-banner .btn-close {
   width: 0.75rem;
@@ -731,8 +808,15 @@ input[type="search"]::-webkit-search-decoration {
 
 /* Report detail modal */
 .report-detail-tabs {
+  overflow-x: auto;
+  overflow-y: hidden !important;
   scrollbar-width: thin;
   border-bottom: 1px solid var(--app-border);
+}
+
+.report-detail-tabs::-webkit-scrollbar:vertical {
+  display: none !important;
+  width: 0 !important;
 }
 
 .report-detail-tabs .nav-link {

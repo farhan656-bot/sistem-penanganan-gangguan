@@ -36,10 +36,13 @@ function buildReturnEvidenceMessage(ticketId, orderId, notes) {
   return messageLines.join('\n');
 }
 
-function buildEscalationMessage(ticketId, orderId, diitCode) {
+function buildEscalationMessage(ticketId, orderId, diitCode, isReescalation = false) {
   const code = typeof diitCode === 'string' ? diitCode.trim() : '';
+  const header = isReescalation
+    ? `Tiket ${ticketId} dieskalasikan kembali (Re-eskalasi) ke DIIT.`
+    : `Tiket ${ticketId} sedang dieskalasikan ke DIIT.`;
   const messageLines = [
-    `Tiket ${ticketId} sedang dieskalasikan ke DIIT.`,
+    header,
     `Order ID: ${orderId}`,
     '',
     'Kode DIIT:',
@@ -49,6 +52,15 @@ function buildEscalationMessage(ticketId, orderId, diitCode) {
   ];
 
   return messageLines.join('\n');
+}
+
+function buildReopenedMessage(ticketId, orderId, executorName) {
+  return [
+    'UPDATE ANDALAS',
+    `Tiket ${ticketId}`,
+    `Order ID: ${orderId}`,
+    `telah dibuka kembali (Re-open) dan sedang dikerjakan oleh ${executorName}.`
+  ].join('\n');
 }
 
 async function sendMessageToChat(chatId, messageText) {
@@ -89,8 +101,14 @@ async function sendReturnEvidenceFeedback({ chatId, ticketId, orderId, notes }) 
   return message;
 }
 
-async function sendEscalationFeedback({ chatId, ticketId, orderId, diitCode }) {
-  const message = buildEscalationMessage(ticketId, orderId, diitCode);
+async function sendEscalationFeedback({ chatId, ticketId, orderId, diitCode, isReescalation = false }) {
+  const message = buildEscalationMessage(ticketId, orderId, diitCode, isReescalation);
+  await sendMessageToChat(chatId, message);
+  return message;
+}
+
+async function sendReopenedFeedback({ chatId, ticketId, orderId, executorName }) {
+  const message = buildReopenedMessage(ticketId, orderId, executorName || 'Eksekutor');
   await sendMessageToChat(chatId, message);
   return message;
 }
@@ -100,5 +118,6 @@ module.exports = {
   sendInProgressFeedback,
   sendCompletedFeedback,
   sendReturnEvidenceFeedback,
-  sendEscalationFeedback
+  sendEscalationFeedback,
+  sendReopenedFeedback
 };

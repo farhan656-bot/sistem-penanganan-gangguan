@@ -103,11 +103,25 @@ function roleMeta(role) {
   return { cls: 'text-bg-secondary', label: role ? normalizeString(role) : '-' };
 }
 
+function reporterStatusMeta(status) {
+  const key = normalizeKey(status);
+  const map = {
+    pending: { cls: 'text-bg-warning', label: 'Menunggu Persetujuan' },
+    approved: { cls: 'text-bg-success', label: 'Disetujui' },
+    rejected: { cls: 'text-bg-danger', label: 'Ditolak' }
+  };
+
+  if (map[key]) return map[key];
+  const fallbackLabel = key ? titleCase(key) : '-';
+  return { cls: 'text-bg-secondary', label: fallbackLabel };
+}
+
 module.exports = {
   formatDateTime,
   formatDate,
   ticketStatusMeta,
   regionSwitchStatusMeta,
   userStatusMeta,
-  roleMeta
+  roleMeta,
+  reporterStatusMeta
 };

@@ -10,7 +10,8 @@ const {
   sendInProgressFeedback,
   sendCompletedFeedback,
   sendReturnEvidenceFeedback,
-  sendEscalationFeedback
+  sendEscalationFeedback,
+  sendReopenedFeedback
 } = require('../services/telegramFeedbackService');
 
 const ALLOWED_FINAL_STATUSES = ['selesai', 'perlu_tindak_lanjut', 'eskalasi'];
@@ -308,6 +309,10 @@ function buildReportDetailPayload(report) {
     telegram_sender_username: normalizeJsonValue(report.telegram_sender_username),
     telegram_sender_first_name: normalizeJsonValue(report.telegram_sender_first_name),
     telegram_sender_last_name: normalizeJsonValue(report.telegram_sender_last_name),
+    registered_reporter_name: normalizeJsonValue(report.registered_reporter_name),
+    registered_reporter_nik: normalizeJsonValue(report.registered_reporter_nik),
+    registered_reporter_agency: normalizeJsonValue(report.registered_reporter_agency),
+    registered_reporter_status: normalizeJsonValue(report.registered_reporter_status),
     fallout_type: normalizeJsonValue(report.fallout_type),
     order_id: normalizeJsonValue(report.order_id),
     wo_number: normalizeJsonValue(report.wo_number),
@@ -556,12 +561,28 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
         chatId: payload.telegram_chat_id,
         ticketId: payload.ticket_id,
         orderId: payload.order_id || '-',
-        diitCode: options.diitCode || payload.diit_code
+        diitCode: options.diitCode || payload.diit_code,
+        isReescalation: Boolean(options.isReescalation)
       });
 
       await reportModel.logTelegramFeedback(ticketId,
-        'telegram_feedback_escalation',
-        `Feedback escalation DIIT terkirim ke chat ${payload.telegram_chat_id}.`,
+        options.isReescalation ? 'telegram_feedback_reescalation' : 'telegram_feedback_escalation',
+        `Feedback ${options.isReescalation ? 're-eskalasi' : 'eskalasi'} DIIT terkirim ke chat ${payload.telegram_chat_id}.`,
+        currentUser.id
+      );
+    }
+
+    if (feedbackType === 'reopen_escalation') {
+      await sendReopenedFeedback({
+        chatId: payload.telegram_chat_id,
+        ticketId: payload.ticket_id,
+        orderId: payload.order_id || '-',
+        executorName: currentUser.full_name
+      });
+
+      await reportModel.logTelegramFeedback(ticketId,
+        'telegram_feedback_reopened',
+        `Feedback re-open eskalasi terkirim ke chat ${payload.telegram_chat_id}.`,
         currentUser.id
       );
     }
@@ -820,12 +841,18 @@ async function showReportDetailJson(req, res) {
       ['diambil', 'didelegasikan'].includes(report.status_internal) &&
       isAssignedToCurrentUser
     );
+    const canReopen = Boolean(
+      ['eksekutor', 'koordinator'].includes(currentUserRole) &&
+      report.status_internal === 'eskalasi' &&
+      (isAssignedToCurrentUser || currentUserRole === 'koordinator')
+    );
 
     return res.json({
       success: true,
       fallbackUrl: `/reports/${report.ticket_id}`,
       canComplete,
       canInProgress,
+      canReopen,
       currentUserRole,
       currentUserId,
       report: buildReportDetailPayload(report),
@@ -836,7 +863,10 @@ async function showReportDetailJson(req, res) {
         .filter(isTelegramAttachment)
         .map(buildAttachmentPayload),
       telegramLogMedia: (telegramLogMedia || []).map(buildTelegramLogMediaPayload),
-      reportLogs: (reportLogs || []).map(buildReportLogPayload)
+      reportLogs: (reportLogs || [])
+        .slice()
+        .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0) || (b.id - a.id))
+        .map(buildReportLogPayload)
     });
   } catch (error) {
     console.error(error);
@@ -909,6 +939,32 @@ async function markReportInProgress(req, res) {
   }
 }
 
+async function reopenReport(req, res) {
+  let redirectPath = normalizeReportReturnPath(req, '/reports');
+
+  try {
+    const identifier = req.params.ticketId || req.params.id;
+    const report = await resolveReportForController(identifier, req.session.user);
+
+    if (!report) {
+      throw new Error('Laporan tidak ditemukan atau tidak dapat diakses.');
+    }
+
+    const defaultDetailPath = req.session.user && req.session.user.role === 'koordinator'
+      ? `/koordinator/reports/${report.ticket_id}`
+      : `/reports/${report.ticket_id}`;
+    redirectPath = normalizeReportReturnPath(req, defaultDetailPath);
+
+    const result = await reportModel.reopenReport(report.ticket_id, req.session.user);
+    await triggerTelegramFeedback(report.ticket_id, req.session.user, 'reopen_escalation');
+
+    return sendQuickActionSuccess(req, res, result, redirectPath);
+  } catch (error) {
+    console.error(error);
+    return sendQuickActionError(req, res, error, 'Gagal membuka kembali laporan.', redirectPath);
+  }
+}
+
 async function completeReport(req, res) {
   let report = null;
 
@@ -974,7 +1030,8 @@ async function completeReport(req, res) {
       });
     } else if (completionStatus === 'eskalasi') {
       await triggerTelegramFeedback(report.ticket_id, req.session.user, 'escalation', {
-        diitCode
+        diitCode,
+        isReescalation: Boolean(result && result.isReescalation)
       });
     } else {
       await triggerTelegramFeedback(report.ticket_id, req.session.user, 'completed');
@@ -1080,6 +1137,7 @@ module.exports = {
   showReportDetailJson,
   takeReport,
   markReportInProgress,
+  reopenReport,
   completeReport,
   delegateReport,
   cancelAssignment,

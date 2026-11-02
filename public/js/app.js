@@ -13,7 +13,18 @@
   }
 
   function closeAlert(element) {
+    if (!element) return;
     try {
+      if (element.classList.contains('toast') && window.bootstrap && window.bootstrap.Toast) {
+        var toastInstance = window.bootstrap.Toast.getOrCreateInstance(element);
+        toastInstance.hide();
+        window.setTimeout(function () {
+          if (element && element.parentNode) {
+            element.parentNode.removeChild(element);
+          }
+        }, 300);
+        return;
+      }
       if (window.bootstrap && window.bootstrap.Alert) {
         var instance = window.bootstrap.Alert.getOrCreateInstance(element);
         instance.close();
@@ -32,8 +43,18 @@
       if (element.parentNode) {
         element.parentNode.removeChild(element);
       }
-    }, 150);
+    }, 200);
   }
+
+  document.addEventListener('click', function (event) {
+    var closeBtn = event.target.closest('[data-bs-dismiss="toast"]');
+    if (closeBtn) {
+      var toastEl = closeBtn.closest('.toast');
+      if (toastEl) {
+        closeAlert(toastEl);
+      }
+    }
+  });
 
   function setupAutoDismissAlerts() {
     var alerts = document.querySelectorAll('[data-auto-dismiss]');
@@ -123,40 +144,55 @@
   }
 
   function createFlashAlert(type, message) {
-    var alertEl = document.createElement('div');
-    var closeButton = document.createElement('button');
-    var textNode = document.createTextNode(message || '');
+    var toastEl = document.createElement('div');
+    var alertType = type === 'danger' ? 'danger' : (type === 'warning' ? 'warning' : (type === 'info' ? 'info' : 'success'));
+    var iconClass = alertType === 'danger'
+      ? 'bi-exclamation-triangle-fill text-danger'
+      : (alertType === 'warning' ? 'bi-exclamation-circle-fill text-warning' : (alertType === 'info' ? 'bi-info-circle-fill text-info' : 'bi-check-circle-fill text-success'));
 
-    alertEl.className = 'alert alert-' + type + ' alert-dismissible fade show app-flash';
-    alertEl.setAttribute('role', 'alert');
+    toastEl.className = 'toast show align-items-center app-toast app-toast-' + alertType;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.setAttribute('aria-live', 'assertive');
+    toastEl.setAttribute('aria-atomic', 'true');
+    toastEl.setAttribute('data-auto-dismiss', 'true');
+    toastEl.setAttribute('data-auto-dismiss-delay', alertType === 'danger' ? '6000' : '4000');
 
-    if (type === 'success') {
-      alertEl.setAttribute('data-auto-dismiss', 'true');
-      alertEl.setAttribute('data-auto-dismiss-delay', '4000');
-    }
+    var flexWrap = document.createElement('div');
+    flexWrap.className = 'd-flex align-items-center w-100';
 
-    closeButton.type = 'button';
-    closeButton.className = 'btn-close';
-    closeButton.setAttribute('data-bs-dismiss', 'alert');
-    closeButton.setAttribute('aria-label', 'Close');
+    var iconDiv = document.createElement('div');
+    iconDiv.className = 'app-toast-icon flex-shrink-0';
+    iconDiv.innerHTML = '<i class="bi ' + iconClass + '"></i>';
 
-    alertEl.appendChild(textNode);
-    alertEl.appendChild(closeButton);
-    return alertEl;
+    var bodyDiv = document.createElement('div');
+    bodyDiv.className = 'toast-body flex-grow-1 text-wrap';
+    bodyDiv.textContent = message || '';
+
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'btn-close me-2 m-auto flex-shrink-0';
+    closeBtn.setAttribute('data-bs-dismiss', 'toast');
+    closeBtn.setAttribute('aria-label', 'Tutup');
+
+    flexWrap.appendChild(iconDiv);
+    flexWrap.appendChild(bodyDiv);
+    flexWrap.appendChild(closeBtn);
+    toastEl.appendChild(flexWrap);
+
+    return toastEl;
   }
 
   function getQuickActionFeedbackContainer() {
-    var container = document.getElementById('quickActionFeedback');
-
+    var container = document.getElementById('appToastContainer');
     if (container) return container;
+
     if (!document.body) return null;
 
     container = document.createElement('div');
-    container.id = 'quickActionFeedback';
-    container.className = 'position-fixed top-0 end-0 p-3';
-    container.style.zIndex = '1080';
-    container.style.maxWidth = '420px';
-    container.style.width = '100%';
+    container.id = 'appToastContainer';
+    container.className = 'app-toast-container';
+    container.setAttribute('aria-live', 'polite');
+    container.setAttribute('aria-atomic', 'true');
     document.body.appendChild(container);
 
     return container;
@@ -311,10 +347,10 @@
         .then(function (payload) {
           var message = payload && payload.message ? payload.message : 'Aksi laporan berhasil diproses.';
 
-          // Jika aksi in-progress dijalankan dari dalam pop-up modal detail:
+          // Jika aksi in-progress atau reopen dijalankan dari dalam pop-up modal detail:
           // JANGAN reload halaman dan JANGAN keluar dari pop-up modal!
           // Perbarui konten modal secara reaktif dan tetap berada di tab pengerjaan tiket.
-          if (isInsideModal && actionType === 'in-progress' && typeof window.reloadReportDetailModal === 'function') {
+          if (isInsideModal && (actionType === 'in-progress' || actionType === 'reopen') && typeof window.reloadReportDetailModal === 'function') {
             setQuickActionLoading(form, button, false);
             form.dataset.appConfirmed = '0';
             window.reloadReportDetailModal(ticketId, message);
@@ -749,8 +785,11 @@
     var username = formatTelegramUsername(report.telegram_sender_username);
     var senderName = formatTelegramSenderName(report);
     var senderId = optionalText(report.telegram_sender_id);
+    var regName = optionalText(report.registered_reporter_name);
+    var regNik = optionalText(report.registered_reporter_nik);
+    var regAgency = optionalText(report.registered_reporter_agency);
 
-    if (!username && !senderName && !senderId) {
+    if (!username && !senderName && !senderId && !regName) {
       return [
         '<div class="col-12">',
         renderEmptyState('Data pengirim belum tersedia.'),
@@ -758,11 +797,18 @@
       ];
     }
 
-    return [
-      renderDetailField('Username Telegram', username || '-'),
-      renderDetailField('Nama Telegram', senderName || '-'),
-      renderDetailField('Telegram ID', senderId || '-')
-    ];
+    var fields = [];
+    if (regName || regNik || regAgency) {
+      fields.push(renderDetailField('Nama Pelapor (Terdaftar)', regName || '-', { strong: true }));
+      fields.push(renderDetailField('NIK Pelapor', regNik || '-', { strong: true }));
+      fields.push(renderDetailField('Asal Unit / Agency', regAgency || '-', { strong: true }));
+      fields.push(renderDetailField('Status Registrasi', '<span class="badge text-bg-success">Terverifikasi</span>', { html: true }));
+    }
+    fields.push(renderDetailField('Username Telegram', username || '-'));
+    fields.push(renderDetailField('Nama Akun Telegram', senderName || '-'));
+    fields.push(renderDetailField('Telegram ID', senderId || '-'));
+
+    return fields;
   }
 
   function renderDetailField(label, value, options) {
@@ -887,7 +933,7 @@
     var actor = displayValue(item.actor_name || item.user_name || item.full_name || item.created_by_name);
     var description = displayValue(item.description || item.message || item.notes);
     var createdAt = item.created_at || item.timestamp || item.time;
-    var isLatest = index === total - 1;
+    var isLatest = index === 0;
 
     var actorHtml = actor !== '-'
       ? '<span class="badge text-bg-light border text-secondary small fw-normal"><i class="bi bi-person me-1"></i>Pelaku: ' + escapeHtml(actor) + '</span>'
@@ -917,11 +963,22 @@
   }
 
   function renderActivityLogList(logs) {
-    var safeLogs = asArray(logs);
+    var rawLogs = asArray(logs);
 
-    if (safeLogs.length === 0) {
+    if (rawLogs.length === 0) {
       return renderEmptyState('Belum ada riwayat aktivitas yang tersedia untuk detail modal ini.');
     }
+
+    var safeLogs = rawLogs.slice().sort(function (a, b) {
+      var itemA = typeof a === 'string' ? {} : (a || {});
+      var itemB = typeof b === 'string' ? {} : (b || {});
+      var timeA = new Date(itemA.created_at || itemA.timestamp || itemA.time || 0).getTime();
+      var timeB = new Date(itemB.created_at || itemB.timestamp || itemB.time || 0).getTime();
+      if (!isNaN(timeA) && !isNaN(timeB) && timeA !== timeB) {
+        return timeB - timeA;
+      }
+      return (Number(itemB.id) || 0) - (Number(itemA.id) || 0);
+    });
 
     var total = safeLogs.length;
     return [
@@ -1077,6 +1134,29 @@
       ].join('');
     }
 
+    if (payload.canReopen && report.status_internal === 'eskalasi') {
+      return [
+        alertHtml,
+        '<div class="card app-card border border-warning-subtle bg-warning-subtle bg-opacity-10 mb-3">',
+        '<div class="card-body d-flex align-items-center justify-content-between flex-wrap gap-3">',
+        '<div>',
+        '<div class="fw-semibold text-dark mb-1 d-flex align-items-center gap-2">',
+        '<span class="badge text-bg-danger px-2 py-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> Eskalasi DIIT</span>',
+        '<span>Menunggu Penanganan Eksternal</span>',
+        '</div>',
+        '<p class="mb-0 text-muted small">Tiket sedang dalam status eskalasi ke DIIT' + (report.diit_code ? ' (Kode: <code>' + escapeHtml(displayValue(report.diit_code)) + '</code>)' : '') + '. Buka kembali tiket ini setelah mendapatkan hasil dari unit eksternal untuk melanjutkan penanganan.</p>',
+        '</div>',
+        '<form action="/reports/' + ticketId + '/reopen" method="POST" class="m-0" data-ticket-quick-action data-action-type="reopen" data-ticket-id="' + ticketId + '" data-confirm="Buka kembali tiket ' + ticketId + ' untuk dikerjakan ulang?" data-confirm-title="Konfirmasi Re-open Tiket" data-confirm-btn="Ya, Re-open" data-confirm-variant="warning">',
+        '<input type="hidden" name="return_to" value="/reports">',
+        '<button type="submit" class="btn btn-warning fw-semibold px-3">',
+        '<i class="bi bi-arrow-clockwise me-1"></i>Re-open Tiket',
+        '</button>',
+        '</form>',
+        '</div>',
+        '</div>'
+      ].join('');
+    }
+
     var inProgressHtml = '';
     if (payload.canInProgress && isTicketTaken) {
       if (isAlreadyInProgress) {
@@ -1158,8 +1238,8 @@
       '<div class="d-flex align-items-center justify-content-center gap-2 py-1">',
       '<i class="bi bi-exclamation-triangle-fill fs-5"></i>',
       '<div>',
-      '<div class="fw-bold choice-title">Eskalasi</div>',
-      '<div class="small choice-desc">Kendala eksternal (DIIT)</div>',
+      '<div class="fw-bold choice-title">' + (report.is_escalated_before ? 'Re-eskalasi' : 'Eskalasi') + '</div>',
+      '<div class="small choice-desc">' + (report.is_escalated_before ? 'Kendala eksternal lanjutan (DIIT)' : 'Kendala eksternal (DIIT)') + '</div>',
       '</div>',
       '</div>',
       '</button>',
@@ -1189,7 +1269,7 @@
       '<label class="form-label fw-semibold mb-0" for="modal_completion_notes">',
       'Catatan Penyelesaian <span class="app-required d-none" data-completion-notes-required>*</span>',
       '</label>',
-      '<span class="badge text-bg-light border text-muted small fw-normal">Opsional</span>',
+      '<span class="badge text-bg-light border text-muted small fw-normal" data-completion-notes-optional>Opsional</span>',
       '</div>',
       '<textarea id="modal_completion_notes" name="completion_notes" class="form-control" rows="3" placeholder="Tuliskan ringkasan tindakan atau hasil penanganan di lapangan..." data-completion-notes></textarea>',
       '<div class="form-text">',
@@ -1250,13 +1330,14 @@
     return alertHtml + inProgressHtml + completionHtml;
   }
 
-  function bindModalCompletionValidation(form) {
+  function bindModalCompletionValidation(form, payload) {
     if (!form || form.dataset.modalValidationBound === '1') return;
     form.dataset.modalValidationBound = '1';
 
     var statusField = form.querySelector('[data-completion-status]');
     var notesField = form.querySelector('[data-completion-notes]');
     var notesRequiredIndicator = form.querySelector('[data-completion-notes-required]');
+    var notesOptionalBadge = form.querySelector('[data-completion-notes-optional]');
     var diitCodeGroup = form.querySelector('[data-diit-code-group]');
     var diitCodeField = form.querySelector('[data-diit-code]');
     var choiceButtons = Array.prototype.slice.call(form.querySelectorAll('.status-choice-btn'));
@@ -1289,6 +1370,9 @@
       if (notesRequiredIndicator) {
         notesRequiredIndicator.classList.toggle('d-none', !requiresNotes);
       }
+      if (notesOptionalBadge) {
+        notesOptionalBadge.classList.toggle('d-none', requiresNotes);
+      }
 
       if (diitCodeGroup && diitCodeField) {
         diitCodeGroup.classList.toggle('d-none', !requiresDiitCode);
@@ -1311,9 +1395,12 @@
         form.setAttribute('data-confirm-btn', 'Ya, Simpan Tindak Lanjut');
         form.setAttribute('data-confirm-variant', 'warning');
       } else if (statusVal === 'eskalasi') {
-        form.setAttribute('data-confirm-title', 'Konfirmasi Eskalasi');
-        form.setAttribute('data-confirm', 'Laporan akan dieskalasikan ke unit eksternal dengan rujukan Kode DIIT.');
-        form.setAttribute('data-confirm-btn', 'Ya, Eskalasikan');
+        var isReescalation = Boolean(payload && payload.report && payload.report.is_escalated_before);
+        form.setAttribute('data-confirm-title', isReescalation ? 'Konfirmasi Re-eskalasi' : 'Konfirmasi Eskalasi');
+        form.setAttribute('data-confirm', isReescalation
+          ? 'Laporan akan dieskalasikan kembali (Re-eskalasi) ke unit eksternal dengan rujukan Kode DIIT.'
+          : 'Laporan akan dieskalasikan ke unit eksternal dengan rujukan Kode DIIT.');
+        form.setAttribute('data-confirm-btn', isReescalation ? 'Ya, Re-eskalasikan' : 'Ya, Eskalasikan');
         form.setAttribute('data-confirm-variant', 'danger');
       }
     }
@@ -1400,7 +1487,7 @@
       telegramPaneEl.innerHTML = detailHtml.telegram;
       activityPaneEl.innerHTML = detailHtml.activity;
 
-      var hasActionPermission = Boolean(payload.canComplete || payload.canInProgress);
+      var hasActionPermission = Boolean(payload.canComplete || payload.canInProgress || payload.canReopen);
       if (hasActionPermission && actionPaneEl && actionTabItemEl) {
         actionTabItemEl.classList.remove('d-none');
         actionPaneEl.innerHTML = renderDetailActionForm(payload, alertMessage);
@@ -1408,7 +1495,7 @@
         var compForm = actionPaneEl.querySelector('[data-completion-form]');
         if (compForm) {
           bindCompletionEvidencePasteUpload(compForm);
-          bindModalCompletionValidation(compForm);
+          bindModalCompletionValidation(compForm, payload);
         }
 
         var quickForm = actionPaneEl.querySelector('[data-ticket-quick-action]');
