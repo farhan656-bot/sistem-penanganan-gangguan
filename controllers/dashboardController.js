@@ -275,7 +275,7 @@ async function supervisorDashboard(req, res) {
       supervisorModel.getTrendChartData(filters),
       supervisorModel.getRegionComparisonChartData(filters),
       supervisorModel.getAttentionTickets(filters, { limit: 50 }),
-      supervisorModel.getRegionSwitchHistory(filters)
+      supervisorModel.getRegionSwitchHistory(filters, { limit: 100 })
     ]);
 
     const statusLabelMap = {

@@ -362,7 +362,7 @@ async function getAttentionTickets(filters = {}, { limit = 50 } = {}) {
   return Array.isArray(rows) ? rows : [];
 }
 
-async function getRegionSwitchHistory(filters = {}, { limit = 20 } = {}) {
+async function getRegionSwitchHistory(filters = {}, { limit = 100 } = {}) {
   const normalized = normalizeFilters(filters);
   const whereParts = [];
   const params = [];
@@ -378,7 +378,7 @@ async function getRegionSwitchHistory(filters = {}, { limit = 20 } = {}) {
   }
 
   const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
-  const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(100, Number(limit))) : 20;
+  const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(200, Number(limit))) : 100;
 
   const [rows] = await pool.query(
     `

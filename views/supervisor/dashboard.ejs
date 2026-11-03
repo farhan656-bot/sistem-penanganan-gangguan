@@ -540,16 +540,52 @@
             <div class="row g-3">
               <div class="col-12">
                 <div class="card app-card">
-                  <div class="card-header d-flex justify-content-between align-items-center">
+                  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 py-2">
                     <div>
-                      <strong>Riwayat Temporary Region Switch</strong>
+                      <strong class="text-dark">Riwayat Temporary Region Switch</strong>
                       <div class="text-muted small">Informasi pemantauan perbantuan teknisi lintas wilayah</div>
                     </div>
-                    <span class="badge text-bg-light border text-secondary font-monospace" style="font-size: 0.72rem;">Total: <%= (regionSwitchHistory || []).length %> Riwayat</span>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                      <!-- Filter Button Region: Semua, PDG, BKT -->
+                      <div class="btn-group btn-group-sm" role="group" aria-label="Filter Wilayah Switch">
+                        <button type="button" class="btn btn-outline-secondary active" data-region-switch-filter="all" id="btnRegionSwitchAll">
+                          Semua
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-region-switch-filter="PDG" id="btnRegionSwitchPDG">
+                          PDG
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-region-switch-filter="BKT" id="btnRegionSwitchBKT">
+                          BKT
+                        </button>
+                      </div>
+
+                      <!-- Search Input: Nama Pegawai -->
+                      <div class="input-group input-group-sm" style="max-width: 240px;">
+                        <span class="input-group-text bg-light border-end-0 text-muted">
+                          <i class="bi bi-search"></i>
+                        </span>
+                        <input
+                          type="text"
+                          class="form-control form-control-sm border-start-0"
+                          id="searchRegionSwitchInput"
+                          placeholder="Cari nama pegawai..."
+                          autocomplete="off"
+                          aria-label="Cari nama pegawai eksekutor"
+                        >
+                        <button class="btn btn-outline-secondary d-none" type="button" id="clearSearchRegionSwitchBtn" title="Reset pencarian" aria-label="Reset pencarian">
+                          <i class="bi bi-x-lg" style="font-size: 0.75rem;"></i>
+                        </button>
+                      </div>
+
+                      <!-- Count Badge -->
+                      <span class="badge text-bg-light border text-secondary font-monospace" id="regionSwitchCountBadge" style="font-size: 0.72rem;">
+                        Total: <%= (regionSwitchHistory || []).length %> Riwayat
+                      </span>
+                    </div>
                   </div>
                   <div class="card-body p-0">
                     <div class="table-responsive">
-                      <table class="table table-hover align-middle mb-0">
+                      <table class="table table-hover align-middle mb-0" id="regionSwitchTable">
                         <thead class="table-light">
                           <tr>
                             <th class="app-col-num">No</th>
@@ -564,18 +600,25 @@
                           </tr>
                         </thead>
                         <tbody>
-                          <% if (!regionSwitchHistory || regionSwitchHistory.length === 0) { %>
-                            <tr>
-                              <td colspan="9" class="text-center text-muted py-4">Belum ada data riwayat Region Switch.</td>
-                            </tr>
-                          <% } %>
+                          <tr id="emptyRegionSwitchRow" style="<%= (!regionSwitchHistory || regionSwitchHistory.length === 0) ? '' : 'display: none;' %>">
+                            <td colspan="9" class="text-center text-muted py-4">Belum ada data riwayat Region Switch.</td>
+                          </tr>
+
+                          <tr id="noMatchRegionSwitchRow" class="d-none">
+                            <td colspan="9" class="text-center text-muted py-4">
+                              <i class="bi bi-search me-1"></i> Tidak ditemukan riwayat Region Switch yang sesuai kriteria pencarian/filter.
+                            </td>
+                          </tr>
 
                           <% (regionSwitchHistory || []).forEach((item, index) => { %>
-                            <tr>
+                            <tr class="region-switch-row"
+                                data-name="<%= (item.requester_name || '').toLowerCase() %>"
+                                data-home="<%= (item.home_region_code || '').toUpperCase() %>"
+                                data-target="<%= (item.target_region_code || '').toUpperCase() %>">
                               <td class="app-col-num text-muted"><%= index + 1 %></td>
                               <td class="fw-semibold text-dark"><%= item.requester_name || '-' %></td>
                               <td><span class="badge text-bg-light border font-monospace"><%= item.home_region_code || '-' %></span></td>
-                              <td><span class="badge text-bg-light border font-monospace"><%= item.target_region_code || '-' %></span></td>
+                              <td><span class="badge text-bg-primary-subtle text-primary border border-primary-subtle font-monospace"><%= item.target_region_code || '-' %></span></td>
                               <td>
                                 <%- include('../partials/status-badge', { type: 'region_switch', value: item.status }) %>
                               </td>
@@ -603,6 +646,18 @@
                           <% }) %>
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                  <div class="card-footer bg-white border-top p-0" id="regionSwitchPaginationFooter">
+                    <div class="d-flex flex-column flex-sm-row align-items-center justify-content-between gap-3 p-3 pt-2">
+                      <div class="small text-muted" id="regionSwitchPaginationInfo">
+                        Menampilkan <strong>1&ndash;10</strong> dari <strong><%= (regionSwitchHistory || []).length %></strong> riwayat
+                      </div>
+                      <nav aria-label="Navigasi halaman riwayat region switch">
+                        <ul class="pagination pagination-sm mb-0 flex-wrap" id="regionSwitchPaginationList">
+                          <!-- Terisi otomatis oleh JavaScript -->
+                        </ul>
+                      </nav>
                     </div>
                   </div>
                 </div>
@@ -638,6 +693,6 @@
       window.SUPERVISOR_DASHBOARD_FILTERS = parseJsonPayload('supervisor-dashboard-filters');
     })();
   </script>
-  <script src="/js/supervisor-dashboard.js?v=search-eksekutor-1"></script>
+  <script src="/js/supervisor-dashboard.js?v=region-switch-table-1"></script>
 </body>
 </html>
