@@ -497,76 +497,236 @@
     var clearBtn = document.getElementById('clearSearchEksekutorBtn');
     var countBadge = document.getElementById('eksekutorCountBadge');
     var table = document.getElementById('eksekutorPerformanceTable');
-    if (!searchInput || !table) return;
-
-    var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr.eksekutor-row'));
+    var paginationFooter = document.getElementById('eksekutorPaginationFooter');
+    var paginationInfo = document.getElementById('eksekutorPaginationInfo');
+    var paginationList = document.getElementById('eksekutorPaginationList');
     var noMatchRow = document.getElementById('noMatchEksekutorRow');
     var noMatchQuery = document.getElementById('noMatchQuery');
-    var totalCount = rows.length;
+    var emptyRow = document.getElementById('emptyEksekutorRow');
+    var regionButtons = Array.prototype.slice.call(document.querySelectorAll('[data-eksekutor-region-filter]'));
 
-    function filterRows() {
-      var query = (searchInput.value || '').trim().toLowerCase();
-      var visibleCount = 0;
+    if (!table) return;
 
-      if (clearBtn) {
-        clearBtn.classList.toggle('d-none', !query);
+    var allRows = Array.prototype.slice.call(table.querySelectorAll('tbody tr.eksekutor-row'));
+    var totalRows = allRows.length;
+    var pageSize = 10;
+    var currentPage = 1;
+    var currentRegion = 'all';
+    var currentSearch = '';
+
+    function getFilteredRows() {
+      var query = currentSearch.trim().toLowerCase();
+      var reg = currentRegion.toUpperCase();
+      return allRows.filter(function (row) {
+        var name = (row.getAttribute('data-name') || '').toLowerCase();
+        var region = (row.getAttribute('data-region') || '').toUpperCase();
+        var textContent = (row.textContent || '').toLowerCase();
+
+        var matchesRegion = (reg === 'ALL') || (region === reg);
+        var matchesQuery = !query || name.indexOf(query) !== -1 || region.toLowerCase().indexOf(query) !== -1 || textContent.indexOf(query) !== -1;
+
+        return matchesRegion && matchesQuery;
+      });
+    }
+
+    function renderPaginationButtons(totalPages) {
+      if (!paginationList) return;
+      paginationList.innerHTML = '';
+
+      if (totalPages <= 1) return;
+
+      // Tombol Previous
+      var prevLi = document.createElement('li');
+      prevLi.className = 'page-item' + (currentPage === 1 ? ' disabled' : '');
+      if (currentPage === 1) {
+        prevLi.innerHTML = '<span class="page-link" aria-disabled="true">Previous</span>';
+      } else {
+        var prevA = document.createElement('a');
+        prevA.className = 'page-link';
+        prevA.href = '#';
+        prevA.textContent = 'Previous';
+        prevA.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (currentPage > 1) {
+            currentPage -= 1;
+            render();
+          }
+        });
+        prevLi.appendChild(prevA);
+      }
+      paginationList.appendChild(prevLi);
+
+      // Nomor Halaman
+      for (var p = 1; p <= totalPages; p += 1) {
+        var pageLi = document.createElement('li');
+        pageLi.className = 'page-item' + (p === currentPage ? ' active' : '');
+        if (p === currentPage) {
+          pageLi.innerHTML = '<span class="page-link" aria-current="page">' + p + '</span>';
+        } else {
+          var pageA = document.createElement('a');
+          pageA.className = 'page-link';
+          pageA.href = '#';
+          pageA.textContent = p;
+          (function (pageNumber) {
+            pageA.addEventListener('click', function (e) {
+              e.preventDefault();
+              currentPage = pageNumber;
+              render();
+            });
+          })(p);
+          pageLi.appendChild(pageA);
+        }
+        paginationList.appendChild(pageLi);
       }
 
-      rows.forEach(function (row) {
-        var name = (row.getAttribute('data-name') || '').toLowerCase();
-        var region = (row.getAttribute('data-region') || '').toLowerCase();
-        var textContent = (row.textContent || '').toLowerCase();
-        var matches = !query || name.indexOf(query) !== -1 || region.indexOf(query) !== -1 || textContent.indexOf(query) !== -1;
-
-        if (matches) {
-          row.style.display = '';
-          visibleCount += 1;
-          var numCell = row.querySelector('.app-col-num');
-          if (numCell) {
-            numCell.textContent = visibleCount;
+      // Tombol Next
+      var nextLi = document.createElement('li');
+      nextLi.className = 'page-item' + (currentPage === totalPages ? ' disabled' : '');
+      if (currentPage === totalPages) {
+        nextLi.innerHTML = '<span class="page-link" aria-disabled="true">Next</span>';
+      } else {
+        var nextA = document.createElement('a');
+        nextA.className = 'page-link';
+        nextA.href = '#';
+        nextA.textContent = 'Next';
+        nextA.addEventListener('click', function (e) {
+          e.preventDefault();
+          if (currentPage < totalPages) {
+            currentPage += 1;
+            render();
           }
-        } else {
-          row.style.display = 'none';
-        }
+        });
+        nextLi.appendChild(nextA);
+      }
+      paginationList.appendChild(nextLi);
+    }
+
+    function render() {
+      var filtered = getFilteredRows();
+      var totalFiltered = filtered.length;
+      var totalPages = Math.ceil(totalFiltered / pageSize) || 1;
+
+      if (currentPage > totalPages) {
+        currentPage = totalPages;
+      }
+      if (currentPage < 1) {
+        currentPage = 1;
+      }
+
+      var startIndex = (currentPage - 1) * pageSize;
+      var endIndex = Math.min(startIndex + pageSize, totalFiltered);
+
+      // Sembunyikan semua baris terlebih dahulu
+      allRows.forEach(function (row) {
+        row.style.display = 'none';
       });
 
+      // Tampilkan baris untuk halaman saat ini (maksimal 10 baris)
+      for (var i = startIndex; i < endIndex; i += 1) {
+        var row = filtered[i];
+        row.style.display = '';
+        var numCell = row.querySelector('.app-col-num');
+        if (numCell) {
+          numCell.textContent = i + 1;
+        }
+      }
+
+      // Baris status kosong / tidak cocok
+      if (emptyRow) {
+        emptyRow.style.display = totalRows === 0 ? '' : 'none';
+      }
       if (noMatchRow) {
-        if (visibleCount === 0 && totalCount > 0 && query) {
+        if (totalFiltered === 0 && totalRows > 0) {
           noMatchRow.classList.remove('d-none');
           if (noMatchQuery) {
-            noMatchQuery.textContent = searchInput.value.trim();
+            var label = currentSearch ? '"' + currentSearch + '"' : '';
+            if (currentRegion !== 'all') {
+              label += (label ? ' di wilayah ' : 'Wilayah ') + currentRegion;
+            }
+            noMatchQuery.textContent = label || 'filter terpilih';
           }
         } else {
           noMatchRow.classList.add('d-none');
         }
       }
 
+      // Update badge hitungan
       if (countBadge) {
-        if (query) {
-          countBadge.textContent = visibleCount + ' dari ' + totalCount + ' Pegawai';
+        if (currentSearch || currentRegion !== 'all') {
+          countBadge.textContent = totalFiltered + ' dari ' + totalRows + ' Pegawai';
         } else {
-          countBadge.textContent = totalCount + ' Pegawai';
+          countBadge.textContent = totalRows + ' Pegawai';
+        }
+      }
+
+      // Tombol reset pencarian
+      if (clearBtn) {
+        clearBtn.classList.toggle('d-none', !currentSearch);
+      }
+
+      // Footer pagination
+      if (paginationFooter) {
+        if (totalFiltered === 0) {
+          paginationFooter.style.display = 'none';
+        } else {
+          paginationFooter.style.display = '';
+          if (paginationInfo) {
+            paginationInfo.innerHTML = 'Menampilkan <strong>' + (startIndex + 1) + '&ndash;' + endIndex + '</strong> dari <strong>' + totalFiltered + '</strong> pegawai';
+          }
+          renderPaginationButtons(totalPages);
         }
       }
     }
 
-    searchInput.addEventListener('input', filterRows);
-    searchInput.addEventListener('search', filterRows);
+    // Event listeners pencarian
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        currentSearch = searchInput.value || '';
+        currentPage = 1;
+        render();
+      });
+      searchInput.addEventListener('search', function () {
+        currentSearch = searchInput.value || '';
+        currentPage = 1;
+        render();
+      });
+    }
 
     if (clearBtn) {
       clearBtn.addEventListener('click', function () {
-        searchInput.value = '';
-        searchInput.focus();
-        filterRows();
+        if (searchInput) {
+          searchInput.value = '';
+          searchInput.focus();
+        }
+        currentSearch = '';
+        currentPage = 1;
+        render();
       });
     }
+
+    // Event listeners button region (Semua, PDG, BKT)
+    regionButtons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var region = btn.getAttribute('data-eksekutor-region-filter');
+        if (currentRegion === region) return;
+        currentRegion = region;
+        regionButtons.forEach(function (b) {
+          b.classList.toggle('active', b === btn);
+        });
+        currentPage = 1;
+        render();
+      });
+    });
 
     var urlParams = new URLSearchParams(window.location.search);
     var searchParam = urlParams.get('search_eksekutor');
     if (searchParam) {
       searchInput.value = searchParam;
-      filterRows();
+      currentSearch = searchParam;
     }
+
+    // Inisialisasi awal
+    render();
   }
 
   function initRegionSwitchTableUX() {
