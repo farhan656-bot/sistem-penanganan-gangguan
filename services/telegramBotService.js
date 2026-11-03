@@ -388,7 +388,29 @@ async function ensureTelegramUploadDir() {
 async function downloadTelegramFile(bot, fileId, storedName) {
   await ensureTelegramUploadDir();
 
-  const fileUrl = await bot.getFileLink(fileId);
+  let fileUrl = null;
+  const token = bot?.token || process.env.TELEGRAM_BOT_TOKEN;
+
+  // Jalur cepat: gunakan axios + telegramHttpsAgent untuk getFile guna memanfaatkan persistent socket
+  if (token && typeof bot?.getFileLink === 'function') {
+    try {
+      const getFileRes = await axios.get(`https://api.telegram.org/bot${token}/getFile`, {
+        params: { file_id: fileId },
+        httpsAgent: telegramHttpsAgent,
+        timeout: 10000
+      });
+      if (getFileRes?.data?.ok && getFileRes?.data?.result?.file_path) {
+        fileUrl = `https://api.telegram.org/file/bot${token}/${getFileRes.data.result.file_path}`;
+      } else {
+        fileUrl = await bot.getFileLink(fileId);
+      }
+    } catch {
+      fileUrl = await bot.getFileLink(fileId);
+    }
+  } else if (typeof bot?.getFileLink === 'function') {
+    fileUrl = await bot.getFileLink(fileId);
+  }
+
   const response = await axios.get(fileUrl, {
     responseType: 'arraybuffer',
     httpsAgent: telegramHttpsAgent,
@@ -497,16 +519,84 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
       await sendBotMessage(bot, chatId, buildNotReportOwnerReply(report.ticket_id, 'penyatuan gambar atau bukti'), message);
       return;
     }
+
+    if (report.status_internal === 'perlu_tindak_lanjut') {
+      const allParsed = parseTelegramAllFields(text);
+      const telegramMeta = getTelegramMetaFromMessage(message);
+      const mediaInfo = getMediaCoreInfo(message, mediaMetadata);
+      const originalName = mediaInfo ? mediaInfo.originalName : 'media';
+
+      // Kirim feedback resubmit segera secara paralel dengan download latar belakang
+      const resubmitReplyPromise = handleFollowUpResubmission(
+        bot,
+        message,
+        text,
+        report,
+        allParsed.fields,
+        telegramMeta,
+        [originalName]
+      );
+
+      const persistAndAttachPromise = (async () => {
+        const persistedMedia = await persistMediaFile(bot, message, mediaMetadata);
+        await attachmentModel.createAttachment({
+          ticket_id: report.ticket_id,
+          report_id: null,
+          type_attachment_code: 'bukti_pelapor',
+          source: 'telegram',
+          telegram_file_id: persistedMedia.telegram_file_id,
+          telegram_file_unique_id: persistedMedia.telegram_file_unique_id,
+          file_type: persistedMedia.file_type,
+          mime_type: persistedMedia.mime_type,
+          original_name: persistedMedia.original_name,
+          stored_name: persistedMedia.stored_name,
+          file_path: persistedMedia.file_path,
+          file_size: persistedMedia.file_size,
+          caption: persistedMedia.caption,
+          uploaded_by_user_id: null
+        });
+      })();
+
+      await Promise.all([resubmitReplyPromise, persistAndAttachPromise]);
+      return;
+    }
+
+    // Direct ticket: Kirim balasan konfirmasi ke grup SEGERA tanpa menunggu unduh file selesai
+    const replyPromise = sendBotMessage(bot, chatId, `Media Telegram berhasil disatukan ke tiket: ${report.ticket_id}`, message);
+
+    const persistAndAttachPromise = (async () => {
+      const persistedMedia = await persistMediaFile(bot, message, mediaMetadata);
+      await attachmentModel.createAttachment({
+        ticket_id: report.ticket_id,
+        report_id: null,
+        type_attachment_code: 'bukti_pelapor',
+        source: 'telegram',
+        telegram_file_id: persistedMedia.telegram_file_id,
+        telegram_file_unique_id: persistedMedia.telegram_file_unique_id,
+        file_type: persistedMedia.file_type,
+        mime_type: persistedMedia.mime_type,
+        original_name: persistedMedia.original_name,
+        stored_name: persistedMedia.stored_name,
+        file_path: persistedMedia.file_path,
+        file_size: persistedMedia.file_size,
+        caption: persistedMedia.caption,
+        uploaded_by_user_id: null
+      });
+    })();
+
+    await Promise.all([replyPromise, persistAndAttachPromise]);
+    return;
   }
 
-  const persistedMedia = await persistMediaFile(bot, message, mediaMetadata);
+  // Pending media (tanpa Ticket ID di caption): Kirim konfirmasi penerimaan SEGERA
+  const replyPromise = sendBotMessage(bot, chatId, 'Media diterima. Silakan kirim TICKET ID: <id> untuk menghubungkan media ke tiket.', message);
 
-  if (ticketIdFromText && report) {
-    await attachmentModel.createAttachment({
-      ticket_id: report.ticket_id,
-      report_id: null,
-      type_attachment_code: 'bukti_pelapor',
-      source: 'telegram',
+  const persistPendingPromise = (async () => {
+    const persistedMedia = await persistMediaFile(bot, message, mediaMetadata);
+    await pendingMediaModel.createPendingMedia({
+      chat_id: chatId,
+      telegram_message_id: message.message_id,
+      telegram_sender_id: message?.from?.id ? String(message.from.id) : null,
       telegram_file_id: persistedMedia.telegram_file_id,
       telegram_file_unique_id: persistedMedia.telegram_file_unique_id,
       file_type: persistedMedia.file_type,
@@ -515,45 +605,11 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
       stored_name: persistedMedia.stored_name,
       file_path: persistedMedia.file_path,
       file_size: persistedMedia.file_size,
-      caption: persistedMedia.caption,
-      uploaded_by_user_id: null
+      caption: persistedMedia.caption
     });
+  })();
 
-    if (report.status_internal === 'perlu_tindak_lanjut') {
-      const allParsed = parseTelegramAllFields(text);
-      const telegramMeta = getTelegramMetaFromMessage(message);
-      await handleFollowUpResubmission(
-        bot,
-        message,
-        text,
-        report,
-        allParsed.fields,
-        telegramMeta,
-        [persistedMedia.original_name]
-      );
-      return;
-    }
-
-    await sendBotMessage(bot, chatId, `Media Telegram berhasil disatukan ke tiket: ${report.ticket_id}`, message);
-    return;
-  }
-
-  await pendingMediaModel.createPendingMedia({
-    chat_id: chatId,
-    telegram_message_id: message.message_id,
-    telegram_sender_id: message?.from?.id ? String(message.from.id) : null,
-    telegram_file_id: persistedMedia.telegram_file_id,
-    telegram_file_unique_id: persistedMedia.telegram_file_unique_id,
-    file_type: persistedMedia.file_type,
-    mime_type: persistedMedia.mime_type,
-    original_name: persistedMedia.original_name,
-    stored_name: persistedMedia.stored_name,
-    file_path: persistedMedia.file_path,
-    file_size: persistedMedia.file_size,
-    caption: persistedMedia.caption
-  });
-
-  await sendBotMessage(bot, chatId, 'Media diterima. Silakan kirim TICKET ID: <id> untuk menghubungkan media ke tiket.', message);
+  await Promise.all([replyPromise, persistPendingPromise]);
 }
 
 async function tryLinkPendingMediaFromTicketText(bot, chatId, text, message = null) {
@@ -960,7 +1016,19 @@ function initTelegramBotService() {
     return null;
   }
 
-  botInstance = new TelegramBot(token, { polling: true });
+  botInstance = new TelegramBot(token, {
+    polling: {
+      interval: 100,
+      autoStart: true,
+      params: {
+        timeout: 10
+      }
+    },
+    request: {
+      agent: telegramHttpsAgent,
+      forever: true
+    }
+  });
 
   botInstance.on('message', async (message) => {
     try {
