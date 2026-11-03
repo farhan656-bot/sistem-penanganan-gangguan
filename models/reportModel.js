@@ -724,7 +724,6 @@ async function findByTicketId(ticketId) {
   const [rows] = await pool.query(
     `
     SELECT
-      id,
       ticket_id,
       order_id,
       telegram_chat_id,

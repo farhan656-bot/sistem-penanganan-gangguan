@@ -423,7 +423,7 @@ async function persistMediaFile(bot, message, mediaMetadata) {
 async function linkPendingMediaToReport(report, pendingMedia) {
   await attachmentModel.createAttachment({
     ticket_id: report.ticket_id,
-    report_id: report.id || null,
+    report_id: null,
     type_attachment_code: 'bukti_pelapor',
     source: 'telegram',
     telegram_file_id: pendingMedia.telegram_file_id,
@@ -460,7 +460,7 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
 
     await attachmentModel.createAttachment({
       ticket_id: report.ticket_id,
-      report_id: report.id || null,
+      report_id: null,
       type_attachment_code: 'bukti_pelapor',
       source: 'telegram',
       telegram_file_id: persistedMedia.telegram_file_id,
