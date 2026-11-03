@@ -94,9 +94,32 @@ async function getEksekutorUsersByRegionCode(regionCode) {
   }));
 }
 
-async function getAllUsers() {
-  const [rows] = await pool.query(
-    `SELECT
+async function getAllUsers(filters = {}) {
+  const conditions = [];
+  const params = [];
+
+  if (filters.search && String(filters.search).trim()) {
+    const term = `%${String(filters.search).trim()}%`;
+    conditions.push('(users.full_name LIKE ? OR users.username LIKE ? OR roles.name LIKE ? OR regions.code LIKE ?)');
+    params.push(term, term, term, term);
+  }
+
+  if (filters.role_id) {
+    conditions.push('users.role_id = ?');
+    params.push(Number(filters.role_id));
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  let paginationSql = '';
+  if (filters.limit !== undefined && filters.limit !== null) {
+    const limit = Math.max(1, parseInt(filters.limit, 10) || 10);
+    const offset = Math.max(0, parseInt(filters.offset, 10) || 0);
+    paginationSql = 'LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+  }
+
+  const sql = `SELECT
         users.id,
         users.full_name,
         users.username,
@@ -109,10 +132,39 @@ async function getAllUsers() {
      FROM users
      JOIN roles ON users.role_id = roles.id
      LEFT JOIN regions ON users.region_id = regions.id
-     ORDER BY users.id ASC`
-  );
+     ${whereClause}
+     ORDER BY users.id ASC
+     ${paginationSql}`;
 
+  const [rows] = await pool.query(sql, params);
   return rows;
+}
+
+async function countUsers(filters = {}) {
+  const conditions = [];
+  const params = [];
+
+  if (filters.search && String(filters.search).trim()) {
+    const term = `%${String(filters.search).trim()}%`;
+    conditions.push('(users.full_name LIKE ? OR users.username LIKE ? OR roles.name LIKE ? OR regions.code LIKE ?)');
+    params.push(term, term, term, term);
+  }
+
+  if (filters.role_id) {
+    conditions.push('users.role_id = ?');
+    params.push(Number(filters.role_id));
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const sql = `SELECT COUNT(1) AS total
+     FROM users
+     JOIN roles ON users.role_id = roles.id
+     LEFT JOIN regions ON users.region_id = regions.id
+     ${whereClause}`;
+
+  const [rows] = await pool.query(sql, params);
+  return Number(rows[0]?.total || 0);
 }
 
 async function getAllRoles() {
@@ -212,6 +264,7 @@ module.exports = {
   getEksekutorUsers,
   getEksekutorUsersByRegionCode,
   getAllUsers,
+  countUsers,
   getAllRoles,
   getAllRegions,
   isUsernameTaken,

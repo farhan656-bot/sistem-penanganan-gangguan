@@ -1,0 +1,45 @@
+<% if (typeof pagination !== 'undefined' && pagination && pagination.totalItems > 0) { %>
+  <div class="d-flex flex-column flex-sm-row align-items-center justify-content-between gap-3 p-3 pt-2 border-top">
+    <div class="small text-muted">
+      Menampilkan <strong><%= pagination.from %>&ndash;<%= pagination.to %></strong> dari <strong><%= pagination.totalItems %></strong> <%= typeof itemLabel !== 'undefined' ? itemLabel : 'data' %>
+    </div>
+
+    <% if (pagination.totalPages > 1) { %>
+      <nav aria-label="Navigasi halaman">
+        <ul class="pagination pagination-sm mb-0 flex-wrap">
+          <li class="page-item <%= pagination.hasPrevious ? '' : 'disabled' %>">
+            <% if (pagination.hasPrevious) { %>
+              <a class="page-link" href="<%= pagination.previousUrl %>">Previous</a>
+            <% } else { %>
+              <span class="page-link" aria-disabled="true">Previous</span>
+            <% } %>
+          </li>
+
+          <% (pagination.items || []).forEach((item) => { %>
+            <% if (item.type === 'ellipsis') { %>
+              <li class="page-item disabled" aria-hidden="true">
+                <span class="page-link">&hellip;</span>
+              </li>
+            <% } else { %>
+              <li class="page-item <%= item.active ? 'active' : '' %>">
+                <% if (item.active) { %>
+                  <span class="page-link" aria-current="page"><%= item.number %></span>
+                <% } else { %>
+                  <a class="page-link" href="<%= item.href %>"><%= item.number %></a>
+                <% } %>
+              </li>
+            <% } %>
+          <% }) %>
+
+          <li class="page-item <%= pagination.hasNext ? '' : 'disabled' %>">
+            <% if (pagination.hasNext) { %>
+              <a class="page-link" href="<%= pagination.nextUrl %>">Next</a>
+            <% } else { %>
+              <span class="page-link" aria-disabled="true">Next</span>
+            <% } %>
+          </li>
+        </ul>
+      </nav>
+    <% } %>
+  </div>
+<% } %>

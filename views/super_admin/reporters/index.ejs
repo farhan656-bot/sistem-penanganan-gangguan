@@ -124,7 +124,7 @@
                 <strong>Daftar Registrasi Pelapor Telegram</strong>
                 <div class="text-muted small">Kelola hak akses dan verifikasi pendaftaran pelapor gangguan.</div>
               </div>
-              <span class="badge text-bg-light border font-monospace">Total: <%= (reporters || []).length %> data</span>
+              <span class="badge text-bg-light border font-monospace">Total: <%= pagination ? pagination.totalItems : (reporters || []).length %> data</span>
             </div>
             <div class="card-body p-0">
               <div class="table-responsive">
@@ -154,7 +154,7 @@
 
                     <% (reporters || []).forEach((rep, index) => { %>
                       <tr>
-                        <td class="app-col-num text-muted small"><%= index + 1 %></td>
+                        <td class="app-col-num text-muted small"><%= (pagination && pagination.offset ? pagination.offset : 0) + index + 1 %></td>
                         <td class="font-monospace fw-semibold"><%= rep.nik %></td>
                         <td class="fw-semibold text-dark"><%= rep.full_name %></td>
                         <td>
@@ -265,6 +265,9 @@
                 </table>
               </div>
             </div>
+
+            <!-- Pagination Standard Sistem (Limit 10 per halaman) -->
+            <%- include('../../partials/table-pagination', { pagination, itemLabel: 'data' }) %>
           </div>
 
         </div>

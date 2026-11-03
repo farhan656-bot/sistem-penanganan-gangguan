@@ -8,11 +8,14 @@ test('Unit Test: controllers/telegramReporterController.js', async (t) => {
   await t.test('1. index() harus merender super_admin/reporters/index dengan filter dan data', async () => {
     const origGetAll = telegramReporterModel.getAllReporters;
     const origGetCounts = telegramReporterModel.getStatusCounts;
+    const origCount = telegramReporterModel.countReporters;
 
     telegramReporterModel.getAllReporters = async (filters) => {
       assert.equal(filters.status, 'pending');
       return [{ id: 1, full_name: 'Farhan', nik: '123456', agency: 'TELKOM', status: 'pending' }];
     };
+
+    telegramReporterModel.countReporters = async () => 1;
 
     telegramReporterModel.getStatusCounts = async () => ({
       total: 1,
@@ -40,9 +43,13 @@ test('Unit Test: controllers/telegramReporterController.js', async (t) => {
       assert.equal(renderedData.currentStatus, 'pending');
       assert.equal(renderedData.reporters.length, 1);
       assert.equal(renderedData.counts.pending, 1);
+      assert.ok(renderedData.pagination);
+      assert.equal(renderedData.pagination.totalItems, 1);
+      assert.equal(renderedData.pagination.perPage, 10);
     } finally {
       telegramReporterModel.getAllReporters = origGetAll;
       telegramReporterModel.getStatusCounts = origGetCounts;
+      telegramReporterModel.countReporters = origCount;
     }
   });
 

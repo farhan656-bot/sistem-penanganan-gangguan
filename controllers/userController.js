@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const userModel = require('../models/userModel');
+const { buildPagination } = require('../utils/paginationHelper');
 
 function normalizeText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -16,11 +17,48 @@ function parseOptionalRegionId(value) {
 
 async function listUsers(req, res) {
   try {
-    const users = await userModel.getAllUsers();
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const perPage = 10;
+    const search = normalizeText(req.query.search);
+    const role_id = req.query.role_id ? Number(req.query.role_id) : null;
+
+    const filters = {};
+    if (search) {
+      filters.search = search;
+    }
+    if (role_id && Number.isInteger(role_id)) {
+      filters.role_id = role_id;
+    }
+
+    const offset = (page - 1) * perPage;
+
+    const [totalUsers, users, roles] = await Promise.all([
+      userModel.countUsers(filters),
+      userModel.getAllUsers({ ...filters, limit: perPage, offset }),
+      userModel.getAllRoles()
+    ]);
+
+    const pagination = buildPagination({
+      baseUrl: '/users',
+      queryParams: {
+        search: filters.search || '',
+        role_id: filters.role_id || ''
+      },
+      currentPage: page,
+      perPage,
+      totalItems: totalUsers,
+      currentItemCount: users.length
+    });
 
     return res.render('users/index', {
       title: 'Manajemen User',
-      users
+      users,
+      roles,
+      filters: {
+        search: filters.search || '',
+        role_id: filters.role_id || ''
+      },
+      pagination
     });
   } catch (error) {
     console.error(error);

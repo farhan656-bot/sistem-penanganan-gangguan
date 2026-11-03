@@ -1,9 +1,12 @@
 const telegramReporterModel = require('../models/telegramReporterModel');
 const telegramBotService = require('../services/telegramBotService');
+const { buildPagination } = require('../utils/paginationHelper');
 
 async function index(req, res) {
   try {
-    const { status, agency, search } = req.query;
+    const { status, agency, search, page: pageParam } = req.query;
+    const page = Math.max(1, parseInt(pageParam, 10) || 1);
+    const perPage = 10;
     const filters = {};
 
     if (status && ['pending', 'approved', 'rejected'].includes(status)) {
@@ -16,10 +19,32 @@ async function index(req, res) {
       filters.search = String(search).trim();
     }
 
-    const [reporters, counts] = await Promise.all([
-      telegramReporterModel.getAllReporters(filters),
+    const offset = (page - 1) * perPage;
+
+    const [totalReporters, reporters, counts] = await Promise.all([
+      typeof telegramReporterModel.countReporters === 'function'
+        ? telegramReporterModel.countReporters(filters)
+        : 0,
+      telegramReporterModel.getAllReporters({ ...filters, limit: perPage, offset }),
       telegramReporterModel.getStatusCounts()
     ]);
+
+    const totalCount = typeof totalReporters === 'number' && totalReporters > 0
+      ? totalReporters
+      : reporters.length;
+
+    const pagination = buildPagination({
+      baseUrl: '/super-admin/reporters',
+      queryParams: {
+        status: filters.status || 'all',
+        agency: filters.agency || 'all',
+        search: filters.search || ''
+      },
+      currentPage: page,
+      perPage,
+      totalItems: totalCount,
+      currentItemCount: reporters.length
+    });
 
     res.render('super_admin/reporters/index', {
       title: 'Pendaftar Bot Telegram',
@@ -28,7 +53,8 @@ async function index(req, res) {
       currentStatus: filters.status || 'all',
       currentAgency: filters.agency || 'all',
       searchQuery: filters.search || '',
-      activePath: '/super-admin/reporters'
+      activePath: '/super-admin/reporters',
+      pagination
     });
   } catch (error) {
     console.error('Error listing telegram reporters:', error);

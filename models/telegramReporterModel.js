@@ -98,6 +98,14 @@ async function getAllReporters(filters = {}, trxConnection = null) {
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+  let paginationSql = '';
+  if (filters.limit !== undefined && filters.limit !== null) {
+    const limit = Math.max(1, parseInt(filters.limit, 10) || 10);
+    const offset = Math.max(0, parseInt(filters.offset, 10) || 0);
+    paginationSql = 'LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+  }
+
   const sql = `
     SELECT
       tr.*,
@@ -108,10 +116,44 @@ async function getAllReporters(filters = {}, trxConnection = null) {
     ORDER BY
       CASE WHEN tr.status = 'pending' THEN 0 ELSE 1 END,
       tr.created_at DESC
+    ${paginationSql}
   `;
 
   const [rows] = await conn.query(sql, params);
   return rows;
+}
+
+async function countReporters(filters = {}, trxConnection = null) {
+  const conn = trxConnection || pool;
+  const conditions = [];
+  const params = [];
+
+  if (filters.status && ['pending', 'approved', 'rejected'].includes(filters.status)) {
+    conditions.push('tr.status = ?');
+    params.push(filters.status);
+  }
+
+  if (filters.agency && ['TELKOM', 'HD', 'TELKOMSEL'].includes(filters.agency.toUpperCase())) {
+    conditions.push('tr.agency = ?');
+    params.push(filters.agency.toUpperCase());
+  }
+
+  if (filters.search && String(filters.search).trim()) {
+    const term = `%${String(filters.search).trim()}%`;
+    conditions.push('(tr.full_name LIKE ? OR tr.nik LIKE ? OR tr.telegram_username LIKE ?)');
+    params.push(term, term, term);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const sql = `
+    SELECT COUNT(1) AS total
+    FROM telegram_reporters tr
+    ${whereClause}
+  `;
+
+  const [rows] = await conn.query(sql, params);
+  return Number(rows[0]?.total || 0);
 }
 
 async function getStatusCounts(trxConnection = null) {
@@ -146,7 +188,10 @@ async function approveReporter(id, adminUserId, trxConnection = null) {
       updated_at = NOW()
     WHERE id = ?
   `;
-  const [result] = await conn.query(sql, [adminUserId ? Number(adminUserId) : null, Number(id)]);
+  const [result] = await conn.query(sql, [
+    adminUserId ? Number(adminUserId) : null,
+    Number(id)
+  ]);
   return result.affectedRows > 0;
 }
 
@@ -175,8 +220,8 @@ module.exports = {
   findByTelegramUserId,
   findById,
   getAllReporters,
+  countReporters,
   getStatusCounts,
   approveReporter,
   rejectReporter
 };
-
