@@ -274,7 +274,7 @@ async function supervisorDashboard(req, res) {
       supervisorModel.getStatusChartData(filters),
       supervisorModel.getTrendChartData(filters),
       supervisorModel.getRegionComparisonChartData(filters),
-      supervisorModel.getAttentionTickets(filters),
+      supervisorModel.getAttentionTickets(filters, { limit: 50 }),
       supervisorModel.getRegionSwitchHistory(filters)
     ]);
 

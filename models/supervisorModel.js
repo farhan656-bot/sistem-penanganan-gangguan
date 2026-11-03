@@ -307,7 +307,7 @@ async function getRegionComparisonChartData(filters = {}) {
   return Array.isArray(rows) ? rows : [];
 }
 
-async function getAttentionTickets(filters = {}, { limit = 15 } = {}) {
+async function getAttentionTickets(filters = {}, { limit = 50 } = {}) {
   const normalized = normalizeFilters(filters);
   const whereParts = [];
   const params = [];
@@ -331,7 +331,7 @@ async function getAttentionTickets(filters = {}, { limit = 15 } = {}) {
 
   const whereSql = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
 
-  const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(50, Number(limit))) : 15;
+  const safeLimit = Number.isFinite(Number(limit)) ? Math.max(1, Math.min(100, Number(limit))) : 50;
 
   const [rows] = await pool.query(
     `

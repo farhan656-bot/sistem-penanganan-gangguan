@@ -38,7 +38,8 @@
     <%- include('../partials/sidebar', { activePath: '/dashboard/supervisor' }) %>
 
     <div class="app-main">
-      <%- include('../partials/topbar', { pageTitle: 'Dashboard Supervisor', attentionTicketsCount: (attentionTickets ? attentionTickets.length : 0) }) %>
+      <% const realAttentionCount = (Number(summary.total_follow_up) || 0) + (Number(summary.total_escalated) || 0); %>
+      <%- include('../partials/topbar', { pageTitle: 'Dashboard Supervisor', attentionTicketsCount: realAttentionCount }) %>
 
       <main class="app-page">
         <div class="app-page-content">
@@ -474,7 +475,7 @@
                   <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
                       <strong>Tiket Perlu Perhatian</strong>
-                      <div class="text-muted small">Prioritas pengawasan: tiket berstatus Perlu Tindak Lanjut & Eskalasi (read-only)</div>
+                      <div class="text-muted small">Prioritas pengawasan: tiket berstatus Perlu Tindak Lanjut &amp; Eskalasi (read-only) &bull; <%= attentionTickets.length %> tiket</div>
                     </div>
                   </div>
                   <div class="card-body p-0">
