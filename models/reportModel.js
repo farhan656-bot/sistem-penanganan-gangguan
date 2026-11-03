@@ -194,19 +194,27 @@ function buildTelegramTextEnrichmentDescription({
   unchanged,
   telegramMeta
 }) {
-  const safeRawText = typeof rawText === 'string' ? rawText.replace(/\r?\n/g, '\\n') : '-';
   const meta = telegramMeta || {};
+  const reporterPart = meta.reporter_name
+    ? `Pelapor ${meta.reporter_name}${meta.username ? ` (@${meta.username})` : ''}`
+    : 'Pelapor via Telegram';
 
-  return [
-    `Raw Text: ${safeRawText || '-'}`,
-    `Updates: ${JSON.stringify(updates || {})}`,
-    `Conflicts: ${JSON.stringify(conflicts || [])}`,
-    `Unchanged: ${JSON.stringify(unchanged || [])}`,
-    `Chat ID: ${meta.chat_id || '-'}`,
-    `Message ID: ${meta.message_id || '-'}`,
-    `Reporter: ${meta.reporter_name || '-'}`,
-    `Username: ${meta.username || '-'}`
-  ].join(' | ');
+  const updateEntries = Object.entries(updates || {});
+  let updateSummary = '';
+  if (updateEntries.length > 0) {
+    const list = updateEntries.map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(', ');
+    updateSummary = `Data berhasil diperbarui: ${list}.`;
+  } else {
+    updateSummary = 'Tidak ada perubahan data baru (data yang dikirim sudah sesuai dengan data saat ini).';
+  }
+
+  let conflictSummary = '';
+  if (Array.isArray(conflicts) && conflicts.length > 0) {
+    const cList = conflicts.map((c) => `${c.field.toUpperCase()} (saat ini: ${c.existing}, diabaikan: ${c.incoming})`).join(', ');
+    conflictSummary = ` Catatan status: ${cList}.`;
+  }
+
+  return `${reporterPart} mengirimkan informasi data tambahan. ${updateSummary}${conflictSummary}`;
 }
 
 function pickTelegramTextEnrichmentFields(fields) {
@@ -693,7 +701,7 @@ async function createTelegramReport(parsedData, telegramMeta) {
       ticket_id: ticketId,
       user_id: null,
       action: 'create_telegram_report',
-      description: `Laporan dari Telegram diterima dengan ticket_id ${ticketId}, order_id ${orderId}, source telegram, chat_id ${meta.chat_id}.`
+      description: `Laporan baru diterima dari Telegram oleh bot (Tiket: ${ticketId} | Order ID: ${orderId || '-'}).`
     }, connection);
 
     await connection.commit();
@@ -779,15 +787,12 @@ async function storeTelegramAdditionalData(ticketIdOrId, payload) {
     throw new Error('Data tambahan Telegram kosong.');
   }
 
-  const description = [
-    `Mode: ${payload.mode || 'text'}`,
-    `Chat ID: ${payload.telegram_meta && payload.telegram_meta.chat_id ? payload.telegram_meta.chat_id : '-'}`,
-    `Message ID: ${payload.telegram_meta && payload.telegram_meta.message_id ? payload.telegram_meta.message_id : '-'}`,
-    `Reporter: ${payload.telegram_meta && payload.telegram_meta.reporter_name ? payload.telegram_meta.reporter_name : '-'}`,
-    `Username: ${payload.telegram_meta && payload.telegram_meta.username ? payload.telegram_meta.username : '-'}`,
-    `Pesan: ${rawText || '-'}`,
-    `Media Metadata: ${payload.media_metadata ? JSON.stringify(payload.media_metadata) : '-'}`
-  ].join(' | ');
+  const meta = payload.telegram_meta || {};
+  const reporterPart = meta.reporter_name
+    ? `Pelapor ${meta.reporter_name}${meta.username ? ` (@${meta.username})` : ''}`
+    : 'Pelapor via Telegram';
+  const cleanMessage = rawText ? `Pesan: "${rawText.replace(/\r?\n/g, ' ')}"` : 'Pesan atau lampiran media diterima.';
+  const description = `${reporterPart} mengirimkan data tambahan melalui Telegram. ${cleanMessage}`;
 
   const logData = { ticket_id: String(ticketIdOrId).trim(), user_id: null, action: 'telegram_additional_data_received', description };
 
@@ -1583,6 +1588,7 @@ async function resubmitFollowUpReport(ticketIdOrId, payload = {}) {
         order_id,
         summary,
         reported_region_id,
+        telegram_chat_id,
         status_internal
       FROM reports
       WHERE ticket_id = ?
@@ -1656,7 +1662,15 @@ async function resubmitFollowUpReport(ticketIdOrId, payload = {}) {
       meta.sender_last_name ?? meta.telegram_sender_last_name
     );
 
-    if (meta.chat_id) updates.telegram_chat_id = String(meta.chat_id);
+    const existingChatId = report.telegram_chat_id ? String(report.telegram_chat_id).trim() : '';
+    const incomingChatId = meta.chat_id ? String(meta.chat_id).trim() : '';
+
+    if (incomingChatId) {
+      // Pertahankan chat ID grup jika sudah ada, jangan ditimpa oleh chat privat saat resubmit
+      if (!existingChatId || incomingChatId.startsWith('-')) {
+        updates.telegram_chat_id = incomingChatId;
+      }
+    }
     if (meta.message_id) updates.telegram_message_id = String(meta.message_id);
     if (telegramSenderId) updates.telegram_sender_id = telegramSenderId;
     if (telegramSenderUsername) updates.telegram_sender_username = telegramSenderUsername;

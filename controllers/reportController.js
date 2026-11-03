@@ -505,7 +505,7 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
 
       await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_assigned',
-        `Feedback assigned terkirim ke chat ${payload.telegram_chat_id}.`,
+        'Notifikasi penugasan tiket berhasil dikirimkan ke grup / obrolan Telegram pelapor.',
         currentUser.id
       );
       return;
@@ -521,7 +521,7 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
 
       await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_in_progress',
-        `Feedback in-progress terkirim ke chat ${payload.telegram_chat_id}.`,
+        'Notifikasi tiket mulai dikerjakan berhasil dikirimkan ke grup / obrolan Telegram pelapor.',
         currentUser.id
       );
       return;
@@ -536,7 +536,7 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
 
       await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_completed',
-        `Feedback completed terkirim ke chat ${payload.telegram_chat_id}.`,
+        'Notifikasi penyelesaian tiket berhasil dikirimkan ke grup / obrolan Telegram pelapor.',
         currentUser.id
       );
     }
@@ -551,7 +551,7 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
 
       await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_return_evidence',
-        `Feedback return evidence terkirim ke chat ${payload.telegram_chat_id}.`,
+        'Notifikasi pengembalian tiket untuk tindak lanjut berhasil dikirimkan ke grup / obrolan Telegram pelapor.',
         currentUser.id
       );
     }
@@ -567,7 +567,7 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
 
       await reportModel.logTelegramFeedback(ticketId,
         options.isReescalation ? 'telegram_feedback_reescalation' : 'telegram_feedback_escalation',
-        `Feedback ${options.isReescalation ? 're-eskalasi' : 'eskalasi'} DIIT terkirim ke chat ${payload.telegram_chat_id}.`,
+        `Notifikasi ${options.isReescalation ? 're-eskalasi' : 'eskalasi'} DIIT berhasil dikirimkan ke grup / obrolan Telegram pelapor.`,
         currentUser.id
       );
     }
@@ -582,7 +582,7 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
 
       await reportModel.logTelegramFeedback(ticketId,
         'telegram_feedback_reopened',
-        `Feedback re-open eskalasi terkirim ke chat ${payload.telegram_chat_id}.`,
+        'Notifikasi pembukaan kembali tiket (re-open) berhasil dikirimkan ke grup / obrolan Telegram pelapor.',
         currentUser.id
       );
     }

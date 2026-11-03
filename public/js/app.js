@@ -927,20 +927,211 @@
     }).join('');
   }
 
+  function parseRawTelegramEnrichmentLog(rawDesc) {
+    var reporterMatch = rawDesc.match(/Reporter:\s*([^|]+)/);
+    var usernameMatch = rawDesc.match(/Username:\s*([^|]+)/);
+    var updatesMatch = rawDesc.match(/Updates:\s*(\{[^}]*\})/);
+    var conflictsMatch = rawDesc.match(/Conflicts:\s*(\[[^\]]*\])/);
+    var rawTextMatch = rawDesc.match(/Raw Text:\s*(.*?)(?=\s*\|\s*Updates:|$)/s);
+
+    var reporterName = reporterMatch && reporterMatch[1].trim() !== '-' ? reporterMatch[1].trim() : '';
+    var username = usernameMatch && usernameMatch[1].trim() !== '-' ? usernameMatch[1].trim() : '';
+    var senderLabel = reporterName
+      ? '<strong>' + escapeHtml(reporterName) + '</strong>' + (username ? ' (@' + escapeHtml(username) + ')' : '')
+      : 'Pelapor via Telegram';
+
+    var updates = {};
+    if (updatesMatch && updatesMatch[1]) {
+      try { updates = JSON.parse(updatesMatch[1]); } catch (e) {}
+    }
+
+    var conflicts = [];
+    if (conflictsMatch && conflictsMatch[1]) {
+      try { conflicts = JSON.parse(conflictsMatch[1]); } catch (e) {}
+    }
+
+    var updateKeys = Object.keys(updates);
+    var parts = [];
+
+    parts.push('<div class="mb-1 text-dark small"><i class="bi bi-chat-left-quote me-1 text-primary"></i>Pembaruan data dikirimkan oleh ' + senderLabel + ' melalui bot Telegram.</div>');
+
+    if (updateKeys.length > 0) {
+      var updateBadges = updateKeys.map(function (k) {
+        return '<span class="badge text-bg-light border text-dark font-monospace">' + escapeHtml(k.toUpperCase()) + ': ' + escapeHtml(String(updates[k])) + '</span>';
+      }).join(' ');
+      parts.push('<div class="small mb-1"><span class="text-success fw-medium"><i class="bi bi-check2-circle me-1"></i>Data diperbarui:</span> ' + updateBadges + '</div>');
+    } else {
+      parts.push('<div class="small text-muted mb-1"><i class="bi bi-info-circle me-1"></i>Tidak ada atribut data baru yang diubah (data yang dikirimkan sudah sesuai).</div>');
+    }
+
+    if (conflicts && conflicts.length > 0) {
+      conflicts.forEach(function (c) {
+        var fieldName = c.field ? c.field.toUpperCase() : 'STATUS';
+        var existingVal = c.existing || '-';
+        var incomingVal = c.incoming || '-';
+        parts.push('<div class="small text-secondary mb-1"><i class="bi bi-shield-check me-1 text-warning"></i>Status <strong>' + escapeHtml(fieldName) + '</strong> saat ini sudah <em>' + escapeHtml(existingVal) + '</em>, nilai masuk (<em>' + escapeHtml(incomingVal) + '</em>) tidak menimpa penanganan berjalan.</div>');
+      });
+    }
+
+    if (rawTextMatch && rawTextMatch[1] && rawTextMatch[1].trim() !== '-') {
+      var rawClean = rawTextMatch[1].replace(/\\n/g, '\n').trim();
+      parts.push(
+        '<details class="mt-2">' +
+        '<summary class="text-secondary small user-select-none" style="cursor: pointer; font-size: 0.78rem;"><i class="bi bi-chevron-right me-1"></i>Lihat teks asli pesan Telegram</summary>' +
+        '<div class="p-2 mt-1 bg-light border rounded small font-monospace text-wrap" style="white-space: pre-wrap; font-size: 0.78rem; line-height: 1.4;">' + escapeHtml(rawClean) + '</div>' +
+        '</details>'
+      );
+    }
+
+    return parts.join('');
+  }
+
+  function parseModeTelegramLog(rawDesc) {
+    var reporterMatch = rawDesc.match(/Reporter:\s*([^|]+)/);
+    var usernameMatch = rawDesc.match(/Username:\s*([^|]+)/);
+    var pesanMatch = rawDesc.match(/Pesan:\s*([^|]+)/);
+
+    var reporterName = reporterMatch && reporterMatch[1].trim() !== '-' ? reporterMatch[1].trim() : '';
+    var username = usernameMatch && usernameMatch[1].trim() !== '-' ? usernameMatch[1].trim() : '';
+    var pesan = pesanMatch && pesanMatch[1].trim() !== '-' ? pesanMatch[1].trim() : '';
+
+    var senderLabel = reporterName
+      ? '<strong>' + escapeHtml(reporterName) + '</strong>' + (username ? ' (@' + escapeHtml(username) + ')' : '')
+      : 'Pelapor';
+
+    var parts = [];
+    parts.push('<div class="text-dark small"><i class="bi bi-chat-left-text me-1 text-primary"></i>' + senderLabel + ' mengirimkan data / pesan tambahan via Telegram:</div>');
+    if (pesan) {
+      parts.push('<div class="p-2 mt-1 bg-light border rounded small font-monospace text-wrap" style="white-space: pre-wrap; font-size: 0.8rem;">' + escapeHtml(pesan) + '</div>');
+    }
+    return parts.join('');
+  }
+
+  function formatHumanActivityLog(item) {
+    var action = String(item.action || '').trim();
+    var rawDesc = String(item.description || item.message || item.notes || '').trim();
+
+    var actionMeta = {
+      title: 'Aktivitas Laporan',
+      badgeClass: 'text-bg-secondary',
+      icon: 'bi-activity'
+    };
+
+    switch (action) {
+      case 'create_telegram_report':
+        actionMeta = { title: 'Laporan Diterima dari Telegram', badgeClass: 'text-bg-primary', icon: 'bi-telegram' };
+        break;
+      case 'create_manual_report':
+        actionMeta = { title: 'Laporan Dibuat Manual', badgeClass: 'text-bg-primary', icon: 'bi-file-earmark-plus' };
+        break;
+      case 'take_report':
+        actionMeta = { title: 'Laporan Diambil oleh Teknisi', badgeClass: 'text-bg-info text-dark', icon: 'bi-hand-index-thumb' };
+        break;
+      case 'in_progress_report':
+        actionMeta = { title: 'Pengerjaan Laporan Dimulai', badgeClass: 'text-bg-warning text-dark', icon: 'bi-gear-wide-connected' };
+        break;
+      case 'complete_report':
+        actionMeta = { title: 'Laporan Selesai Ditangani', badgeClass: 'text-bg-success', icon: 'bi-check-circle-fill' };
+        break;
+      case 'escalate_report':
+        actionMeta = { title: 'Laporan Dieskalasi ke DIIT', badgeClass: 'text-bg-danger', icon: 'bi-arrow-up-right-circle-fill' };
+        break;
+      case 're_escalate_report':
+        actionMeta = { title: 'Laporan Di-Re-Eskalasi ke DIIT', badgeClass: 'text-bg-danger', icon: 'bi-arrow-repeat' };
+        break;
+      case 'reopen_escalated_report':
+        actionMeta = { title: 'Laporan Dibuka Kembali (Re-Open)', badgeClass: 'text-bg-warning text-dark', icon: 'bi-arrow-clockwise' };
+        break;
+      case 'follow_up_report':
+        actionMeta = { title: 'Perlu Tindak Lanjut Pelapor', badgeClass: 'text-bg-warning text-dark', icon: 'bi-exclamation-triangle-fill' };
+        break;
+      case 'resubmit_follow_up_report':
+        actionMeta = { title: 'Perbaikan Laporan (Resubmit) Diterima', badgeClass: 'text-bg-info text-dark', icon: 'bi-arrow-repeat' };
+        break;
+      case 'delegate_report':
+        actionMeta = { title: 'Laporan Didelegasikan', badgeClass: 'text-bg-secondary', icon: 'bi-person-gear' };
+        break;
+      case 'cancel_assignment':
+        actionMeta = { title: 'Penugasan Dibatalkan', badgeClass: 'text-bg-secondary', icon: 'bi-x-circle' };
+        break;
+      case 'telegram_text_enrichment_applied':
+        actionMeta = { title: 'Pembaruan Data via Telegram', badgeClass: 'text-bg-info text-dark', icon: 'bi-pencil-square' };
+        break;
+      case 'telegram_text_enrichment_no_change':
+        actionMeta = { title: 'Konfirmasi Data via Telegram', badgeClass: 'text-bg-light border text-secondary', icon: 'bi-chat-left-dots' };
+        break;
+      case 'telegram_text_enrichment_conflict':
+        actionMeta = { title: 'Pembaruan Data dengan Penyesuaian', badgeClass: 'text-bg-warning text-dark', icon: 'bi-exclamation-circle' };
+        break;
+      case 'telegram_text_enrichment_failed':
+        actionMeta = { title: 'Pesan Tambahan Tidak Sesuai Format', badgeClass: 'text-bg-light border text-muted', icon: 'bi-chat-left' };
+        break;
+      case 'telegram_additional_data_received':
+        actionMeta = { title: 'Pesan / Data Tambahan Telegram', badgeClass: 'text-bg-info text-dark', icon: 'bi-chat-left-text' };
+        break;
+      case 'telegram_feedback_assigned':
+        actionMeta = { title: 'Notifikasi Penugasan Terkirim ke Grup', badgeClass: 'text-bg-light border text-secondary', icon: 'bi-send' };
+        break;
+      case 'telegram_feedback_in_progress':
+        actionMeta = { title: 'Notifikasi Pengerjaan Terkirim ke Grup', badgeClass: 'text-bg-light border text-secondary', icon: 'bi-send' };
+        break;
+      case 'telegram_feedback_completed':
+        actionMeta = { title: 'Notifikasi Selesai Terkirim ke Grup', badgeClass: 'text-bg-light border text-secondary', icon: 'bi-send' };
+        break;
+      case 'telegram_feedback_return_evidence':
+        actionMeta = { title: 'Notifikasi Pengembalian Tiket Terkirim ke Grup', badgeClass: 'text-bg-light border text-secondary', icon: 'bi-send' };
+        break;
+      case 'telegram_feedback_escalation':
+      case 'telegram_feedback_reescalation':
+        actionMeta = { title: 'Notifikasi Eskalasi Terkirim ke Grup', badgeClass: 'text-bg-light border text-secondary', icon: 'bi-send' };
+        break;
+      case 'telegram_feedback_reopened':
+        actionMeta = { title: 'Notifikasi Tiket Re-Open Terkirim ke Grup', badgeClass: 'text-bg-light border text-secondary', icon: 'bi-send' };
+        break;
+      case 'telegram_feedback_failed':
+        actionMeta = { title: 'Gagal Kirim Notifikasi Telegram', badgeClass: 'text-bg-danger', icon: 'bi-exclamation-octagon' };
+        break;
+    }
+
+    var cleanHtml = '';
+
+    if (rawDesc.indexOf('Raw Text:') >= 0) {
+      cleanHtml = parseRawTelegramEnrichmentLog(rawDesc);
+    } else if (rawDesc.indexOf('Mode:') >= 0 && rawDesc.indexOf('Chat ID:') >= 0) {
+      cleanHtml = parseModeTelegramLog(rawDesc);
+    } else if (rawDesc.indexOf('Feedback') >= 0 && rawDesc.indexOf('terkirim ke chat') >= 0) {
+      cleanHtml = '<div class="text-secondary small">Notifikasi status tiket otomatis berhasil dikirimkan ke obrolan / grup Telegram pelapor.</div>';
+    } else if (rawDesc.indexOf('Laporan dari Telegram diterima dengan ticket_id') >= 0) {
+      var tidMatch = rawDesc.match(/ticket_id\s*([^,]+)/);
+      var oidMatch = rawDesc.match(/order_id\s*([^,]+)/);
+      var tidStr = tidMatch ? tidMatch[1].trim() : '-';
+      var oidStr = oidMatch ? oidMatch[1].trim() : '-';
+      cleanHtml = '<div class="text-secondary small">Laporan gangguan berhasil diterima oleh bot dari grup Telegram (Tiket: <strong>' + escapeHtml(tidStr) + '</strong> | Order ID: <strong>' + escapeHtml(oidStr) + '</strong>) dan langsung masuk ke antrean kerja sistem.</div>';
+    } else if (rawDesc) {
+      cleanHtml = '<div class="text-dark small">' + escapeHtml(rawDesc) + '</div>';
+    } else {
+      cleanHtml = '<div class="text-muted small fst-italic">Tidak ada catatan rincian aktivitas.</div>';
+    }
+
+    return {
+      meta: actionMeta,
+      cleanHtml: cleanHtml
+    };
+  }
+
   function renderActivityLogItem(log, index, total) {
     var item = typeof log === 'string' ? { description: log } : (log || {});
-    var action = displayValue(item.action || item.event || item.type || 'Aktivitas');
     var actor = displayValue(item.actor_name || item.user_name || item.full_name || item.created_by_name);
-    var description = displayValue(item.description || item.message || item.notes);
     var createdAt = item.created_at || item.timestamp || item.time;
     var isLatest = index === 0;
+
+    var humanized = formatHumanActivityLog(item);
 
     var actorHtml = actor !== '-'
       ? '<span class="badge text-bg-light border text-secondary small fw-normal"><i class="bi bi-person me-1"></i>Pelaku: ' + escapeHtml(actor) + '</span>'
       : '';
-    var descriptionHtml = description !== '-'
-      ? '<div class="app-modal-prewrap mt-1 text-dark small">' + escapeHtml(description) + '</div>'
-      : '<div class="text-muted mt-1 small fst-italic">Tidak ada catatan aktivitas.</div>';
+
+    var actionBadgeHtml = '<span class="badge ' + humanized.meta.badgeClass + ' fw-medium small me-1"><i class="bi ' + humanized.meta.icon + ' me-1"></i>' + escapeHtml(humanized.meta.title) + '</span>';
 
     var latestBadge = isLatest
       ? '<span class="badge text-bg-danger ms-2 fw-medium" style="font-size: 0.68rem; vertical-align: middle;"><span class="spinner-grow spinner-grow-sm me-1" style="width: 0.38rem; height: 0.38rem;" role="status"></span>Terbaru</span>'
@@ -952,11 +1143,19 @@
       '<div class="report-detail-timeline-dot" title="' + (isLatest ? 'Aktivitas Terbaru' : 'Aktivitas') + '"></div>',
       '</div>',
       '<div class="report-detail-timeline-content">',
-      '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2">',
-      '<div class="small text-muted font-monospace"><i class="bi bi-clock me-1"></i>' + escapeHtml(formatDateTime(createdAt)) + latestBadge + '</div>',
+      '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2 pb-1 border-bottom border-light">',
+      '<div class="d-flex align-items-center flex-wrap gap-1">',
+      actionBadgeHtml,
+      latestBadge,
+      '</div>',
+      '<div class="d-flex align-items-center gap-2">',
+      '<span class="small text-muted font-monospace"><i class="bi bi-clock me-1"></i>' + escapeHtml(formatDateTime(createdAt)) + '</span>',
       actorHtml,
       '</div>',
-      descriptionHtml,
+      '</div>',
+      '<div class="mt-1">',
+      humanized.cleanHtml,
+      '</div>',
       '</div>',
       '</div>'
     ].join('');

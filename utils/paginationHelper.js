@@ -77,3 +77,4 @@ function buildPagination({
 module.exports = {
   buildPagination
 };
+

@@ -63,6 +63,25 @@ function buildReopenedMessage(ticketId, orderId, executorName) {
   ].join('\n');
 }
 
+function resolveFeedbackChatId(chatId) {
+  if (!chatId) {
+    return null;
+  }
+  const cleanId = String(chatId).trim();
+  // Chat grup/supergroup/channel pada Telegram selalu bernilai negatif (diawali '-')
+  if (cleanId.startsWith('-')) {
+    return cleanId;
+  }
+
+  // Jika TELEGRAM_GROUP_CHAT_ID terkonfigurasi, prioritaskan pengiriman feedback tiket ke grup
+  const configuredGroup = process.env.TELEGRAM_GROUP_CHAT_ID;
+  if (configuredGroup && String(configuredGroup).trim().startsWith('-')) {
+    return String(configuredGroup).trim();
+  }
+
+  return cleanId;
+}
+
 async function sendMessageToChat(chatId, messageText) {
   const bot = getTelegramBotInstance();
 
@@ -70,11 +89,13 @@ async function sendMessageToChat(chatId, messageText) {
     throw new Error('Telegram bot belum aktif.');
   }
 
-  if (!chatId) {
+  const targetChatId = resolveFeedbackChatId(chatId);
+
+  if (!targetChatId) {
     throw new Error('telegram_chat_id kosong.');
   }
 
-  await bot.sendMessage(chatId, messageText);
+  await bot.sendMessage(targetChatId, messageText);
 }
 
 async function sendAssignedFeedback({ chatId, ticketId, orderId, executorName }) {
@@ -114,6 +135,7 @@ async function sendReopenedFeedback({ chatId, ticketId, orderId, executorName })
 }
 
 module.exports = {
+  resolveFeedbackChatId,
   sendAssignedFeedback,
   sendInProgressFeedback,
   sendCompletedFeedback,
