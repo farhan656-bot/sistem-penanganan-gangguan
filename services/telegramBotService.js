@@ -1,7 +1,14 @@
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const axios = require('axios');
+
+const telegramHttpsAgent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 60000,
+  maxSockets: 20
+});
 const reportModel = require('../models/reportModel');
 const attachmentModel = require('../models/attachmentModel');
 const pendingMediaModel = require('../models/pendingMediaModel');
@@ -285,22 +292,47 @@ function isImageAttachment(file) {
   return mime.startsWith('image/');
 }
 
+function selectOptimalPhoto(photos) {
+  if (!Array.isArray(photos) || photos.length === 0) {
+    return null;
+  }
+  if (photos.length <= 2) {
+    return photos[photos.length - 1];
+  }
+
+  // Telegram mengurutkan photos dari dimensi terkecil hingga terbesar.
+  // photos[photos.length - 1] adalah file resolusi terbesar (seringkali 3-5MB dari kamera ponsel).
+  // photos[photos.length - 2] adalah resolusi HD yang dioptimasi Telegram (~800-1280px, ~100-300KB),
+  // sangat tajam untuk bukti laporan web/mobile, namun 10x lebih cepat diunduh dibanding file mentah kamera.
+  const largest = photos[photos.length - 1];
+  const secondLargest = photos[photos.length - 2];
+
+  if (largest && largest.file_size && largest.file_size > 1000000 && secondLargest && secondLargest.width >= 600) {
+    return secondLargest;
+  }
+  if (largest && largest.width && largest.width > 1600 && secondLargest && secondLargest.width >= 800) {
+    return secondLargest;
+  }
+
+  return largest;
+}
+
 function extractMediaMetadata(message) {
   const messageType = detectMessageType(message);
 
   if (messageType === 'photo') {
-    const largestPhoto = message.photo[message.photo.length - 1] || null;
-    if (!largestPhoto) {
+    const selectedPhoto = selectOptimalPhoto(message.photo);
+    if (!selectedPhoto) {
       return null;
     }
 
     return {
       type: 'photo',
-      file_id: largestPhoto.file_id,
-      file_unique_id: largestPhoto.file_unique_id,
-      width: largestPhoto.width,
-      height: largestPhoto.height,
-      file_size: largestPhoto.file_size || null,
+      file_id: selectedPhoto.file_id,
+      file_unique_id: selectedPhoto.file_unique_id,
+      width: selectedPhoto.width,
+      height: selectedPhoto.height,
+      file_size: selectedPhoto.file_size || null,
       caption: message.caption || ''
     };
   }
@@ -346,8 +378,11 @@ function extractMediaMetadata(message) {
   return null;
 }
 
+let dirEnsured = false;
 async function ensureTelegramUploadDir() {
+  if (dirEnsured) return;
   await fs.promises.mkdir(TELEGRAM_UPLOAD_DIR, { recursive: true });
+  dirEnsured = true;
 }
 
 async function downloadTelegramFile(bot, fileId, storedName) {
@@ -356,6 +391,7 @@ async function downloadTelegramFile(bot, fileId, storedName) {
   const fileUrl = await bot.getFileLink(fileId);
   const response = await axios.get(fileUrl, {
     responseType: 'arraybuffer',
+    httpsAgent: telegramHttpsAgent,
     timeout: 30000
   });
 
@@ -442,11 +478,15 @@ async function linkPendingMediaToReport(report, pendingMedia) {
 }
 
 async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
+  if (typeof bot?.sendChatAction === 'function') {
+    bot.sendChatAction(chatId, 'upload_photo').catch(() => {});
+  }
+
   const ticketIdFromText = extractTicketIdFromText(text);
-  const persistedMedia = await persistMediaFile(bot, message, mediaMetadata);
+  let report = null;
 
   if (ticketIdFromText) {
-    const report = await reportModel.findByTicketId(ticketIdFromText);
+    report = await reportModel.findByTicketId(ticketIdFromText);
 
     if (!report) {
       await sendBotMessage(bot, chatId, buildUnknownTicketReply(ticketIdFromText), message);
@@ -457,7 +497,11 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
       await sendBotMessage(bot, chatId, buildNotReportOwnerReply(report.ticket_id, 'penyatuan gambar atau bukti'), message);
       return;
     }
+  }
 
+  const persistedMedia = await persistMediaFile(bot, message, mediaMetadata);
+
+  if (ticketIdFromText && report) {
     await attachmentModel.createAttachment({
       ticket_id: report.ticket_id,
       report_id: null,
@@ -1016,5 +1060,6 @@ module.exports = {
   notifyReporterApproval,
   notifyReporterRejection,
   isReportOwner,
-  buildNotReportOwnerReply
+  buildNotReportOwnerReply,
+  selectOptimalPhoto
 };

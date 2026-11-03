@@ -9,7 +9,8 @@ const attachmentModel = require('../../models/attachmentModel');
 const {
   isReportOwner,
   buildNotReportOwnerReply,
-  handleIncomingMessage
+  handleIncomingMessage,
+  selectOptimalPhoto
 } = require('../../services/telegramBotService');
 
 test('Unit Test: Telegram Reporter Ticket Ownership & Protection in Group Chats', async (t) => {
@@ -375,5 +376,28 @@ test('Unit Test: Telegram Reporter Ticket Ownership & Protection in Group Chats'
       axios.get = origAxiosGet;
       fs.promises.writeFile = origWriteFile;
     }
+  });
+
+  await t.test('8. Helper selectOptimalPhoto memilih resolusi cerdas yang cepat diunduh tanpa kompromi kualitas', () => {
+    // Array kosong / bukan array
+    assert.equal(selectOptimalPhoto(null), null);
+    assert.equal(selectOptimalPhoto([]), null);
+
+    // Hanya 1 atau 2 foto
+    const twoPhotos = [
+      { file_id: 'thumb', width: 90, height: 90, file_size: 5000 },
+      { file_id: 'medium', width: 320, height: 320, file_size: 25000 }
+    ];
+    assert.equal(selectOptimalPhoto(twoPhotos).file_id, 'medium');
+
+    // 4 foto kamera ponsel: thumbnail, small, medium HD, large RAW 4MB
+    const multiPhotos = [
+      { file_id: 'thumb', width: 90, height: 90, file_size: 5000 },
+      { file_id: 'small', width: 320, height: 320, file_size: 30000 },
+      { file_id: 'hd_optimal', width: 1280, height: 960, file_size: 220000 },
+      { file_id: 'raw_huge', width: 4000, height: 3000, file_size: 4500000 }
+    ];
+    // Memilih HD yang jauh lebih cepat (220KB) daripada RAW kamera (4.5MB)
+    assert.equal(selectOptimalPhoto(multiPhotos).file_id, 'hd_optimal');
   });
 });
