@@ -724,10 +724,13 @@ async function findByTicketId(ticketId) {
   const [rows] = await pool.query(
     `
     SELECT
+      id,
       ticket_id,
       order_id,
       telegram_chat_id,
       telegram_message_id,
+      telegram_sender_id,
+      telegram_sender_username,
       status_internal
     FROM reports
     WHERE UPPER(TRIM(ticket_id)) = UPPER(TRIM(?))
@@ -1692,10 +1695,15 @@ async function resubmitFollowUpReport(ticketIdOrId, payload = {}) {
     );
 
     if (meta.chat_id) {
-      const [pendingMediaRows] = await connection.query(
-        `SELECT * FROM telegram_pending_media WHERE chat_id = ? AND status = 'pending' ORDER BY created_at ASC`,
-        [String(meta.chat_id)]
-      );
+      const pendingSenderId = meta.sender_id || meta.telegram_sender_id;
+      let pmSql = `SELECT * FROM telegram_pending_media WHERE chat_id = ? AND status = 'pending'`;
+      const pmParams = [String(meta.chat_id)];
+      if (pendingSenderId) {
+        pmSql += ` AND (telegram_sender_id = ? OR telegram_sender_id IS NULL)`;
+        pmParams.push(String(pendingSenderId));
+      }
+      pmSql += ` ORDER BY created_at ASC`;
+      const [pendingMediaRows] = await connection.query(pmSql, pmParams);
 
       for (const pm of pendingMediaRows) {
         await attachmentModel.createAttachment({

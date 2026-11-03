@@ -8,6 +8,7 @@ async function createPendingMedia(data, trxConnection = null) {
     (
       chat_id,
       telegram_message_id,
+      telegram_sender_id,
       telegram_file_id,
       telegram_file_unique_id,
       file_type,
@@ -22,11 +23,12 @@ async function createPendingMedia(data, trxConnection = null) {
       created_at,
       linked_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NOW(), NULL)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NOW(), NULL)
     `,
     [
       String(data.chat_id),
       String(data.telegram_message_id),
+      data.telegram_sender_id ? String(data.telegram_sender_id) : null,
       data.telegram_file_id || null,
       data.telegram_file_unique_id || null,
       data.file_type || null,
@@ -42,19 +44,33 @@ async function createPendingMedia(data, trxConnection = null) {
   return result.insertId;
 }
 
-async function getLatestPendingMediaByChatId(chatId, trxConnection = null) {
-  const conn = trxConnection || pool;
-  const [rows] = await conn.query(
-    `
+async function getLatestPendingMediaByChatId(chatId, senderIdOrTrx = null, trxConnection = null) {
+  let senderId = null;
+  let conn = pool;
+
+  if (senderIdOrTrx && typeof senderIdOrTrx === 'object' && typeof senderIdOrTrx.query === 'function') {
+    conn = senderIdOrTrx;
+  } else {
+    senderId = senderIdOrTrx ? String(senderIdOrTrx).trim() : null;
+    conn = trxConnection || pool;
+  }
+
+  let sql = `
     SELECT *
     FROM telegram_pending_media
     WHERE chat_id = ?
       AND status = 'pending'
-    ORDER BY created_at DESC, id DESC
-    LIMIT 1
-    `,
-    [String(chatId)]
-  );
+  `;
+  const params = [String(chatId)];
+
+  if (senderId) {
+    sql += ' AND (telegram_sender_id = ? OR telegram_sender_id IS NULL) ';
+    params.push(senderId);
+  }
+
+  sql += ' ORDER BY created_at DESC, id DESC LIMIT 1 ';
+
+  const [rows] = await conn.query(sql, params);
 
   return rows[0] || null;
 }

@@ -115,6 +115,30 @@ function getTelegramMetaFromMessage(message) {
   };
 }
 
+function isReportOwner(report, message) {
+  if (!report || !message) {
+    return false;
+  }
+
+  const senderId = message.from && message.from.id !== undefined && message.from.id !== null
+    ? String(message.from.id).trim()
+    : '';
+
+  const reportSenderId = report.telegram_sender_id !== undefined && report.telegram_sender_id !== null
+    ? String(report.telegram_sender_id).trim()
+    : '';
+
+  if (!senderId || !reportSenderId) {
+    return false;
+  }
+
+  return senderId === reportSenderId;
+}
+
+function buildNotReportOwnerReply(ticketId, actionName = 'menambah data atau gambar') {
+  return `⛔ Aksi Ditolak\n\nAnda bukan pelapor yang mengirim tiket ${ticketId}.\n\nUntuk menghindari kesalahan atau tertukarnya data laporan di grup, ${actionName} hanya dapat dilakukan oleh pelapor pemilik tiket tersebut.`;
+}
+
 async function handleTextEnrichment(bot, message, text, enrichmentParsed) {
   if (!enrichmentParsed || !enrichmentParsed.hasTicketId) {
     return false;
@@ -131,6 +155,11 @@ async function handleTextEnrichment(bot, message, text, enrichmentParsed) {
       telegram_meta: telegramMeta
     });
     await sendBotMessage(bot, chatId, buildUnknownTicketReply(ticketId), message);
+    return true;
+  }
+
+  if (!isReportOwner(report, message)) {
+    await sendBotMessage(bot, chatId, buildNotReportOwnerReply(report.ticket_id, 'penambahan data'), message);
     return true;
   }
 
@@ -424,6 +453,11 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
       return;
     }
 
+    if (!isReportOwner(report, message)) {
+      await sendBotMessage(bot, chatId, buildNotReportOwnerReply(report.ticket_id, 'penyatuan gambar atau bukti'), message);
+      return;
+    }
+
     await attachmentModel.createAttachment({
       ticket_id: report.ticket_id,
       report_id: report.id || null,
@@ -463,6 +497,7 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
   await pendingMediaModel.createPendingMedia({
     chat_id: chatId,
     telegram_message_id: message.message_id,
+    telegram_sender_id: message?.from?.id ? String(message.from.id) : null,
     telegram_file_id: persistedMedia.telegram_file_id,
     telegram_file_unique_id: persistedMedia.telegram_file_unique_id,
     file_type: persistedMedia.file_type,
@@ -489,7 +524,13 @@ async function tryLinkPendingMediaFromTicketText(bot, chatId, text, message = nu
     return true;
   }
 
-  const pendingMedia = await pendingMediaModel.getLatestPendingMediaByChatId(chatId);
+  if (!isReportOwner(report, message)) {
+    await sendBotMessage(bot, chatId, buildNotReportOwnerReply(report.ticket_id, 'penyatuan gambar pending ke tiket'), message);
+    return true;
+  }
+
+  const senderId = message?.from?.id ? String(message.from.id) : null;
+  const pendingMedia = await pendingMediaModel.getLatestPendingMediaByChatId(chatId, senderId);
   if (!pendingMedia) {
     await sendBotMessage(bot, chatId, buildNoPendingMediaReply(), message);
     return true;
@@ -729,6 +770,15 @@ async function handleIncomingMessage(bot, message) {
         );
         return;
       }
+      if (!isReportOwner(existingTicket, message)) {
+        await sendBotMessage(
+          bot,
+          chatId,
+          buildNotReportOwnerReply(existingTicket.ticket_id, 'perbaikan atau resubmit data tiket'),
+          message
+        );
+        return;
+      }
       const telegramMeta = getTelegramMetaFromMessage(message);
       await handleFollowUpResubmission(bot, message, text, existingTicket, allParsed.fields, telegramMeta);
       return;
@@ -791,6 +841,16 @@ async function handleIncomingMessage(bot, message) {
   try {
     const existingByTicket = await reportModel.findByTicketId(parsed.data.ticket_id);
     if (existingByTicket) {
+      if (!isReportOwner(existingByTicket, message)) {
+        await sendBotMessage(
+          bot,
+          chatId,
+          buildNotReportOwnerReply(existingByTicket.ticket_id, 'memperbarui data tiket'),
+          message
+        );
+        return;
+      }
+
       if (existingByTicket.status_internal === 'perlu_tindak_lanjut') {
         const telegramMeta = getTelegramMetaFromMessage(message);
         await handleFollowUpResubmission(bot, message, text, existingByTicket, parsed.data, telegramMeta);
@@ -954,5 +1014,7 @@ module.exports = {
   isSupportedChat,
   sendBotMessage,
   notifyReporterApproval,
-  notifyReporterRejection
+  notifyReporterRejection,
+  isReportOwner,
+  buildNotReportOwnerReply
 };
