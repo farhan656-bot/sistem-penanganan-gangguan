@@ -472,16 +472,35 @@
             <div class="row g-3">
               <div class="col-12">
                 <div class="card app-card">
-                  <div class="card-header d-flex justify-content-between align-items-center">
+                  <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2 py-2">
                     <div>
-                      <strong>Tiket Perlu Perhatian</strong>
-                      <div class="text-muted small">Prioritas pengawasan: tiket berstatus Perlu Tindak Lanjut &amp; Eskalasi (read-only) &bull; <%= attentionTickets.length %> tiket</div>
+                      <strong class="text-dark">Tiket Perlu Perhatian</strong>
+                      <div class="text-muted small">Prioritas pengawasan: tiket berstatus Perlu Tindak Lanjut &amp; Eskalasi (read-only)</div>
+                    </div>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                      <!-- Button Region Filter: Semua, PDG, BKT -->
+                      <div class="btn-group btn-group-sm" role="group" aria-label="Filter Wilayah Tiket Perlu Perhatian">
+                        <button type="button" class="btn btn-outline-secondary active" data-attention-region-filter="all" id="btnAttentionRegionAll">
+                          Semua
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-attention-region-filter="PDG" id="btnAttentionRegionPDG">
+                          PDG
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" data-attention-region-filter="BKT" id="btnAttentionRegionBKT">
+                          BKT
+                        </button>
+                      </div>
+
+                      <!-- Count Badge -->
+                      <span class="badge text-bg-light border text-secondary font-monospace" id="attentionTicketsCountBadge" style="font-size: 0.72rem;">
+                        Total: <%= (attentionTickets || []).length %> Tiket
+                      </span>
                     </div>
                   </div>
                   <div class="card-body p-0">
                     <div class="table-responsive">
-                      <table class="table table-hover align-middle">
-                        <thead>
+                      <table class="table table-hover align-middle mb-0" id="attentionTicketsTable">
+                        <thead class="table-light">
                           <tr>
                             <th class="app-col-num">No</th>
                             <th>Ticket ID</th>
@@ -495,14 +514,18 @@
                           </tr>
                         </thead>
                         <tbody>
-                          <% if (!attentionTickets || attentionTickets.length === 0) { %>
-                            <tr>
-                              <td colspan="9" class="text-center text-muted py-4">Tidak ada tiket perlu perhatian pada filter ini.</td>
-                            </tr>
-                          <% } %>
+                          <tr id="emptyAttentionRow" style="<%= (!attentionTickets || attentionTickets.length === 0) ? '' : 'display: none;' %>">
+                            <td colspan="9" class="text-center text-muted py-4">Tidak ada tiket perlu perhatian pada filter ini.</td>
+                          </tr>
+
+                          <tr id="noMatchAttentionRow" class="d-none">
+                            <td colspan="9" class="text-center text-muted py-4">
+                              <i class="bi bi-funnel me-1"></i> Tidak ada tiket perlu perhatian untuk wilayah yang dipilih.
+                            </td>
+                          </tr>
 
                           <% (attentionTickets || []).forEach((ticket, index) => { %>
-                            <tr>
+                            <tr class="attention-ticket-row" data-region="<%= (ticket.region_code || '').toUpperCase() %>">
                               <td class="app-col-num text-muted"><%= index + 1 %></td>
                               <td><span class="font-monospace small fw-semibold"><%= ticket.ticket_id || '-' %></span></td>
                               <td><span class="font-monospace small text-muted"><%= ticket.order_id || '-' %></span></td>
@@ -511,7 +534,7 @@
                                   <%= ticket.summary || '-' %>
                                 </div>
                               </td>
-                              <td><span class="badge text-bg-light border"><%= ticket.region_code || '-' %></span></td>
+                              <td><span class="badge text-bg-light border font-monospace"><%= ticket.region_code || '-' %></span></td>
                               <td>
                                 <%- include('../partials/status-badge', { type: 'ticket', value: ticket.status_internal }) %>
                               </td>
@@ -528,6 +551,18 @@
                           <% }) %>
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                  <div class="card-footer bg-white border-top p-0" id="attentionPaginationFooter">
+                    <div class="d-flex flex-column flex-sm-row align-items-center justify-content-between gap-3 p-3 pt-2">
+                      <div class="small text-muted" id="attentionPaginationInfo">
+                        Menampilkan <strong>1&ndash;10</strong> dari <strong><%= (attentionTickets || []).length %></strong> tiket
+                      </div>
+                      <nav aria-label="Navigasi halaman tiket perlu perhatian">
+                        <ul class="pagination pagination-sm mb-0 flex-wrap" id="attentionPaginationList">
+                          <!-- Terisi otomatis oleh JavaScript -->
+                        </ul>
+                      </nav>
                     </div>
                   </div>
                 </div>
@@ -693,6 +728,6 @@
       window.SUPERVISOR_DASHBOARD_FILTERS = parseJsonPayload('supervisor-dashboard-filters');
     })();
   </script>
-  <script src="/js/supervisor-dashboard.js?v=region-switch-table-1"></script>
+  <script src="/js/supervisor-dashboard.js?v=attention-tickets-table-1"></script>
 </body>
 </html>
