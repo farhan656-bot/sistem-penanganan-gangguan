@@ -388,6 +388,7 @@
                   data-confirm-title="Konfirmasi Penyelesaian"
                   data-confirm-btn="Ya, Selesaikan"
                   data-confirm-variant="success"
+                  data-is-reescalation="<%= report.is_escalated_before ? '1' : '0' %>"
                 >
                   <div class="mb-3">
                     <label class="form-label fw-semibold" for="completion_status">
@@ -809,7 +810,7 @@
           form.setAttribute('data-confirm-btn', 'Ya, Simpan Tindak Lanjut');
           form.setAttribute('data-confirm-variant', 'warning');
         } else if (statusVal === 'eskalasi') {
-          var isReescalation = <%= report.is_escalated_before ? 'true' : 'false' %>;
+          var isReescalation = form.getAttribute('data-is-reescalation') === '1';
           form.setAttribute('data-confirm-title', isReescalation ? 'Konfirmasi Re-eskalasi' : 'Konfirmasi Eskalasi');
           form.setAttribute('data-confirm', isReescalation
             ? 'Laporan akan dieskalasikan kembali (Re-eskalasi) ke unit eksternal dengan rujukan Kode DIIT.'
