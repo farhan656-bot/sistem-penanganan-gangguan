@@ -345,6 +345,7 @@ function buildReportDetailPayload(report) {
     is_cross_region: Boolean(report.is_cross_region),
     is_region_switch: Boolean(report.is_region_switch),
     is_resubmitted: Boolean(report.is_resubmitted),
+    is_escalated_before: Boolean(report.is_escalated_before),
     received_at: normalizeJsonValue(report.received_at),
     taken_at: normalizeJsonValue(report.taken_at),
     resolved_at: normalizeJsonValue(report.resolved_at),

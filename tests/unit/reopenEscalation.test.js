@@ -7,6 +7,9 @@ const reportModel = require('../../models/reportModel');
 const telegramFeedbackService = require('../../services/telegramFeedbackService');
 
 test('Re-open Escalated Ticket and Re-escalation Workflow', async (t) => {
+  t.after(async () => {
+    await pool.end();
+  });
   await t.test('1. Formatting Telegram Feedback untuk Re-open dan Re-eskalasi', () => {
     // Pesan Re-open
     const reopenMsg = telegramFeedbackService.sendReopenedFeedback ? true : false;
