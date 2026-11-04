@@ -15,6 +15,7 @@ const pendingMediaModel = require('../models/pendingMediaModel');
 const telegramReporterModel = require('../models/telegramReporterModel');
 const {
   parseTelegramCoreMessage,
+  parseTelegramConciseReport,
   extractTicketIdFromText,
   buildFormatExample,
   buildRegistrationFormatExample,
@@ -511,6 +512,78 @@ async function handleMediaMessage(bot, message, chatId, text, mediaMetadata) {
     report = await reportModel.findByTicketId(ticketIdFromText);
 
     if (!report) {
+      // Cek apakah pesan media dengan caption ini adalah Laporan Baru Format Ringkas
+      const conciseParsed = parseTelegramConciseReport(text);
+      if (conciseParsed && conciseParsed.isValid) {
+        const reporter = await telegramReporterModel.findByTelegramUserId(message?.from?.id);
+        const isGroup = isGroupChat(message);
+        if (!reporter || reporter.status !== 'approved') {
+          const senderName = getReporterName(message);
+          const usernamePart = message?.from?.username ? `@${message.from.username}` : senderName;
+          if (isGroup) {
+            await sendBotMessage(
+              bot,
+              chatId,
+              `⛔ Laporan Tidak Dapat Diproses\n\nHalo ${usernamePart}, Anda belum terdaftar atau belum disetujui sebagai pelapor resmi di sistem.\n\nUntuk dapat melaporkan gangguan:\n1. Buka Private Chat dengan bot ini\n2. Ketik /daftar dan kirimkan data pendaftaran Anda\n3. Tunggu persetujuan dari Super Admin\n\nLaporan ini tidak disimpan ke antrean kerja.`,
+              message
+            );
+          } else {
+            await sendBotMessage(
+              bot,
+              chatId,
+              '⛔ Laporan Tidak Dapat Diproses\n\nAkun Anda belum terdaftar atau belum disetujui sebagai pelapor resmi di sistem.\n\nSilakan ketik /daftar untuk melakukan pendaftaran akun pelapor terlebih dahulu.',
+              message
+            );
+          }
+          return;
+        }
+
+        const regionCode = reporter.region_code || (reporter.region_id === 2 ? 'BKT' : 'PDG');
+        const telegramMeta = getTelegramMetaFromMessage(message);
+        const reportPayload = {
+          ticket_id: conciseParsed.data.ticket_id,
+          order_id: conciseParsed.data.order_id,
+          summary: conciseParsed.data.summary,
+          service_id: conciseParsed.data.service_id || null,
+          region: regionCode
+        };
+
+        const created = await reportModel.createTelegramReport(reportPayload, telegramMeta);
+        const reporterCompany = reporter.company || reporter.agency || 'TELKOM';
+        const reporterUnit = reporter.unit || 'DAMAN';
+        const reporterLabel = ` dari pelapor ${reporter.full_name} (${reporterCompany} - ${reporterUnit} ${regionCode})`;
+
+        const replyPromise = sendBotMessage(
+          bot,
+          chatId,
+          `Tiket ${created.ticketId} | Order ID: ${created.orderId} telah diterima${reporterLabel}, diteruskan ke tim HD Data Management untuk Handling.`,
+          message
+        );
+
+        const persistAndAttachPromise = (async () => {
+          const persistedMedia = await persistMediaFile(bot, message, mediaMetadata);
+          await attachmentModel.createAttachment({
+            ticket_id: created.ticketId,
+            report_id: null,
+            type_attachment_code: 'bukti_pelapor',
+            source: 'telegram',
+            telegram_file_id: persistedMedia.telegram_file_id,
+            telegram_file_unique_id: persistedMedia.telegram_file_unique_id,
+            file_type: persistedMedia.file_type,
+            mime_type: persistedMedia.mime_type,
+            original_name: persistedMedia.original_name,
+            stored_name: persistedMedia.stored_name,
+            file_path: persistedMedia.file_path,
+            file_size: persistedMedia.file_size,
+            caption: persistedMedia.caption,
+            uploaded_by_user_id: null
+          });
+        })();
+
+        await Promise.all([replyPromise, persistAndAttachPromise]);
+        return;
+      }
+
       await sendBotMessage(bot, chatId, buildUnknownTicketReply(ticketIdFromText), message);
       return;
     }
@@ -721,11 +794,12 @@ async function handleIncomingMessage(bot, message) {
     if (regCheck.isCommandOnly) {
       const existingReporter = await telegramReporterModel.findByTelegramUserId(message?.from?.id);
       if (existingReporter) {
+        const regionLabel = existingReporter.region_code || (existingReporter.region_id === 2 ? 'BKT' : 'PDG');
         if (existingReporter.status === 'approved') {
           await sendBotMessage(
             bot,
             chatId,
-            `✅ Anda sudah terdaftar dan DISETUJUI sebagai pelapor resmi.\n\n• Nama: ${existingReporter.full_name}\n• NIK: ${existingReporter.nik}\n• Asal Unit: ${existingReporter.agency}\n\nAnda sudah dapat mengirimkan laporan gangguan di grup.`,
+            `✅ Anda sudah terdaftar dan DISETUJUI sebagai pelapor resmi.\n\n• Nama: ${existingReporter.full_name}\n• NIK: ${existingReporter.nik}\n• Perusahaan: ${existingReporter.company || existingReporter.agency || '-'}\n• Unit / Divisi: ${existingReporter.unit || '-'}\n• Asal Wilayah: ${regionLabel}\n\nAnda sudah dapat mengirimkan laporan gangguan di grup.`,
             message
           );
           return;
@@ -733,7 +807,7 @@ async function handleIncomingMessage(bot, message) {
           await sendBotMessage(
             bot,
             chatId,
-            `⏳ Pendaftaran Anda (${existingReporter.full_name} / NIK ${existingReporter.nik} / ${existingReporter.agency}) sedang MENUNGGU PERSETUJUAN dari Super Admin.\nBot akan mengirim notifikasi setelah akun diverifikasi.`,
+            `⏳ Pendaftaran Anda (${existingReporter.full_name} / NIK ${existingReporter.nik} / ${existingReporter.company || existingReporter.agency || '-'}) sedang MENUNGGU PERSETUJUAN dari Super Admin.\nBot akan mengirim notifikasi setelah akun diverifikasi.`,
             message
           );
           return;
@@ -751,7 +825,7 @@ async function handleIncomingMessage(bot, message) {
       await sendBotMessage(
         bot,
         chatId,
-        `📋 Formulir Pendaftaran Pelapor\n\nSilakan salin dan kirimkan data pendaftaran Anda dengan format persis di bawah ini:\n\n${buildRegistrationFormatExample()}\n\nKetentuan:\n- NIK wajib terdiri dari tepat 6 digit angka\n- ASAL unit harus salah satu dari: TELKOM, HD, atau TELKOMSEL`,
+        `📋 Formulir Pendaftaran Pelapor\n\nSilakan salin dan kirimkan data pendaftaran Anda dengan format persis di bawah ini:\n\n${buildRegistrationFormatExample()}\n\nKetentuan:\n- NIK wajib terdiri dari tepat 6 digit angka\n- PERUSAHAAN diisi nama perusahaan / anak perusahaan Telkom (TELKOM, TELKOMSEL, TELKOM AKSES, dll.)\n- UNIT diisi divisi / unit pelapor (DAMAN, HD, BGES, WFM, ROC, dll.)\n- ASAL wilayah wajib diisi: PDG atau BKT`,
         message
       );
       return;
@@ -773,13 +847,17 @@ async function handleIncomingMessage(bot, message) {
       telegram_chat_id: message.chat.id,
       full_name: regCheck.data.full_name,
       nik: regCheck.data.nik,
-      agency: regCheck.data.agency
+      company: regCheck.data.company,
+      unit: regCheck.data.unit,
+      region_id: regCheck.data.region_id,
+      regionCode: regCheck.data.region_code,
+      agency: regCheck.data.agency || regCheck.data.company
     });
 
     await sendBotMessage(
       bot,
       chatId,
-      `✅ Pendaftaran Berhasil Dikirim!\n\nData Pelapor:\n• Nama: ${regCheck.data.full_name}\n• NIK: ${regCheck.data.nik}\n• Asal Unit: ${regCheck.data.agency}\n\n⏳ Status saat ini: MENUNGGU PERSETUJUAN (PENDING) dari Super Admin.\nBot akan mengirim notifikasi ke chat ini setelah akun diverifikasi.`,
+      `✅ Pendaftaran Berhasil Dikirim!\n\nData Pelapor:\n• Nama: ${regCheck.data.full_name}\n• NIK: ${regCheck.data.nik}\n• Perusahaan: ${regCheck.data.company}\n• Unit / Divisi: ${regCheck.data.unit}\n• Asal Wilayah: ${regCheck.data.region_code}\n\n⏳ Status saat ini: MENUNGGU PERSETUJUAN (PENDING) dari Super Admin.\nBot akan mengirim notifikasi ke chat ini setelah akun diverifikasi.`,
       message
     );
     return;
@@ -808,11 +886,12 @@ async function handleIncomingMessage(bot, message) {
       return;
     }
 
+    const regLabel = reporter.region_code || (reporter.region_id === 2 ? 'BKT' : 'PDG');
     if (reporter.status === 'pending') {
       await sendBotMessage(
         bot,
         chatId,
-        `⏳ Status: MENUNGGU PERSETUJUAN (PENDING)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Asal Unit: ${reporter.agency}\n• Waktu Daftar: ${new Date(reporter.created_at).toLocaleString('id-ID')}\n\nPendaftaran Anda sedang ditinjau oleh Super Admin.`,
+        `⏳ Status: MENUNGGU PERSETUJUAN (PENDING)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Waktu Daftar: ${new Date(reporter.created_at).toLocaleString('id-ID')}\n\nPendaftaran Anda sedang ditinjau oleh Super Admin.`,
         message
       );
       return;
@@ -822,7 +901,7 @@ async function handleIncomingMessage(bot, message) {
       await sendBotMessage(
         bot,
         chatId,
-        `✅ Status: DISETUJUI (APPROVED)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Asal Unit: ${reporter.agency}\n• Disetujui: ${reporter.approved_at ? new Date(reporter.approved_at).toLocaleString('id-ID') : '-'}\n\nAnda sudah memiliki hak akses untuk melaporkan gangguan ke grup.`,
+        `✅ Status: DISETUJUI (APPROVED)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Disetujui: ${reporter.approved_at ? new Date(reporter.approved_at).toLocaleString('id-ID') : '-'}\n\nAnda sudah memiliki hak akses untuk melaporkan gangguan ke grup.`,
         message
       );
       return;
@@ -832,7 +911,7 @@ async function handleIncomingMessage(bot, message) {
       await sendBotMessage(
         bot,
         chatId,
-        `❌ Status: DITOLAK (REJECTED)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Asal Unit: ${reporter.agency}\n• Alasan: ${reporter.rejection_reason || 'Tidak memenuhi kriteria'}\n\nAnda dapat mendaftar ulang dengan data yang benar via perintah /daftar.`,
+        `❌ Status: DITOLAK (REJECTED)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Alasan: ${reporter.rejection_reason || 'Tidak memenuhi kriteria'}\n\nAnda dapat mendaftar ulang dengan data yang benar via perintah /daftar.`,
         message
       );
       return;
@@ -920,6 +999,80 @@ async function handleIncomingMessage(bot, message) {
       return;
     }
 
+    const conciseParsed = parseTelegramConciseReport(text);
+    if (conciseParsed && conciseParsed.isValid) {
+      const existingByTicket = await reportModel.findByTicketId(conciseParsed.data.ticket_id);
+      if (existingByTicket) {
+        if (!isReportOwner(existingByTicket, message)) {
+          await sendBotMessage(
+            bot,
+            chatId,
+            buildNotReportOwnerReply(existingByTicket.ticket_id, 'memperbarui data tiket'),
+            message
+          );
+          return;
+        }
+
+        if (existingByTicket.status_internal === 'perlu_tindak_lanjut') {
+          const telegramMeta = getTelegramMetaFromMessage(message);
+          await handleFollowUpResubmission(bot, message, text, existingByTicket, conciseParsed.data, telegramMeta);
+          return;
+        }
+
+        const enrichmentParsed = parseTelegramEnrichmentMessage(text);
+        await handleTextEnrichment(bot, message, text, enrichmentParsed);
+        return;
+      }
+
+      // Gatekeeper untuk laporan ringkas baru
+      const reporter = await telegramReporterModel.findByTelegramUserId(message?.from?.id);
+      if (!reporter || reporter.status !== 'approved') {
+        const senderName = getReporterName(message);
+        const usernamePart = message?.from?.username ? `@${message.from.username}` : senderName;
+        if (isGroup) {
+          await sendBotMessage(
+            bot,
+            chatId,
+            `⛔ Laporan Tidak Dapat Diproses\n\nHalo ${usernamePart}, Anda belum terdaftar atau belum disetujui sebagai pelapor resmi di sistem.\n\nUntuk dapat melaporkan gangguan:\n1. Buka Private Chat dengan bot ini\n2. Ketik /daftar dan kirimkan data pendaftaran Anda\n3. Tunggu persetujuan dari Super Admin\n\nLaporan ini tidak disimpan ke antrean kerja.`,
+            message
+          );
+        } else {
+          await sendBotMessage(
+            bot,
+            chatId,
+            '⛔ Laporan Tidak Dapat Diproses\n\nAkun Anda belum terdaftar atau belum disetujui sebagai pelapor resmi di sistem.\n\nSilakan ketik /daftar untuk melakukan pendaftaran akun pelapor terlebih dahulu.',
+            message
+          );
+        }
+        return;
+      }
+
+      const regionCode = reporter.region_code || (reporter.region_id === 2 ? 'BKT' : 'PDG');
+      const telegramMeta = getTelegramMetaFromMessage(message);
+      const reportPayload = {
+        ticket_id: conciseParsed.data.ticket_id,
+        order_id: conciseParsed.data.order_id,
+        summary: conciseParsed.data.summary,
+        service_id: conciseParsed.data.service_id || null,
+        region: regionCode
+      };
+
+      const created = await reportModel.createTelegramReport(reportPayload, telegramMeta);
+      const reporterCompany = reporter.company || reporter.agency || 'TELKOM';
+      const reporterUnit = reporter.unit || 'DAMAN';
+      const reporterLabel = ` dari pelapor ${reporter.full_name} (${reporterCompany} - ${reporterUnit} ${regionCode})`;
+
+      await sendBotMessage(
+        bot,
+        chatId,
+        `Tiket ${created.ticketId} | Order ID: ${created.orderId} telah diterima${reporterLabel}, diteruskan ke tim HD Data Management untuk Handling.`,
+        message
+      );
+
+      await tryLinkPendingMediaFromTicketText(bot, chatId, text, message);
+      return;
+    }
+
     const enrichmentParsed = parseTelegramEnrichmentMessage(text);
     const enrichmentHandled = await handleTextEnrichment(bot, message, text, enrichmentParsed);
     if (enrichmentHandled) {
@@ -967,7 +1120,10 @@ async function handleIncomingMessage(bot, message) {
     const created = await reportModel.createTelegramReport(parsed.data, telegramMeta);
 
     const reporter = await telegramReporterModel.findByTelegramUserId(message?.from?.id);
-    const reporterLabel = reporter ? ` dari pelapor ${reporter.full_name} (${reporter.agency})` : '';
+    const reporterCompany = reporter?.company || reporter?.agency || 'TELKOM';
+    const reporterUnit = reporter?.unit || 'DAMAN';
+    const reporterRegion = reporter?.region_code || (reporter?.region_id === 2 ? 'BKT' : 'PDG');
+    const reporterLabel = reporter ? ` dari pelapor ${reporter.full_name} (${reporterCompany} - ${reporterUnit} ${reporterRegion})` : '';
 
     await sendBotMessage(
       bot,
@@ -1072,6 +1228,7 @@ async function notifyReporterApproval(reporter) {
   }
 
   try {
+    const regionLabel = reporter.region_code || (reporter.region_id === 2 ? 'BKT' : 'PDG');
     const text = [
       '✅ *PENDAFTARAN DISETUJUI*',
       '',
@@ -1079,7 +1236,9 @@ async function notifyReporterApproval(reporter) {
       'Pendaftaran akun Anda sebagai pelapor resmi telah DISETUJUI oleh Super Admin.',
       '',
       `• NIK: ${reporter.nik}`,
-      `• Asal Unit: ${reporter.agency}`,
+      `• Perusahaan: ${reporter.company || reporter.agency || '-'}`,
+      `• Unit / Divisi: ${reporter.unit || '-'}`,
+      `• Asal Wilayah: ${regionLabel}`,
       '',
       'Sekarang Anda sudah dapat mengirimkan laporan incident gangguan di grup pelaporan.'
     ].join('\n');

@@ -2,6 +2,11 @@ const pool = require('../config/db');
 
 async function createOrUpdateRegistration(data, trxConnection = null) {
   const conn = trxConnection || pool;
+  const company = data.company ? String(data.company).trim() : (data.agency ? String(data.agency).trim() : 'TELKOM');
+  const unit = data.unit ? String(data.unit).trim() : 'DAMAN';
+  const regionId = data.region_id ? Number(data.region_id) : (data.regionCode === 'BKT' ? 2 : 1);
+  const agency = data.agency ? String(data.agency).trim().toUpperCase() : company.toUpperCase();
+
   const sql = `
     INSERT INTO telegram_reporters (
       telegram_user_id,
@@ -9,6 +14,9 @@ async function createOrUpdateRegistration(data, trxConnection = null) {
       telegram_chat_id,
       full_name,
       nik,
+      company,
+      unit,
+      region_id,
       agency,
       status,
       rejection_reason,
@@ -17,12 +25,15 @@ async function createOrUpdateRegistration(data, trxConnection = null) {
       created_at,
       updated_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, NOW(), NOW())
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, NOW(), NOW())
     ON DUPLICATE KEY UPDATE
       telegram_username = VALUES(telegram_username),
       telegram_chat_id = VALUES(telegram_chat_id),
       full_name = VALUES(full_name),
       nik = VALUES(nik),
+      company = VALUES(company),
+      unit = VALUES(unit),
+      region_id = VALUES(region_id),
       agency = VALUES(agency),
       status = 'pending',
       rejection_reason = NULL,
@@ -37,7 +48,10 @@ async function createOrUpdateRegistration(data, trxConnection = null) {
     String(data.telegram_chat_id),
     String(data.full_name).trim(),
     String(data.nik).trim(),
-    String(data.agency).trim().toUpperCase()
+    company,
+    unit,
+    regionId,
+    agency
   ]);
 
   return result.insertId || result.affectedRows;
@@ -49,9 +63,12 @@ async function findByTelegramUserId(telegramUserId, trxConnection = null) {
   const sql = `
     SELECT
       tr.*,
-      u.full_name AS approved_by_name
+      u.full_name AS approved_by_name,
+      r.code AS region_code,
+      r.name AS region_name
     FROM telegram_reporters tr
     LEFT JOIN users u ON tr.approved_by_user_id = u.id
+    LEFT JOIN regions r ON tr.region_id = r.id
     WHERE tr.telegram_user_id = ?
     LIMIT 1
   `;
@@ -65,9 +82,12 @@ async function findById(id, trxConnection = null) {
   const sql = `
     SELECT
       tr.*,
-      u.full_name AS approved_by_name
+      u.full_name AS approved_by_name,
+      r.code AS region_code,
+      r.name AS region_name
     FROM telegram_reporters tr
     LEFT JOIN users u ON tr.approved_by_user_id = u.id
+    LEFT JOIN regions r ON tr.region_id = r.id
     WHERE tr.id = ?
     LIMIT 1
   `;
@@ -90,10 +110,15 @@ async function getAllReporters(filters = {}, trxConnection = null) {
     params.push(filters.agency.toUpperCase());
   }
 
+  if (filters.region && ['PDG', 'BKT'].includes(filters.region.toUpperCase())) {
+    conditions.push('r.code = ?');
+    params.push(filters.region.toUpperCase());
+  }
+
   if (filters.search && String(filters.search).trim()) {
     const term = `%${String(filters.search).trim()}%`;
-    conditions.push('(tr.full_name LIKE ? OR tr.nik LIKE ? OR tr.telegram_username LIKE ?)');
-    params.push(term, term, term);
+    conditions.push('(tr.full_name LIKE ? OR tr.nik LIKE ? OR tr.telegram_username LIKE ? OR tr.company LIKE ? OR tr.unit LIKE ?)');
+    params.push(term, term, term, term, term);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -109,9 +134,12 @@ async function getAllReporters(filters = {}, trxConnection = null) {
   const sql = `
     SELECT
       tr.*,
-      u.full_name AS approved_by_name
+      u.full_name AS approved_by_name,
+      r.code AS region_code,
+      r.name AS region_name
     FROM telegram_reporters tr
     LEFT JOIN users u ON tr.approved_by_user_id = u.id
+    LEFT JOIN regions r ON tr.region_id = r.id
     ${whereClause}
     ORDER BY
       CASE WHEN tr.status = 'pending' THEN 0 ELSE 1 END,
@@ -138,10 +166,15 @@ async function countReporters(filters = {}, trxConnection = null) {
     params.push(filters.agency.toUpperCase());
   }
 
+  if (filters.region && ['PDG', 'BKT'].includes(filters.region.toUpperCase())) {
+    conditions.push('r.code = ?');
+    params.push(filters.region.toUpperCase());
+  }
+
   if (filters.search && String(filters.search).trim()) {
     const term = `%${String(filters.search).trim()}%`;
-    conditions.push('(tr.full_name LIKE ? OR tr.nik LIKE ? OR tr.telegram_username LIKE ?)');
-    params.push(term, term, term);
+    conditions.push('(tr.full_name LIKE ? OR tr.nik LIKE ? OR tr.telegram_username LIKE ? OR tr.company LIKE ? OR tr.unit LIKE ?)');
+    params.push(term, term, term, term, term);
   }
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -149,6 +182,7 @@ async function countReporters(filters = {}, trxConnection = null) {
   const sql = `
     SELECT COUNT(1) AS total
     FROM telegram_reporters tr
+    LEFT JOIN regions r ON tr.region_id = r.id
     ${whereClause}
   `;
 

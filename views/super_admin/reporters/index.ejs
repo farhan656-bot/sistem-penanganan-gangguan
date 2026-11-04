@@ -31,7 +31,7 @@
               <li class="nav-item">
                 <a
                   class="nav-link <%= currentStatus === 'all' ? 'active' : '' %>"
-                  href="/super-admin/reporters?status=all<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
+                  href="/super-admin/reporters?status=all<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= currentRegion !== 'all' ? '&region=' + currentRegion : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
                 >
                   <span>Semua</span>
                   <span class="badge <%= currentStatus === 'all' ? 'text-bg-primary' : 'text-bg-light' %>">
@@ -42,7 +42,7 @@
               <li class="nav-item">
                 <a
                   class="nav-link <%= currentStatus === 'pending' ? 'active' : '' %>"
-                  href="/super-admin/reporters?status=pending<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
+                  href="/super-admin/reporters?status=pending<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= currentRegion !== 'all' ? '&region=' + currentRegion : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
                 >
                   <span>Menunggu Persetujuan</span>
                   <% if (counts.pending > 0) { %>
@@ -57,7 +57,7 @@
               <li class="nav-item">
                 <a
                   class="nav-link <%= currentStatus === 'approved' ? 'active' : '' %>"
-                  href="/super-admin/reporters?status=approved<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
+                  href="/super-admin/reporters?status=approved<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= currentRegion !== 'all' ? '&region=' + currentRegion : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
                 >
                   <span>Disetujui</span>
                   <span class="badge <%= currentStatus === 'approved' ? 'text-bg-primary' : 'text-bg-light' %> font-monospace">
@@ -68,7 +68,7 @@
               <li class="nav-item">
                 <a
                   class="nav-link <%= currentStatus === 'rejected' ? 'active' : '' %>"
-                  href="/super-admin/reporters?status=rejected<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
+                  href="/super-admin/reporters?status=rejected<%= currentAgency !== 'all' ? '&agency=' + currentAgency : '' %><%= currentRegion !== 'all' ? '&region=' + currentRegion : '' %><%= searchQuery ? '&search=' + encodeURIComponent(searchQuery) : '' %>"
                 >
                   <span>Ditolak</span>
                   <span class="badge <%= currentStatus === 'rejected' ? 'text-bg-primary' : 'text-bg-light' %> font-monospace">
@@ -85,31 +85,40 @@
               <form method="GET" action="/super-admin/reporters" class="row g-3 align-items-end">
                 <input type="hidden" name="status" value="<%= currentStatus %>">
 
-                <div class="col-12 col-md-4">
-                  <label for="agencyFilterSelect" class="form-label small fw-semibold text-secondary">Asal Unit / Agency</label>
+                <div class="col-12 col-md-3">
+                  <label for="regionFilterSelect" class="form-label small fw-semibold text-secondary">Asal Wilayah</label>
+                  <select id="regionFilterSelect" name="region" class="form-select">
+                    <option value="all" <%= currentRegion === 'all' ? 'selected' : '' %>>Semua Wilayah</option>
+                    <option value="PDG" <%= currentRegion === 'PDG' ? 'selected' : '' %>>PDG (Padang)</option>
+                    <option value="BKT" <%= currentRegion === 'BKT' ? 'selected' : '' %>>BKT (Bukittinggi)</option>
+                  </select>
+                </div>
+
+                <div class="col-12 col-md-3">
+                  <label for="agencyFilterSelect" class="form-label small fw-semibold text-secondary">Perusahaan</label>
                   <select id="agencyFilterSelect" name="agency" class="form-select">
-                    <option value="all" <%= currentAgency === 'all' ? 'selected' : '' %>>Semua Asal Unit</option>
+                    <option value="all" <%= currentAgency === 'all' ? 'selected' : '' %>>Semua Perusahaan</option>
                     <option value="TELKOM" <%= currentAgency === 'TELKOM' ? 'selected' : '' %>>TELKOM</option>
                     <option value="HD" <%= currentAgency === 'HD' ? 'selected' : '' %>>HD</option>
                     <option value="TELKOMSEL" <%= currentAgency === 'TELKOMSEL' ? 'selected' : '' %>>TELKOMSEL</option>
                   </select>
                 </div>
 
-                <div class="col-12 col-md-5">
+                <div class="col-12 col-md-4">
                   <label for="reporterSearchInput" class="form-label small fw-semibold text-secondary">Pencarian</label>
                   <input
                     type="text"
                     id="reporterSearchInput"
                     name="search"
                     class="form-control"
-                    placeholder="Cari nama lengkap, NIK, username telegram..."
+                    placeholder="Cari nama lengkap, NIK, perusahaan..."
                     value="<%= searchQuery %>"
                   >
                 </div>
 
-                <div class="col-12 col-md-3 d-flex gap-2">
+                <div class="col-12 col-md-2 d-flex gap-2">
                   <button type="submit" class="btn btn-primary flex-grow-1">Terapkan</button>
-                  <% if (searchQuery || currentAgency !== 'all') { %>
+                  <% if (searchQuery || currentAgency !== 'all' || currentRegion !== 'all') { %>
                     <a href="/super-admin/reporters?status=<%= currentStatus %>" class="btn btn-outline-secondary" title="Reset filter">Reset</a>
                   <% } %>
                 </div>
@@ -134,7 +143,9 @@
                       <th class="app-col-num">No</th>
                       <th>NIK</th>
                       <th>Nama Lengkap</th>
-                      <th>Asal Unit</th>
+                      <th>Perusahaan</th>
+                      <th>Unit / Divisi</th>
+                      <th>Asal Wilayah</th>
                       <th>Akun Telegram</th>
                       <th>Waktu Daftar</th>
                       <th>Status</th>
@@ -145,7 +156,7 @@
                   <tbody>
                     <% if (!reporters || reporters.length === 0) { %>
                       <tr>
-                        <td colspan="9" class="text-center text-muted py-5 app-table-empty">
+                        <td colspan="11" class="text-center text-muted py-5 app-table-empty">
                           <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
                           Belum ada data pendaftar pelapor untuk filter yang dipilih.
                         </td>
@@ -158,15 +169,13 @@
                         <td class="font-monospace fw-semibold"><%= rep.nik %></td>
                         <td class="fw-semibold text-dark"><%= rep.full_name %></td>
                         <td>
-                          <% if (rep.agency === 'TELKOM') { %>
-                            <span class="badge text-bg-danger font-monospace">TELKOM</span>
-                          <% } else if (rep.agency === 'HD') { %>
-                            <span class="badge text-bg-primary font-monospace">HD</span>
-                          <% } else if (rep.agency === 'TELKOMSEL') { %>
-                            <span class="badge text-bg-warning font-monospace">TELKOMSEL</span>
-                          <% } else { %>
-                            <span class="badge text-bg-secondary font-monospace"><%= rep.agency %></span>
-                          <% } %>
+                          <span class="badge text-bg-light border font-monospace"><%= rep.company || rep.agency || 'TELKOM' %></span>
+                        </td>
+                        <td>
+                          <span class="badge text-bg-light border font-monospace"><%= rep.unit || '-' %></span>
+                        </td>
+                        <td>
+                          <span class="badge text-bg-secondary font-monospace"><%= rep.region_code || (rep.region_id === 2 ? 'BKT' : 'PDG') %></span>
                         </td>
                         <td>
                           <% if (rep.telegram_username) { %>
@@ -211,6 +220,9 @@
                                 data-id="<%= rep.id %>"
                                 data-name="<%= rep.full_name %>"
                                 data-nik="<%= rep.nik %>"
+                                data-company="<%= rep.company || rep.agency || 'TELKOM' %>"
+                                data-unit="<%= rep.unit || '-' %>"
+                                data-region="<%= rep.region_code || (rep.region_id === 2 ? 'BKT' : 'PDG') %>"
                                 data-agency="<%= rep.agency %>"
                                 data-telegram="<%= repTg %>"
                               >
@@ -223,6 +235,9 @@
                                 data-id="<%= rep.id %>"
                                 data-name="<%= rep.full_name %>"
                                 data-nik="<%= rep.nik %>"
+                                data-company="<%= rep.company || rep.agency || 'TELKOM' %>"
+                                data-unit="<%= rep.unit || '-' %>"
+                                data-region="<%= rep.region_code || (rep.region_id === 2 ? 'BKT' : 'PDG') %>"
                                 data-agency="<%= rep.agency %>"
                                 data-telegram="<%= repTg %>"
                               >
@@ -237,6 +252,9 @@
                               data-id="<%= rep.id %>"
                               data-name="<%= rep.full_name %>"
                               data-nik="<%= rep.nik %>"
+                              data-company="<%= rep.company || rep.agency || 'TELKOM' %>"
+                              data-unit="<%= rep.unit || '-' %>"
+                              data-region="<%= rep.region_code || (rep.region_id === 2 ? 'BKT' : 'PDG') %>"
                               data-agency="<%= rep.agency %>"
                               data-telegram="<%= repTg %>"
                               title="Cabut persetujuan pelapor ini"
@@ -251,6 +269,9 @@
                               data-id="<%= rep.id %>"
                               data-name="<%= rep.full_name %>"
                               data-nik="<%= rep.nik %>"
+                              data-company="<%= rep.company || rep.agency || 'TELKOM' %>"
+                              data-unit="<%= rep.unit || '-' %>"
+                              data-region="<%= rep.region_code || (rep.region_id === 2 ? 'BKT' : 'PDG') %>"
                               data-agency="<%= rep.agency %>"
                               data-telegram="<%= repTg %>"
                             >
@@ -297,8 +318,14 @@
                 <div class="col-4 text-muted">NIK</div>
                 <div class="col-8 font-monospace fw-semibold text-dark" id="approveReporterNik">-</div>
 
-                <div class="col-4 text-muted">Asal Unit</div>
-                <div class="col-8" id="approveReporterAgency">-</div>
+                <div class="col-4 text-muted">Perusahaan</div>
+                <div class="col-8" id="approveReporterCompany">-</div>
+
+                <div class="col-4 text-muted">Unit / Divisi</div>
+                <div class="col-8" id="approveReporterUnit">-</div>
+
+                <div class="col-4 text-muted">Asal Wilayah</div>
+                <div class="col-8" id="approveReporterRegion">-</div>
 
                 <div class="col-4 text-muted">Akun Telegram</div>
                 <div class="col-8 font-monospace text-secondary" id="approveReporterTelegram">-</div>
@@ -343,8 +370,14 @@
                 <div class="col-4 text-muted">NIK</div>
                 <div class="col-8 font-monospace fw-semibold text-dark" id="rejectReporterNik">-</div>
 
-                <div class="col-4 text-muted">Asal Unit</div>
-                <div class="col-8" id="rejectReporterAgency">-</div>
+                <div class="col-4 text-muted">Perusahaan</div>
+                <div class="col-8" id="rejectReporterCompany">-</div>
+
+                <div class="col-4 text-muted">Unit / Divisi</div>
+                <div class="col-8" id="rejectReporterUnit">-</div>
+
+                <div class="col-4 text-muted">Asal Wilayah</div>
+                <div class="col-8" id="rejectReporterRegion">-</div>
 
                 <div class="col-4 text-muted">Akun Telegram</div>
                 <div class="col-8 font-monospace text-secondary" id="rejectReporterTelegram">-</div>
@@ -398,7 +431,9 @@
       var approveForm = document.getElementById('approveReporterForm');
       var approveName = document.getElementById('approveReporterName');
       var approveNik = document.getElementById('approveReporterNik');
-      var approveAgency = document.getElementById('approveReporterAgency');
+      var approveCompany = document.getElementById('approveReporterCompany');
+      var approveUnit = document.getElementById('approveReporterUnit');
+      var approveRegion = document.getElementById('approveReporterRegion');
       var approveTelegram = document.getElementById('approveReporterTelegram');
 
       document.querySelectorAll('.btn-open-approve-modal').forEach(function (button) {
@@ -406,7 +441,9 @@
           var reporterId = this.getAttribute('data-id');
           var reporterName = this.getAttribute('data-name');
           var reporterNik = this.getAttribute('data-nik');
-          var reporterAgency = this.getAttribute('data-agency');
+          var reporterCompany = this.getAttribute('data-company');
+          var reporterUnit = this.getAttribute('data-unit');
+          var reporterRegion = this.getAttribute('data-region');
           var reporterTelegram = this.getAttribute('data-telegram');
 
           if (approveForm && reporterId) {
@@ -418,8 +455,14 @@
           if (approveNik) {
             approveNik.textContent = reporterNik || '-';
           }
-          if (approveAgency) {
-            approveAgency.innerHTML = renderAgencyBadge(reporterAgency);
+          if (approveCompany) {
+            approveCompany.innerHTML = '<span class="badge text-bg-light border font-monospace">' + (reporterCompany || '-') + '</span>';
+          }
+          if (approveUnit) {
+            approveUnit.innerHTML = '<span class="badge text-bg-light border font-monospace">' + (reporterUnit || '-') + '</span>';
+          }
+          if (approveRegion) {
+            approveRegion.innerHTML = '<span class="badge text-bg-secondary font-monospace">' + (reporterRegion || '-') + '</span>';
           }
           if (approveTelegram) {
             approveTelegram.textContent = reporterTelegram || '-';
@@ -436,7 +479,9 @@
       var rejectForm = document.getElementById('rejectReporterForm');
       var rejectName = document.getElementById('rejectReporterName');
       var rejectNik = document.getElementById('rejectReporterNik');
-      var rejectAgency = document.getElementById('rejectReporterAgency');
+      var rejectCompany = document.getElementById('rejectReporterCompany');
+      var rejectUnit = document.getElementById('rejectReporterUnit');
+      var rejectRegion = document.getElementById('rejectReporterRegion');
       var rejectTelegram = document.getElementById('rejectReporterTelegram');
       var rejectReason = document.getElementById('rejection_reason');
 
@@ -445,7 +490,9 @@
           var reporterId = this.getAttribute('data-id');
           var reporterName = this.getAttribute('data-name');
           var reporterNik = this.getAttribute('data-nik');
-          var reporterAgency = this.getAttribute('data-agency');
+          var reporterCompany = this.getAttribute('data-company');
+          var reporterUnit = this.getAttribute('data-unit');
+          var reporterRegion = this.getAttribute('data-region');
           var reporterTelegram = this.getAttribute('data-telegram');
 
           if (rejectForm && reporterId) {
@@ -457,8 +504,14 @@
           if (rejectNik) {
             rejectNik.textContent = reporterNik || '-';
           }
-          if (rejectAgency) {
-            rejectAgency.innerHTML = renderAgencyBadge(reporterAgency);
+          if (rejectCompany) {
+            rejectCompany.innerHTML = '<span class="badge text-bg-light border font-monospace">' + (reporterCompany || '-') + '</span>';
+          }
+          if (rejectUnit) {
+            rejectUnit.innerHTML = '<span class="badge text-bg-light border font-monospace">' + (reporterUnit || '-') + '</span>';
+          }
+          if (rejectRegion) {
+            rejectRegion.innerHTML = '<span class="badge text-bg-secondary font-monospace">' + (reporterRegion || '-') + '</span>';
           }
           if (rejectTelegram) {
             rejectTelegram.textContent = reporterTelegram || '-';

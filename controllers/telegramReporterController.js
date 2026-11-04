@@ -4,7 +4,7 @@ const { buildPagination } = require('../utils/paginationHelper');
 
 async function index(req, res) {
   try {
-    const { status, agency, search, page: pageParam } = req.query;
+    const { status, agency, region, search, page: pageParam } = req.query;
     const page = Math.max(1, parseInt(pageParam, 10) || 1);
     const perPage = 10;
     const filters = {};
@@ -12,8 +12,11 @@ async function index(req, res) {
     if (status && ['pending', 'approved', 'rejected'].includes(status)) {
       filters.status = status;
     }
-    if (agency && ['TELKOM', 'HD', 'TELKOMSEL'].includes(agency.toUpperCase())) {
+    if (agency && agency !== 'all') {
       filters.agency = agency.toUpperCase();
+    }
+    if (region && ['PDG', 'BKT'].includes(region.toUpperCase())) {
+      filters.region = region.toUpperCase();
     }
     if (search && String(search).trim()) {
       filters.search = String(search).trim();
@@ -38,6 +41,7 @@ async function index(req, res) {
       queryParams: {
         status: filters.status || 'all',
         agency: filters.agency || 'all',
+        region: filters.region || 'all',
         search: filters.search || ''
       },
       currentPage: page,
@@ -52,6 +56,7 @@ async function index(req, res) {
       counts,
       currentStatus: filters.status || 'all',
       currentAgency: filters.agency || 'all',
+      currentRegion: filters.region || 'all',
       searchQuery: filters.search || '',
       activePath: '/super-admin/reporters',
       pagination

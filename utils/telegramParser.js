@@ -369,7 +369,9 @@ function buildRegistrationFormatExample() {
     'DAFTAR',
     'NAMA: Farhan Muhammad',
     'NIK: 123456',
-    'ASAL: TELKOM'
+    'PERUSAHAAN: TELKOM AKSES',
+    'UNIT: DAMAN',
+    'ASAL: PDG'
   ].join('\n');
 }
 
@@ -423,9 +425,22 @@ function parseReporterRegistration(text) {
       parsed.full_name = val;
     } else if (label === 'NIK') {
       parsed.nik = val;
-    } else if (label === 'ASAL' || label === 'UNIT' || label === 'AGENCY' || label === 'INSTANSI') {
-      parsed.agency = val.toUpperCase();
+    } else if (label === 'PERUSAHAAN' || label === 'COMPANY' || label === 'PT' || label === 'ANAK PERUSAHAAN') {
+      parsed.company = val;
+    } else if (label === 'UNIT' || label === 'DIVISI' || label === 'BIDANG' || label === 'BAGIAN') {
+      parsed.unit = val;
+    } else if (label === 'ASAL' || label === 'REGION' || label === 'WILAYAH') {
+      parsed.region = val.toUpperCase();
+    } else if (label === 'AGENCY' || label === 'INSTANSI') {
+      parsed.company = val;
     }
+  }
+
+  // Backward compatibility: jika user mengisi format lama (ASAL: TELKOM)
+  const validAgenciesOld = ['TELKOM', 'HD', 'TELKOMSEL'];
+  if (parsed.region && validAgenciesOld.includes(parsed.region) && !parsed.company) {
+    parsed.company = parsed.region;
+    parsed.region = null;
   }
 
   if (!parsed.full_name) {
@@ -438,11 +453,26 @@ function parseReporterRegistration(text) {
     errors.push('NIK harus terdiri dari tepat 6 digit angka.');
   }
 
-  const validAgencies = ['TELKOM', 'HD', 'TELKOMSEL'];
-  if (!parsed.agency) {
-    errors.push('ASAL unit wajib diisi (Pilihan: TELKOM, HD, atau TELKOMSEL).');
-  } else if (!validAgencies.includes(parsed.agency)) {
-    errors.push(`ASAL unit '${parsed.agency}' tidak valid. Pilihan yang diperbolehkan: TELKOM, HD, atau TELKOMSEL.`);
+  if (!parsed.company) {
+    errors.push('PERUSAHAAN wajib diisi (Contoh: TELKOM, TELKOMSEL, TELKOM AKSES, INFOMEDIA, dll).');
+  }
+
+  if (!parsed.unit) {
+    errors.push('UNIT / DIVISI wajib diisi (Contoh: DAMAN, HD, BGES, WFM, ROC, dll).');
+  }
+
+  let normalizedRegion = null;
+  if (parsed.region) {
+    const regUpper = parsed.region.toUpperCase().trim();
+    if (regUpper === 'PDG' || regUpper === 'PADANG') {
+      normalizedRegion = 'PDG';
+    } else if (regUpper === 'BKT' || regUpper === 'BUKITTINGGI') {
+      normalizedRegion = 'BKT';
+    }
+  }
+
+  if (!normalizedRegion) {
+    errors.push('ASAL wilayah wajib diisi dengan kode PDG atau BKT.');
   }
 
   return {
@@ -452,9 +482,112 @@ function parseReporterRegistration(text) {
     data: errors.length === 0 ? {
       full_name: parsed.full_name,
       nik: parsed.nik,
-      agency: parsed.agency
+      company: parsed.company,
+      unit: parsed.unit,
+      region_code: normalizedRegion,
+      region_id: normalizedRegion === 'BKT' ? 2 : 1,
+      agency: parsed.company
     } : null,
     errors
+  };
+}
+
+function parseTelegramConciseReport(text) {
+  if (typeof text !== 'string' || !text.trim()) {
+    return {
+      isConciseReport: false,
+      isValid: false,
+      data: null,
+      errors: ['Pesan laporan kosong.']
+    };
+  }
+
+  const rawText = text.trim();
+
+  // 1. Ekstraksi Ticket ID (INF diikuti digit)
+  const ticketMatch = rawText.match(/\b(INF\d{6,14})\b/i);
+  if (!ticketMatch) {
+    return {
+      isConciseReport: false,
+      isValid: false,
+      data: null,
+      errors: ['Ticket ID tidak ditemukan.']
+    };
+  }
+  const ticketId = ticketMatch[1].toUpperCase();
+
+  // 2. Ekstraksi Order ID
+  // Token alfanumerik 15-40 karakter yang bukan Ticket ID dan bukan URL
+  let orderId = null;
+  const orderRegex = /\b([A-Za-z0-9_-]{15,40})\b/g;
+  let match;
+  while ((match = orderRegex.exec(rawText)) !== null) {
+    const token = match[1];
+    if (token.toUpperCase().startsWith('INF') && /^\d+$/.test(token.slice(3))) {
+      continue;
+    }
+    if (/^https?:\/\//i.test(token)) {
+      continue;
+    }
+    // Prioritaskan token yang diawali huruf dan angka (misal MOph..., PDAk..., AOi...)
+    if (!orderId || /^[A-Za-z]{2,5}\d/i.test(token)) {
+      orderId = token;
+      if (/^[A-Za-z]{2,5}\d/i.test(token)) break;
+    }
+  }
+
+  // 3. Ekstraksi Service ID (nomor internet 12 digit dimulai angka 1 atau pola _INTERNET)
+  let serviceId = null;
+  const servicePatternMatch = rawText.match(/(?:^|[_\s:])(\d{10,12}_(?:INTERNET|IPTV|VOICE|TELP))\b/i);
+  if (servicePatternMatch) {
+    serviceId = servicePatternMatch[1];
+  } else {
+    const serviceNumMatch = rawText.match(/\b(1\d{11})\b/);
+    if (serviceNumMatch) {
+      serviceId = serviceNumMatch[1];
+    }
+  }
+
+  // 4. Ekstraksi Summary
+  let summary = '';
+  const pipeIndex = rawText.indexOf('|');
+  if (pipeIndex !== -1) {
+    const afterPipe = rawText.slice(pipeIndex + 1);
+    const lines = afterPipe.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const cleanLines = lines.filter((l) => {
+      if (/^(?:mohon\s+bantuannya|moban|terima\s*kasih|makasih|thanks|thx)/i.test(l)) return false;
+      if (/^\d{10,14}\s+[A-Za-z]/.test(l)) return false; // baris nama pelanggan
+      return true;
+    });
+    summary = cleanLines.join(' ').trim();
+  } else {
+    const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const filtered = lines.filter((l) => {
+      if (l.includes(ticketId)) return false;
+      if (orderId && l.includes(orderId)) return false;
+      if (/^(?:mohon\s+bantuannya|moban|terima\s*kasih|makasih|thanks|thx)/i.test(l)) return false;
+      if (/^\d{10,14}\s+[A-Za-z]/.test(l)) return false;
+      return true;
+    });
+    summary = filtered.join(' ').trim();
+  }
+
+  // Jika summary masih kosong, beri deskripsi default kendala
+  if (!summary) {
+    summary = 'Kendala provisioning / aktivasi sistem';
+  }
+
+  return {
+    isConciseReport: true,
+    isValid: Boolean(ticketId),
+    data: {
+      ticket_id: ticketId,
+      order_id: orderId || '-',
+      summary: summary,
+      service_id: serviceId || null,
+      is_concise: true
+    },
+    errors: []
   };
 }
 
@@ -463,6 +596,7 @@ module.exports = {
   buildFormatExample,
   buildRegistrationFormatExample,
   parseReporterRegistration,
+  parseTelegramConciseReport,
   extractTicketIdFromText,
   parseAdditionalDataMessage,
   parseTelegramEnrichmentMessage,
