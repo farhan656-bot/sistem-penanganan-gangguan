@@ -760,8 +760,14 @@ async function getTelegramFeedbackPayload(ticketIdOrId) {
       reports.order_id,
       reports.diit_code,
       reports.telegram_chat_id,
-      reports.telegram_message_id
+      reports.telegram_message_id,
+      reports.telegram_sender_id,
+      reports.telegram_sender_username,
+      reports.telegram_sender_first_name,
+      reports.telegram_sender_last_name,
+      tr.full_name AS reporter_name
     FROM reports
+    LEFT JOIN telegram_reporters tr ON reports.telegram_sender_id = tr.telegram_user_id
     WHERE reports.ticket_id = ?
     LIMIT 1
     `,

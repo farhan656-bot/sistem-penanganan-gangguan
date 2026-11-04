@@ -495,13 +495,22 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
     return;
   }
 
+  const messageId = payload.telegram_message_id ? (Number(payload.telegram_message_id) || payload.telegram_message_id) : null;
+  const reporterUsername = payload.telegram_sender_username;
+  const reporterFirstName = payload.telegram_sender_first_name;
+  const reporterName = payload.reporter_name;
+
   try {
     if (feedbackType === 'assigned') {
       await sendAssignedFeedback({
         chatId: payload.telegram_chat_id,
         ticketId: payload.ticket_id,
         orderId: payload.order_id || '-',
-        executorName: currentUser.full_name
+        executorName: currentUser.full_name,
+        reporterUsername,
+        reporterFirstName,
+        reporterName,
+        messageId
       });
 
       await reportModel.logTelegramFeedback(ticketId,
@@ -517,7 +526,11 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
         chatId: payload.telegram_chat_id,
         ticketId: payload.ticket_id,
         orderId: payload.order_id || '-',
-        executorName: currentUser.full_name
+        executorName: currentUser.full_name,
+        reporterUsername,
+        reporterFirstName,
+        reporterName,
+        messageId
       });
 
       await reportModel.logTelegramFeedback(ticketId,
@@ -532,7 +545,11 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
       await sendCompletedFeedback({
         chatId: payload.telegram_chat_id,
         ticketId: payload.ticket_id,
-        orderId: payload.order_id || '-'
+        orderId: payload.order_id || '-',
+        reporterUsername,
+        reporterFirstName,
+        reporterName,
+        messageId
       });
 
       await reportModel.logTelegramFeedback(ticketId,
@@ -547,7 +564,11 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
         chatId: payload.telegram_chat_id,
         ticketId: payload.ticket_id,
         orderId: payload.order_id || '-',
-        notes: options.notes
+        notes: options.notes,
+        reporterUsername,
+        reporterFirstName,
+        reporterName,
+        messageId
       });
 
       await reportModel.logTelegramFeedback(ticketId,
@@ -563,7 +584,11 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
         ticketId: payload.ticket_id,
         orderId: payload.order_id || '-',
         diitCode: options.diitCode || payload.diit_code,
-        isReescalation: Boolean(options.isReescalation)
+        isReescalation: Boolean(options.isReescalation),
+        reporterUsername,
+        reporterFirstName,
+        reporterName,
+        messageId
       });
 
       await reportModel.logTelegramFeedback(ticketId,
@@ -578,7 +603,11 @@ async function triggerTelegramFeedback(ticketId, currentUser, feedbackType, opti
         chatId: payload.telegram_chat_id,
         ticketId: payload.ticket_id,
         orderId: payload.order_id || '-',
-        executorName: currentUser.full_name
+        executorName: currentUser.full_name,
+        reporterUsername,
+        reporterFirstName,
+        reporterName,
+        messageId
       });
 
       await reportModel.logTelegramFeedback(ticketId,

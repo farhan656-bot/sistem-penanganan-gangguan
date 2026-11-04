@@ -211,7 +211,9 @@ test('Unit Test: Telegram Group Bot Support & Reporter Registration Gatekeeper',
       assert.equal(createdMeta.chat_id, -100555666777);
       assert.equal(createdMeta.reporter_name, 'Farhan Muhammad');
       assert.equal(createdMeta.sender_username, 'farhan_dev');
-      assert.equal(sentText.includes('Tiket INF77019674 | Order ID: AOI426034900040000 telah diterima dari pelapor Farhan Muhammad (TELKOM)'), true);
+      assert.equal(sentText.includes('Halo @farhan_dev'), true);
+      assert.equal(sentText.includes('Tiket INF77019674 | Order ID: AOI426034900040000 telah diterima'), true);
+      assert.equal(sentText.includes('pelapor Farhan Muhammad'), true);
       assert.deepEqual(sentOptions, { reply_to_message_id: 888 });
     } finally {
       reportModel.findByTicketId = origFindByTicketId;
@@ -311,7 +313,7 @@ test('Unit Test: Telegram Group Bot Support & Reporter Registration Gatekeeper',
         message_id: 1111,
         chat: { id: 77778888, type: 'private' },
         from: { id: 77778888, username: 'rizki_muharram' },
-        text: 'DAFTAR\nNAMA: Rizki Muharram\nNIK: 654321\nASAL: HD'
+        text: 'DAFTAR\nNAMA: Rizki Muharram\nNIK: 654321\nPERUSAHAAN: TELKOM\nUNIT: DAMAN\nASAL: PDG'
       };
 
       await handleIncomingMessage(mockBot, privateRegMessage);
@@ -319,7 +321,9 @@ test('Unit Test: Telegram Group Bot Support & Reporter Registration Gatekeeper',
       assert.notEqual(savedData, null);
       assert.equal(savedData.full_name, 'Rizki Muharram');
       assert.equal(savedData.nik, '654321');
-      assert.equal(savedData.agency, 'HD');
+      assert.equal(savedData.company, 'TELKOM');
+      assert.equal(savedData.unit, 'DAMAN');
+      assert.equal(savedData.regionCode, 'PDG');
       assert.equal(savedData.telegram_user_id, 77778888);
       assert.equal(sentText.includes('Pendaftaran Berhasil Dikirim'), true);
       assert.equal(sentText.includes('PENDING'), true);

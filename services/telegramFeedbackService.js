@@ -1,31 +1,53 @@
-const { getTelegramBotInstance } = require('./telegramBotService');
+const telegramBotService = require('./telegramBotService');
 
-function buildAssignedMessage(ticketId, orderId, executorName) {
+function formatReporterMention(params = {}) {
+  const safeParams = params || {};
+  const cleanUsername = typeof safeParams.reporterUsername === 'string' ? safeParams.reporterUsername.trim().replace(/^@/, '') : '';
+  if (cleanUsername) {
+    return `@${cleanUsername}`;
+  }
+
+  const cleanName = typeof safeParams.reporterName === 'string' && safeParams.reporterName.trim()
+    ? safeParams.reporterName.trim()
+    : (typeof safeParams.reporterFirstName === 'string' && safeParams.reporterFirstName.trim() ? safeParams.reporterFirstName.trim() : '');
+
+  if (cleanName) {
+    return cleanName;
+  }
+
+  return '';
+}
+
+function buildAssignedMessage(ticketId, orderId, executorName, reporterMention = '') {
+  const prefix = reporterMention ? `Halo ${reporterMention},\n` : '';
   return [
-    'UPDATE ANDALAS',
+    `${prefix}UPDATE ANDALAS`,
     `Tiket ${ticketId}`,
     `Order ID: ${orderId}`,
     `telah diambil (ASSIGNED) oleh ${executorName}.`
   ].join('\n');
 }
 
-function buildInProgressMessage(ticketId, orderId, executorName) {
+function buildInProgressMessage(ticketId, orderId, executorName, reporterMention = '') {
+  const prefix = reporterMention ? `Halo ${reporterMention},\n` : '';
   return [
-    'UPDATE ANDALAS',
+    `${prefix}UPDATE ANDALAS`,
     `Tiket ${ticketId}`,
     `Order ID: ${orderId}`,
     `sedang dikerjakan (In Progress) oleh ${executorName}.`
   ].join('\n');
 }
 
-function buildCompletedMessage(ticketId, orderId) {
-  return `Pengerjaan Tiket ${ticketId} Order ID: ${orderId} telah SELESAI dikerjakan, Silahkan cek kembali.`;
+function buildCompletedMessage(ticketId, orderId, reporterMention = '') {
+  const prefix = reporterMention ? `Halo ${reporterMention}, ` : '';
+  return `${prefix}Pengerjaan Tiket ${ticketId} Order ID: ${orderId} telah SELESAI dikerjakan, Silahkan cek kembali.`;
 }
 
-function buildReturnEvidenceMessage(ticketId, orderId, notes) {
+function buildReturnEvidenceMessage(ticketId, orderId, notes, reporterMention = '') {
+  const prefix = reporterMention ? `Halo ${reporterMention},\n` : '';
   const returnNotes = typeof notes === 'string' ? notes.trim() : '';
   const messageLines = [
-    `Tiket ${ticketId} dikembalikan / perlu tindak lanjut.`,
+    `${prefix}Tiket ${ticketId} dikembalikan / perlu tindak lanjut.`,
     `Order ID: ${orderId}`,
     '',
     `Catatan: ${returnNotes || '-'}`,
@@ -36,11 +58,12 @@ function buildReturnEvidenceMessage(ticketId, orderId, notes) {
   return messageLines.join('\n');
 }
 
-function buildEscalationMessage(ticketId, orderId, diitCode, isReescalation = false) {
+function buildEscalationMessage(ticketId, orderId, diitCode, isReescalation = false, reporterMention = '') {
+  const prefix = reporterMention ? `Halo ${reporterMention},\n` : '';
   const code = typeof diitCode === 'string' ? diitCode.trim() : '';
   const header = isReescalation
-    ? `Tiket ${ticketId} dieskalasikan kembali (Re-eskalasi) ke DIIT.`
-    : `Tiket ${ticketId} sedang dieskalasikan ke DIIT.`;
+    ? `${prefix}Tiket ${ticketId} dieskalasikan kembali (Re-eskalasi) ke DIIT.`
+    : `${prefix}Tiket ${ticketId} sedang dieskalasikan ke DIIT.`;
   const messageLines = [
     header,
     `Order ID: ${orderId}`,
@@ -54,9 +77,10 @@ function buildEscalationMessage(ticketId, orderId, diitCode, isReescalation = fa
   return messageLines.join('\n');
 }
 
-function buildReopenedMessage(ticketId, orderId, executorName) {
+function buildReopenedMessage(ticketId, orderId, executorName, reporterMention = '') {
+  const prefix = reporterMention ? `Halo ${reporterMention},\n` : '';
   return [
-    'UPDATE ANDALAS',
+    `${prefix}UPDATE ANDALAS`,
     `Tiket ${ticketId}`,
     `Order ID: ${orderId}`,
     `telah dibuka kembali (Re-open) dan sedang dikerjakan oleh ${executorName}.`
@@ -82,8 +106,8 @@ function resolveFeedbackChatId(chatId) {
   return cleanId;
 }
 
-async function sendMessageToChat(chatId, messageText) {
-  const bot = getTelegramBotInstance();
+async function sendMessageToChat(chatId, messageText, options = {}) {
+  const bot = telegramBotService.getTelegramBotInstance();
 
   if (!bot) {
     throw new Error('Telegram bot belum aktif.');
@@ -95,47 +119,79 @@ async function sendMessageToChat(chatId, messageText) {
     throw new Error('telegram_chat_id kosong.');
   }
 
-  await bot.sendMessage(targetChatId, messageText);
+  const sendOptions = {};
+  if (options && options.reply_to_message_id) {
+    sendOptions.reply_to_message_id = options.reply_to_message_id;
+  }
+
+  try {
+    if (Object.keys(sendOptions).length > 0) {
+      await bot.sendMessage(targetChatId, messageText, sendOptions);
+    } else {
+      await bot.sendMessage(targetChatId, messageText);
+    }
+  } catch (error) {
+    // Jika quote reply gagal (misal pesan asli sudah terhapus di Telegram), coba kirim ulang tanpa reply_to_message_id
+    if (sendOptions.reply_to_message_id) {
+      await bot.sendMessage(targetChatId, messageText);
+      return;
+    }
+    throw error;
+  }
 }
 
-async function sendAssignedFeedback({ chatId, ticketId, orderId, executorName }) {
-  const message = buildAssignedMessage(ticketId, orderId, executorName || 'Eksekutor');
-  await sendMessageToChat(chatId, message);
+async function sendAssignedFeedback({ chatId, ticketId, orderId, executorName, reporterUsername, reporterFirstName, reporterName, messageId }) {
+  const mention = formatReporterMention({ reporterUsername, reporterFirstName, reporterName });
+  const message = buildAssignedMessage(ticketId, orderId, executorName || 'Eksekutor', mention);
+  await sendMessageToChat(chatId, message, { reply_to_message_id: messageId });
   return message;
 }
 
-async function sendInProgressFeedback({ chatId, ticketId, orderId, executorName }) {
-  const message = buildInProgressMessage(ticketId, orderId, executorName || 'Eksekutor');
-  await sendMessageToChat(chatId, message);
+async function sendInProgressFeedback({ chatId, ticketId, orderId, executorName, reporterUsername, reporterFirstName, reporterName, messageId }) {
+  const mention = formatReporterMention({ reporterUsername, reporterFirstName, reporterName });
+  const message = buildInProgressMessage(ticketId, orderId, executorName || 'Eksekutor', mention);
+  await sendMessageToChat(chatId, message, { reply_to_message_id: messageId });
   return message;
 }
 
-async function sendCompletedFeedback({ chatId, ticketId, orderId }) {
-  const message = buildCompletedMessage(ticketId, orderId);
-  await sendMessageToChat(chatId, message);
+async function sendCompletedFeedback({ chatId, ticketId, orderId, reporterUsername, reporterFirstName, reporterName, messageId }) {
+  const mention = formatReporterMention({ reporterUsername, reporterFirstName, reporterName });
+  const message = buildCompletedMessage(ticketId, orderId, mention);
+  await sendMessageToChat(chatId, message, { reply_to_message_id: messageId });
   return message;
 }
 
-async function sendReturnEvidenceFeedback({ chatId, ticketId, orderId, notes }) {
-  const message = buildReturnEvidenceMessage(ticketId, orderId, notes);
-  await sendMessageToChat(chatId, message);
+async function sendReturnEvidenceFeedback({ chatId, ticketId, orderId, notes, reporterUsername, reporterFirstName, reporterName, messageId }) {
+  const mention = formatReporterMention({ reporterUsername, reporterFirstName, reporterName });
+  const message = buildReturnEvidenceMessage(ticketId, orderId, notes, mention);
+  await sendMessageToChat(chatId, message, { reply_to_message_id: messageId });
   return message;
 }
 
-async function sendEscalationFeedback({ chatId, ticketId, orderId, diitCode, isReescalation = false }) {
-  const message = buildEscalationMessage(ticketId, orderId, diitCode, isReescalation);
-  await sendMessageToChat(chatId, message);
+async function sendEscalationFeedback({ chatId, ticketId, orderId, diitCode, isReescalation = false, reporterUsername, reporterFirstName, reporterName, messageId }) {
+  const mention = formatReporterMention({ reporterUsername, reporterFirstName, reporterName });
+  const message = buildEscalationMessage(ticketId, orderId, diitCode, isReescalation, mention);
+  await sendMessageToChat(chatId, message, { reply_to_message_id: messageId });
   return message;
 }
 
-async function sendReopenedFeedback({ chatId, ticketId, orderId, executorName }) {
-  const message = buildReopenedMessage(ticketId, orderId, executorName || 'Eksekutor');
-  await sendMessageToChat(chatId, message);
+async function sendReopenedFeedback({ chatId, ticketId, orderId, executorName, reporterUsername, reporterFirstName, reporterName, messageId }) {
+  const mention = formatReporterMention({ reporterUsername, reporterFirstName, reporterName });
+  const message = buildReopenedMessage(ticketId, orderId, executorName || 'Eksekutor', mention);
+  await sendMessageToChat(chatId, message, { reply_to_message_id: messageId });
   return message;
 }
 
 module.exports = {
+  formatReporterMention,
+  buildAssignedMessage,
+  buildInProgressMessage,
+  buildCompletedMessage,
+  buildReturnEvidenceMessage,
+  buildEscalationMessage,
+  buildReopenedMessage,
   resolveFeedbackChatId,
+  sendMessageToChat,
   sendAssignedFeedback,
   sendInProgressFeedback,
   sendCompletedFeedback,

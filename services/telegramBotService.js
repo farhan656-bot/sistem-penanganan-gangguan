@@ -55,6 +55,26 @@ function isSupportedChat(message) {
   return isPrivateChat(message) || isGroupChat(message);
 }
 
+function extractBotCommand(text) {
+  if (typeof text !== 'string') {
+    return null;
+  }
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('/')) {
+    return null;
+  }
+
+  const match = trimmed.match(/^\/([a-zA-Z0-9_]+)(?:@\w+)?(?:\s+(.*))?$/s);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    command: match[1].toLowerCase(),
+    args: match[2] ? match[2].trim() : ''
+  };
+}
+
 async function sendBotMessage(bot, chatId, text, message = null) {
   const options = (message && message.message_id && isGroupChat(message))
     ? { reply_to_message_id: message.message_id }
@@ -746,15 +766,32 @@ async function handleIncomingMessage(bot, message) {
 
   const trimmedText = text.trim();
   const trimmedLower = trimmedText.toLowerCase();
+  const botCmd = extractBotCommand(trimmedText);
 
-  // Dukungan command /start, /bantuan, /help
-  if (trimmedLower === '/start' || trimmedLower.startsWith('/start ') || trimmedLower === '/help' || trimmedLower === '/bantuan') {
+  // 1. Dukungan command /start, /bantuan, /help
+  if (botCmd && ['start', 'help', 'bantuan'].includes(botCmd.command)) {
+    if (isGroup) {
+      const helpLines = [
+        '🤖 Sistem Monitoring & Penanganan Gangguan - Bot Pelaporan',
+        'Divisi Data Management PT Telkom Sumbar Witel Padang',
+        '',
+        'Daftar Perintah Grup:',
+        '• /format - Contoh format penulisan laporan gangguan',
+        '• /bantuan - Panduan bantuan dan menu bot',
+        '',
+        'Catatan:',
+        'Pendaftaran pelapor (/daftar) dan pengecekan status (/status) dilakukan via Private Chat langsung dengan bot demi kerahasiaan data pribadi.'
+      ];
+      await sendBotMessage(bot, chatId, helpLines.join('\n'), message);
+      return;
+    }
+
     const helpLines = [
       '🤖 Sistem Monitoring & Penanganan Gangguan - Bot Pelaporan',
       'Divisi Data Management PT Telkom Sumbar Witel Padang',
       '',
       'Daftar Perintah:',
-      '• /daftar - Registrasi akun pelapor resmi (Private Chat)',
+      '• /daftar - Registrasi akun pelapor resmi',
       '• /status - Cek status persetujuan akun pelapor',
       '• /format - Contoh format penulisan laporan gangguan',
       '• /bantuan - Panduan bantuan dan menu bot',
@@ -766,8 +803,8 @@ async function handleIncomingMessage(bot, message) {
     return;
   }
 
-  // Dukungan command /format
-  if (trimmedLower === '/format') {
+  // 2. Dukungan command /format
+  if (botCmd && botCmd.command === 'format') {
     await sendBotMessage(
       bot,
       chatId,
@@ -777,10 +814,65 @@ async function handleIncomingMessage(bot, message) {
     return;
   }
 
-  // Pendaftaran Pelapor: perintah /daftar atau pesan dengan format DAFTAR
+  // 3. Dukungan command /status
+  if (botCmd && botCmd.command === 'status') {
+    if (isGroup) {
+      await sendBotMessage(
+        bot,
+        chatId,
+        'Pengecekan status pendaftaran dapat dilakukan melalui Private Chat langsung dengan bot.',
+        message
+      );
+      return;
+    }
+
+    const reporter = await telegramReporterModel.findByTelegramUserId(message?.from?.id);
+    if (!reporter) {
+      await sendBotMessage(
+        bot,
+        chatId,
+        'Anda belum melakukan pendaftaran akun pelapor. Silakan kirim /daftar untuk mendaftar.',
+        message
+      );
+      return;
+    }
+
+    const regLabel = reporter.region_code || (reporter.region_id === 2 ? 'BKT' : 'PDG');
+    if (reporter.status === 'pending') {
+      await sendBotMessage(
+        bot,
+        chatId,
+        `⏳ Status: MENUNGGU PERSETUJUAN (PENDING)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Waktu Daftar: ${new Date(reporter.created_at).toLocaleString('id-ID')}\n\nPendaftaran Anda sedang ditinjau oleh Super Admin.`,
+        message
+      );
+      return;
+    }
+
+    if (reporter.status === 'approved') {
+      await sendBotMessage(
+        bot,
+        chatId,
+        `✅ Status: DISETUJUI (APPROVED)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Disetujui: ${reporter.approved_at ? new Date(reporter.approved_at).toLocaleString('id-ID') : '-'}\n\nAnda sudah memiliki hak akses untuk melaporkan gangguan ke grup.`,
+        message
+      );
+      return;
+    }
+
+    if (reporter.status === 'rejected') {
+      await sendBotMessage(
+        bot,
+        chatId,
+        `❌ Status: DITOLAK (REJECTED)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Alasan: ${reporter.rejection_reason || 'Tidak memenuhi kriteria'}\n\nAnda dapat mendaftar ulang dengan data yang benar via perintah /daftar.`,
+        message
+      );
+      return;
+    }
+  }
+
+  // 4. Pendaftaran Pelapor: perintah /daftar atau pesan dengan format DAFTAR
   const regCheck = parseReporterRegistration(trimmedText);
 
-  if (regCheck.isRegistrationAttempt) {
+  if (regCheck.isRegistrationAttempt || (botCmd && botCmd.command === 'daftar')) {
     if (isGroup) {
       await sendBotMessage(
         bot,
@@ -791,7 +883,7 @@ async function handleIncomingMessage(bot, message) {
       return;
     }
 
-    if (regCheck.isCommandOnly) {
+    if (regCheck.isCommandOnly || (botCmd && botCmd.command === 'daftar' && !botCmd.args)) {
       const existingReporter = await telegramReporterModel.findByTelegramUserId(message?.from?.id);
       if (existingReporter) {
         const regionLabel = existingReporter.region_code || (existingReporter.region_id === 2 ? 'BKT' : 'PDG');
@@ -861,61 +953,6 @@ async function handleIncomingMessage(bot, message) {
       message
     );
     return;
-  }
-
-  // Dukungan command /status
-  if (trimmedLower === '/status') {
-    if (isGroup) {
-      await sendBotMessage(
-        bot,
-        chatId,
-        'Pengecekan status pendaftaran dapat dilakukan melalui Private Chat dengan bot.',
-        message
-      );
-      return;
-    }
-
-    const reporter = await telegramReporterModel.findByTelegramUserId(message?.from?.id);
-    if (!reporter) {
-      await sendBotMessage(
-        bot,
-        chatId,
-        'Anda belum melakukan pendaftaran akun pelapor. Silakan kirim /daftar untuk mendaftar.',
-        message
-      );
-      return;
-    }
-
-    const regLabel = reporter.region_code || (reporter.region_id === 2 ? 'BKT' : 'PDG');
-    if (reporter.status === 'pending') {
-      await sendBotMessage(
-        bot,
-        chatId,
-        `⏳ Status: MENUNGGU PERSETUJUAN (PENDING)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Waktu Daftar: ${new Date(reporter.created_at).toLocaleString('id-ID')}\n\nPendaftaran Anda sedang ditinjau oleh Super Admin.`,
-        message
-      );
-      return;
-    }
-
-    if (reporter.status === 'approved') {
-      await sendBotMessage(
-        bot,
-        chatId,
-        `✅ Status: DISETUJUI (APPROVED)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Disetujui: ${reporter.approved_at ? new Date(reporter.approved_at).toLocaleString('id-ID') : '-'}\n\nAnda sudah memiliki hak akses untuk melaporkan gangguan ke grup.`,
-        message
-      );
-      return;
-    }
-
-    if (reporter.status === 'rejected') {
-      await sendBotMessage(
-        bot,
-        chatId,
-        `❌ Status: DITOLAK (REJECTED)\n\n• Nama: ${reporter.full_name}\n• NIK: ${reporter.nik}\n• Perusahaan: ${reporter.company || reporter.agency || '-'}\n• Unit / Divisi: ${reporter.unit || '-'}\n• Asal Wilayah: ${regLabel}\n• Alasan: ${reporter.rejection_reason || 'Tidak memenuhi kriteria'}\n\nAnda dapat mendaftar ulang dengan data yang benar via perintah /daftar.`,
-        message
-      );
-      return;
-    }
   }
 
   if (!trimmedText && messageType === 'text') {
@@ -1061,11 +1098,12 @@ async function handleIncomingMessage(bot, message) {
       const reporterCompany = reporter.company || reporter.agency || 'TELKOM';
       const reporterUnit = reporter.unit || 'DAMAN';
       const reporterLabel = ` dari pelapor ${reporter.full_name} (${reporterCompany} - ${reporterUnit} ${regionCode})`;
+      const reporterMention = message?.from?.username ? `@${message.from.username}` : (reporter.full_name || getReporterName(message));
 
       await sendBotMessage(
         bot,
         chatId,
-        `Tiket ${created.ticketId} | Order ID: ${created.orderId} telah diterima${reporterLabel}, diteruskan ke tim HD Data Management untuk Handling.`,
+        `Halo ${reporterMention}, Tiket ${created.ticketId} | Order ID: ${created.orderId} telah diterima${reporterLabel}, diteruskan ke tim HD Data Management untuk Handling.`,
         message
       );
 
@@ -1124,11 +1162,12 @@ async function handleIncomingMessage(bot, message) {
     const reporterUnit = reporter?.unit || 'DAMAN';
     const reporterRegion = reporter?.region_code || (reporter?.region_id === 2 ? 'BKT' : 'PDG');
     const reporterLabel = reporter ? ` dari pelapor ${reporter.full_name} (${reporterCompany} - ${reporterUnit} ${reporterRegion})` : '';
+    const reporterMention = message?.from?.username ? `@${message.from.username}` : (reporter?.full_name || getReporterName(message));
 
     await sendBotMessage(
       bot,
       chatId,
-      `Tiket ${created.ticketId} | Order ID: ${created.orderId} telah diterima${reporterLabel}, diteruskan ke tim HD Data Management untuk Handling.`,
+      `Halo ${reporterMention}, Tiket ${created.ticketId} | Order ID: ${created.orderId} telah diterima${reporterLabel}, diteruskan ke tim HD Data Management untuk Handling.`,
       message
     );
   } catch (error) {
@@ -1205,13 +1244,30 @@ function initTelegramBotService() {
     console.error('Telegram polling error:', error.message || error);
   });
 
+  // Scoped commands untuk chat pribadi (all_private_chats)
   botInstance.setMyCommands([
     { command: 'daftar', description: 'Registrasi akun pelapor resmi' },
     { command: 'status', description: 'Cek status persetujuan akun pelapor' },
     { command: 'format', description: 'Contoh format penulisan laporan gangguan' },
     { command: 'bantuan', description: 'Panduan bantuan dan menu bot' }
+  ], { scope: { type: 'all_private_chats' } }).catch((err) => {
+    console.warn('Gagal mengatur bot private commands:', err.message || err);
+  });
+
+  // Scoped commands untuk grup (all_group_chats) - hanya /format dan /bantuan
+  botInstance.setMyCommands([
+    { command: 'format', description: 'Contoh format penulisan laporan gangguan' },
+    { command: 'bantuan', description: 'Panduan bantuan dan menu bot' }
+  ], { scope: { type: 'all_group_chats' } }).catch((err) => {
+    console.warn('Gagal mengatur bot group commands:', err.message || err);
+  });
+
+  // Fallback default scope
+  botInstance.setMyCommands([
+    { command: 'format', description: 'Contoh format penulisan laporan gangguan' },
+    { command: 'bantuan', description: 'Panduan bantuan dan menu bot' }
   ]).catch((err) => {
-    console.warn('Gagal mengatur bot commands:', err.message || err);
+    console.warn('Gagal mengatur bot default commands:', err.message || err);
   });
 
   console.log('Telegram bot aktif dalam mode polling.');
@@ -1280,6 +1336,7 @@ module.exports = {
   initTelegramBotService,
   getTelegramBotInstance,
   handleIncomingMessage,
+  extractBotCommand,
   isPrivateChat,
   isGroupChat,
   isSupportedChat,

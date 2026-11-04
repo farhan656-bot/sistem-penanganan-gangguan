@@ -400,15 +400,19 @@ function parseReporterRegistration(text) {
     };
   }
 
-  // Jika hanya mengetik "/daftar" tanpa parameter isian
-  if (startsWithCommand && rawText.length <= 8) {
-    return {
-      isRegistrationAttempt: true,
-      isValid: false,
-      isCommandOnly: true,
-      data: null,
-      errors: ['Silakan lengkapi format data pendaftaran.']
-    };
+  // Jika berupa command /daftar (dengan atau tanpa @bot_username) tanpa isian data
+  const commandMatch = rawText.match(/^\/daftar(?:@\w+)?(?:\s+(.*))?$/is);
+  if (commandMatch) {
+    const trailingContent = (commandMatch[1] || '').trim();
+    if (!trailingContent) {
+      return {
+        isRegistrationAttempt: true,
+        isValid: false,
+        isCommandOnly: true,
+        data: null,
+        errors: ['Silakan lengkapi format data pendaftaran.']
+      };
+    }
   }
 
   const lines = rawText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
