@@ -20,6 +20,7 @@
     const periodLabelMap = {
       all: 'Semua',
       today: 'Hari ini',
+      this_week: 'Minggu ini',
       last_7_days: '7 hari terakhir',
       this_month: 'Bulan ini',
       custom: 'Custom'
@@ -73,6 +74,7 @@
                     <select class="form-select form-select-sm" name="period" id="filterPeriod">
                       <option value="all" <%= selectedFilters.period === 'all' ? 'selected' : '' %>>Semua Periode</option>
                       <option value="today" <%= selectedFilters.period === 'today' ? 'selected' : '' %>>Hari ini</option>
+                      <option value="this_week" <%= selectedFilters.period === 'this_week' ? 'selected' : '' %>>Minggu ini</option>
                       <option value="last_7_days" <%= selectedFilters.period === 'last_7_days' ? 'selected' : '' %>>7 hari terakhir</option>
                       <option value="this_month" <%= selectedFilters.period === 'this_month' ? 'selected' : '' %>>Bulan ini</option>
                       <option value="custom" <%= selectedFilters.period === 'custom' ? 'selected' : '' %>>Custom Tanggal</option>
@@ -286,6 +288,72 @@
 
           <!-- Section 2: Analisis Wilayah -->
           <section id="analisis-wilayah" class="supervisor-section app-anchor-section d-none" aria-hidden="true">
+            <!-- Filter Bar Analisis Wilayah: Hari Ini, Minggu Ini, Bulan Ini, Custom -->
+            <div class="card app-card mb-3">
+              <div class="card-body py-2 px-3">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-calendar3 text-primary"></i>
+                    <strong class="text-dark small fw-semibold">Rentang Waktu:</strong>
+                    <span class="badge text-bg-light border text-secondary font-monospace" style="font-size: 0.72rem;">
+                      <%= activePeriodLabel %><%= showCustomRange ? ` (${selectedFilters.startDate} s/d ${selectedFilters.endDate})` : '' %>
+                    </span>
+                  </div>
+                  <div class="d-flex align-items-center flex-wrap gap-2">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Filter Periode Analisis Wilayah">
+                      <a href="/dashboard/supervisor?period=today#analisis-wilayah" class="btn btn-outline-secondary <%= selectedFilters.period === 'today' ? 'active fw-semibold' : '' %>">
+                        Hari Ini
+                      </a>
+                      <a href="/dashboard/supervisor?period=this_week#analisis-wilayah" class="btn btn-outline-secondary <%= (selectedFilters.period === 'this_week' || selectedFilters.period === 'last_7_days') ? 'active fw-semibold' : '' %>">
+                        Minggu Ini
+                      </a>
+                      <a href="/dashboard/supervisor?period=this_month#analisis-wilayah" class="btn btn-outline-secondary <%= selectedFilters.period === 'this_month' ? 'active fw-semibold' : '' %>">
+                        Bulan Ini
+                      </a>
+                      <button type="button" class="btn btn-outline-secondary <%= selectedFilters.period === 'custom' ? 'active fw-semibold' : '' %>" data-bs-toggle="collapse" data-bs-target="#customDateFilterCollapseWilayah" aria-expanded="<%= selectedFilters.period === 'custom' ? 'true' : 'false' %>">
+                        <i class="bi bi-calendar-range me-1"></i>Custom
+                      </button>
+                    </div>
+                    <% if (selectedFilters.period && selectedFilters.period !== 'all') { %>
+                      <a href="/dashboard/supervisor?period=all#analisis-wilayah" class="btn btn-sm btn-outline-secondary py-1 px-2" title="Tampilkan Semua Periode" style="font-size: 0.75rem;">
+                        <i class="bi bi-arrow-counterclockwise me-1"></i>Semua
+                      </a>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Collapse Panel untuk Filter Tanggal Custom -->
+              <div class="collapse <%= selectedFilters.period === 'custom' ? 'show' : '' %> bg-light border-top px-3 py-2" id="customDateFilterCollapseWilayah">
+                <form action="/dashboard/supervisor#analisis-wilayah" method="GET" class="row g-2 align-items-center" id="customPeriodFormWilayah">
+                  <input type="hidden" name="period" value="custom">
+                  <% if (selectedFilters.status && selectedFilters.status !== 'all') { %>
+                    <input type="hidden" name="status" value="<%= selectedFilters.status %>">
+                  <% } %>
+                  <div class="col-auto">
+                    <label for="startDateInputWilayah" class="col-form-label col-form-label-sm fw-medium text-secondary">Mulai:</label>
+                  </div>
+                  <div class="col-auto">
+                    <input type="date" id="startDateInputWilayah" name="startDate" class="form-control form-control-sm" value="<%= selectedFilters.startDate || '' %>" required>
+                  </div>
+                  <div class="col-auto">
+                    <label for="endDateInputWilayah" class="col-form-label col-form-label-sm fw-medium text-secondary">Sampai:</label>
+                  </div>
+                  <div class="col-auto">
+                    <input type="date" id="endDateInputWilayah" name="endDate" class="form-control form-control-sm" value="<%= selectedFilters.endDate || '' %>" required>
+                  </div>
+                  <div class="col-auto d-flex gap-2">
+                    <button type="submit" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
+                      <i class="bi bi-funnel-fill"></i>Terapkan
+                    </button>
+                    <a href="/dashboard/supervisor?period=all#analisis-wilayah" class="btn btn-sm btn-outline-secondary">
+                      Batal
+                    </a>
+                  </div>
+                </form>
+              </div>
+            </div>
+
             <div class="row g-3">
               <div class="col-12 col-xl-5">
                 <div class="card app-card h-100">
@@ -756,6 +824,6 @@
       window.SUPERVISOR_DASHBOARD_FILTERS = parseJsonPayload('supervisor-dashboard-filters');
     })();
   </script>
-  <script src="/js/supervisor-dashboard.js?v=eksekutor-table-1"></script>
+  <script src="/js/supervisor-dashboard.js?v=analisis-wilayah-filter-1"></script>
 </body>
 </html>

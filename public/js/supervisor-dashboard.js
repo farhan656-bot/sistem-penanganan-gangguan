@@ -1130,9 +1130,32 @@
     render();
   }
 
+  function initAnalisisWilayahFilterUX() {
+    var form = document.getElementById('customPeriodFormWilayah');
+    if (!form) return;
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var period = (form.querySelector('[name="period"]') || {}).value || 'custom';
+      var start = (form.querySelector('[name="startDate"]') || {}).value || '';
+      var end = (form.querySelector('[name="endDate"]') || {}).value || '';
+      var statusInput = form.querySelector('[name="status"]');
+      var status = statusInput ? statusInput.value : '';
+
+      var params = new URLSearchParams();
+      params.set('period', period);
+      if (start) params.set('startDate', start);
+      if (end) params.set('endDate', end);
+      if (status && status !== 'all') params.set('status', status);
+
+      window.location.href = '/dashboard/supervisor?' + params.toString() + '#analisis-wilayah';
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     initFilterFormUX();
     initSupervisorTabsUX();
+    initAnalisisWilayahFilterUX();
     initEksekutorSearchUX();
     initAttentionTicketsTableUX();
     initRegionSwitchTableUX();

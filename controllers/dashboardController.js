@@ -180,7 +180,7 @@ function formatDateISO(value) {
 }
 
 function normalizePeriod(value) {
-  const allowed = ['all', 'today', 'last_7_days', 'this_month', 'custom'];
+  const allowed = ['all', 'today', 'last_7_days', 'this_week', 'this_month', 'custom'];
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : 'all';
   return allowed.includes(normalized) ? normalized : 'all';
 }
@@ -195,7 +195,7 @@ function buildReportDateRange(period, startDate, endDate) {
     };
   }
 
-  if (period === 'last_7_days') {
+  if (period === 'last_7_days' || period === 'this_week') {
     const start = startOfDay(new Date(now));
     start.setDate(start.getDate() - 6);
     return {
